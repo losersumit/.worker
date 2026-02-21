@@ -65,7 +65,7 @@ async function resolveMessageFromLink(client, messageLink) {
     const parts = messageLink.split('/');
     const messageId = parts.pop();
     const channelId = parts.pop();
-    
+
     // Validate IDs
     if (!messageId || !channelId) return null;
 
@@ -83,10 +83,8 @@ async function resolveMessageFromLink(client, messageLink) {
 
     return {
       content: message.content,
-      // ❌ OLD CODE: files: message.attachments.map(a => a.url)
-      
-      // ✅ NEW CODE: Forward the attachments directly
-      files: Array.from(message.attachments.values())
+      // Pass the attachment URLs directly rather than internal Discord.js Attachment objects
+      files: message.attachments.map(a => a.url)
     };
   } catch (error) {
     console.error('Error resolving message from link:', error);
@@ -94,4 +92,4 @@ async function resolveMessageFromLink(client, messageLink) {
   }
 }
 
-module.exports = { resolveAttachmentFromLink, resolveMessageFromLink };
+export { resolveAttachmentFromLink, resolveMessageFromLink };

@@ -1,26 +1,23 @@
 {
-  "name": "manager",
+  "name": "manager-bot",
   "version": "1.0.0",
-  "description": "Discord moderation + FAQ/chat bot with Groq key failover",
+  "description": "Unified Discord bot for moderation, FAQ/chat, and economy",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"
   },
   "author": "Friday | Cortex Realm",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/losersumit/manager.git"
-  },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.3",
     "axios": "^1.13.2",
     "discord.js": "^14.25.1",
-    "dotenv": "^16.6.1"
+    "dotenv": "^16.6.1",
+    "node-schedule": "^2.1.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
-  },
-  "type": "module"
+  }
 }

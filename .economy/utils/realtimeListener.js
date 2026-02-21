@@ -101,5 +101,5 @@ async function updateChannelName(client, guildId, channelId, guildIncome) {
   }
 }
 
-module.exports = { setupGuildIncomeListener, updateChannelName };
+export { setupGuildIncomeListener, updateChannelName };
 

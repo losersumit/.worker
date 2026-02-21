@@ -1,6 +1,7 @@
-const { trackTransaction } = require('../utils/economyTracker');
+import { EmbedBuilder } from 'discord.js';
+import { trackTransaction } from '../utils/economyTracker.js';
 
-module.exports = {
+export default {
   name: 'donate',
   description: 'Donate money to the NMC company',
   async execute(message, args, client) {
@@ -98,7 +99,6 @@ module.exports = {
       const results = await Promise.all(updatePromises);
       const newGuildIncome = results[1] || 'Updated'; // Get result from guild update promise
 
-      const { EmbedBuilder } = require('discord.js');
 
       const embed = new EmbedBuilder()
         .setColor(0x2ECC71)

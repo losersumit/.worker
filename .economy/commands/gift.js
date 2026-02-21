@@ -1,6 +1,6 @@
-const { trackTransaction } = require('../utils/economyTracker');
+import { trackTransaction } from '../utils/economyTracker.js';
 
-module.exports = {
+export default {
     name: 'gift',
     description: 'Gift money from company account to a player (Boss only)',
     async execute(message, args, client) {

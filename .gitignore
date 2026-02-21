@@ -1,4 +1,4 @@
-.moderation/node_modules/
+.moderationnode_modules/
 .moderation/.env
 .moderation/.env.*
 .moderation/data/
@@ -23,3 +23,9 @@
 .economy/.DS_Store
 .economy/dist/
 .economy/build/
+
+# Top Level
+node_modules/
+.env
+.DS_Store
+*.log

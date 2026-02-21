@@ -1,7 +1,7 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, EmbedBuilder } = require('discord.js');
-const { trackTransaction } = require('../utils/economyTracker');
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, EmbedBuilder } from 'discord.js';
+import { trackTransaction } from '../utils/economyTracker.js';
 
-module.exports = {
+export default {
   name: 'cf',
   description: 'Challenge another player or the Company (NMC) to a coin flip',
   async execute(message, args, client) {

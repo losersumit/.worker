@@ -34,4 +34,4 @@ async function initializeTables(supabase) {
   }
 }
 
-module.exports = { initializeTables };
+export { initializeTables };

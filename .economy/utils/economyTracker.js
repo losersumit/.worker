@@ -125,4 +125,4 @@ async function getPlayerEconomyData(supabase, playerId) {
   }
 }
 
-module.exports = { trackTransaction, getPlayerEconomyData };
+export { trackTransaction, getPlayerEconomyData };

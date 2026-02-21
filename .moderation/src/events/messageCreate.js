@@ -14,6 +14,31 @@ export default {
         // Ignore messages from bots (including itself)
         if (message.author.bot) return;
 
+        // Hook for legacy economy commands (prefix '?')
+        if (message.content.startsWith('?')) {
+            // Check if message is from the economy channel
+            if (process.env.CHANNEL_ID && message.channelId !== process.env.CHANNEL_ID) {
+                return message.reply('Economy commands can only be used in the designated economy channel!')
+                    .catch(err => console.log(`Could not reply to message (probably deleted): ${err.message}`));
+            }
+
+            const args = message.content.slice(1).trim().split(/ +/);
+            const commandName = args.shift().toLowerCase();
+
+            const command = client.legacyCommands?.get(commandName);
+
+            if (command) {
+                try {
+                    await command.execute(message, args, client);
+                } catch (error) {
+                    console.error('Error executing legacy command:', error);
+                    message.reply('There was an error executing that command!').catch(() => { });
+                }
+                // Stop further processing (like moderation or chat) for economy commands
+                return;
+            }
+        }
+
         // Level Scanning (Job Logs)
         await handleLevelScanning(message);
         const jobLogChannelId = process.env.JOB_LOG_CHANNEL_ID;

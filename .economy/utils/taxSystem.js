@@ -3,7 +3,7 @@
  * Runs once per day at 12:00 AM server time
  */
 
-const { trackTransaction } = require('./economyTracker');
+import { trackTransaction } from './economyTracker.js';
 
 async function applyDailyTax(client) {
   try {
@@ -104,4 +104,4 @@ async function applyDailyTax(client) {
   }
 }
 
-module.exports = { applyDailyTax };
+export { applyDailyTax };

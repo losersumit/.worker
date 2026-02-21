@@ -1,7 +1,7 @@
-const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ComponentType } = require('discord.js');
-const { resolveMessageFromLink } = require('../utils/discordUtils');
+import { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ComponentType } from 'discord.js';
+import { resolveMessageFromLink } from '../utils/discordUtils.js';
 
-module.exports = {
+export default {
     name: 'my',
     description: 'Check your personal items (skins, etc.)',
     async execute(message, args, client) {

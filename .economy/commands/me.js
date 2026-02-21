@@ -1,6 +1,6 @@
-const { getPlayerEconomyData } = require('../utils/economyTracker');
+import { getPlayerEconomyData } from '../utils/economyTracker.js';
 
-module.exports = {
+export default {
   name: 'me',
   description: 'Shows your economy stats',
   async execute(message, args, client) {

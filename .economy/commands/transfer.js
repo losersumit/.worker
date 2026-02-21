@@ -1,6 +1,7 @@
-const { trackTransaction } = require('../utils/economyTracker');
+import { EmbedBuilder } from 'discord.js';
+import { trackTransaction } from '../utils/economyTracker.js';
 
-module.exports = {
+export default {
   name: 'transfer',
   description: 'Transfer money to another player',
   async execute(message, args, client) {
@@ -82,7 +83,6 @@ module.exports = {
 
       await Promise.all(updatePromises);
 
-      const { EmbedBuilder } = require('discord.js');
 
       const embed = new EmbedBuilder()
         .setColor(0x3498DB)
