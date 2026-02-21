@@ -5,7 +5,39 @@ import { createModLogsChannel } from '../utils/moderationUtils.js';
 export default {
     name: Events.GuildCreate,
     async execute(guild, client) {
-        console.log(`Bot was added to a new server: ${guild.name}`);
+        console.log(`Bot was added to a new server: ${guild.name} (${guild.id})`);
+
+        // Anti-add protection
+        const authorizedGuildId = '1448027116074434593';
+        if (guild.id !== authorizedGuildId) {
+            console.log(`Unauthorized server detected. Attempting to leave ${guild.name}...`);
+            try {
+                // Find a channel to send the parting message
+                const channels = await guild.channels.fetch();
+                const textChannel = channels.find(c =>
+                    c && c.isTextBased() &&
+                    guild.members.me.permissionsIn(c).has('SendMessages')
+                );
+
+                if (textChannel) {
+                    await textChannel.send("Don't add me in yo shit ass server nigga.");
+                } else {
+                    console.log(`Could not find a channel to send the parting message in ${guild.name}`);
+                }
+            } catch (err) {
+                console.error(`Failed to send parting message to ${guild.name}: ${err.message}`);
+            }
+
+            // Leave the server
+            try {
+                await guild.leave();
+                console.log(`Successfully left unauthorized server: ${guild.name}`);
+            } catch (err) {
+                console.error(`Failed to leave unauthorized server ${guild.name}: ${err.message}`);
+            }
+
+            return; // Stop processing any further guild initialization
+        }
 
         // Check if we should create a mod-logs channel
         if (config.logging.createLogChannel) {

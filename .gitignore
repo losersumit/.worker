@@ -13,6 +13,7 @@ scripts/verify_rag.js
 scripts/sync.js
 scripts/update_buttons.js
 scripts/list_servers.js
+scripts/leave_server.js
 .moderation/faq.txt
 
 .economy/node_modules/
