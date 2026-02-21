@@ -1,0 +1,16 @@
+node_modules/
+.env
+.env.*
+data/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+scripts/upload.js
+scripts/check_groq_keys.js
+scripts/scan_levels.js
+scripts/unmute.js
+scripts/verify_rag.js
+scripts/sync.js
+scripts/upload.js
+scripts/update_buttons.js
+faq.txt
