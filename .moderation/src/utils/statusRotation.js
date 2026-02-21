@@ -92,7 +92,7 @@ export function setupStatusRotation(client) {
  */
 function updateStatus(client, status) {
     client.user.setActivity(status.text, { type: status.type });
-    if (config.logging.consoleLog) {
-        console.log(`Status updated: ${status.text} (${ActivityType[status.type]})`);
-    }
+    // if (config.logging.consoleLog) {
+    //     console.log(`Status updated: ${status.text} (${ActivityType[status.type]})`);
+    // }
 }

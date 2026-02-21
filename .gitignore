@@ -1,18 +1,18 @@
-.moderationnode_modules/
+.moderation/node_modules/
 .moderation/.env
 .moderation/.env.*
 .moderation/data/
 .moderation/npm-debug.log*
 .moderation/yarn-debug.log*
 .moderation/pnpm-debug.log*
-.moderation/scripts/upload.js
-.moderation/scripts/check_groq_keys.js
-.moderation/scripts/scan_levels.js
-.moderation/scripts/unmute.js
-.moderation/scripts/verify_rag.js
-.moderation/scripts/sync.js
-.moderation/scripts/upload.js
-.moderation/scripts/update_buttons.js
+scripts/upload.js
+scripts/check_groq_keys.js
+scripts/scan_levels.js
+scripts/unmute.js
+scripts/verify_rag.js
+scripts/sync.js
+scripts/update_buttons.js
+scripts/list_servers.js
 .moderation/faq.txt
 
 .economy/node_modules/
