@@ -53,6 +53,15 @@ async function callGroqChat(messages) {
  * @param {Client} client - The Discord client
  */
 export async function handleChat(message, client) {
+    // Check if channel is ignored for chat
+    const ignoredChannels = process.env.IGNORED_CHAT_CHANNELS
+        ? process.env.IGNORED_CHAT_CHANNELS.split(',').map(id => id.trim())
+        : [];
+
+    if (ignoredChannels.includes(message.channel.id)) {
+        return; // Ignore chat in this channel
+    }
+
     const mentioned = message.mentions.has(client.user);
     let repliedToBot = false;
 
@@ -75,16 +84,21 @@ export async function handleChat(message, client) {
             .replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '')
             .trim() || 'Hello';
 
+    // Check for images
+    let imageUrl = null;
+    if (message.attachments.size > 0) {
+        const attachment = message.attachments.first();
+        if (attachment.contentType && attachment.contentType.startsWith('image/')) {
+            imageUrl = attachment.url;
+        }
+    }
+
     // 1) Try FAQ first (RAG)
     let faqContext = '';
     try {
         if (typeof findFaqAnswer === 'function') {
             const faqResult = await findFaqAnswer(prompt);
-            // faqResult should be { title, content, score } or just content string depending on implementation
-            // The current findFaqAnswer returns just the content string if successful
             if (faqResult) {
-                // RAG: We found a relevant FAQ. We don't reply directly.
-                // Instead we feed it to the AI.
                 console.log(`[RAG] Found context: ${faqResult.slice(0, 50)}...`);
                 faqContext = `
  RELEVANT FAQ DOCUMENTATION:
@@ -106,16 +120,55 @@ export async function handleChat(message, client) {
     // 2) Groq chat (with RAG context if available)
     await message.channel.sendTyping();
 
-    // Inject RAG context into system prompt or as a preceding system message
-    const messages = buildChatMessages(history, prompt);
+    // Prepare messages
+    let messages = [];
+    messages.push({ role: 'system', content: SYSTEM_PROMPT });
     if (faqContext) {
-        // Insert RAG instructions right after the main system prompt
-        messages.splice(1, 0, { role: 'system', content: faqContext });
+        messages.push({ role: 'system', content: faqContext });
     }
 
-    const replyText =
-        (await callGroqChat(messages)) ||
-        "Sorry, I couldn't generate a reply.";
+    // Add history (text only for context)
+    for (const h of history) {
+        messages.push({ role: h.role, content: h.text });
+    }
+
+    // Determine model to use
+    let modelToUse = CHAT_MODEL;
+
+    // Build the current user message
+    if (imageUrl) {
+        // Multi-modal format
+        messages.push({
+            role: 'user',
+            content: [
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: imageUrl } }
+            ]
+        });
+
+        // Import config to get the vision model
+        const { default: config } = await import('../config.js');
+        modelToUse = config.ai.visionModel || "llama-3.2-11b-vision-preview";
+        console.log(`[Chat] Using Vision Model: ${modelToUse} for image.`);
+    } else {
+        // Standard text format
+        messages.push({ role: 'user', content: prompt });
+    }
+
+    // Call Groq
+    let replyText;
+    try {
+        const data = await groqChatCompletion({
+            model: modelToUse,
+            messages,
+            temperature: CHAT_TEMPERATURE,
+            max_tokens: CHAT_MAX_TOKENS
+        });
+        replyText = data?.choices?.[0]?.message?.content?.trim() || "Sorry, I couldn't generate a reply.";
+    } catch (error) {
+        console.error('Chat error:', error);
+        replyText = "I encountered an error while trying to think of a response.";
+    }
 
     await message.reply(replyText);
 
