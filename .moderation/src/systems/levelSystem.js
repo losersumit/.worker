@@ -113,6 +113,23 @@ export async function processLevelScreenshot(message) {
     if (message.author.bot) return;
     if (message.attachments.size === 0) return;
 
+    const enlistedRoleId = process.env.ENLISTED_ROLE_ID;
+    if (enlistedRoleId) {
+        let member = message.member;
+        if (!member) {
+            try {
+                member = await message.guild.members.fetch(message.author.id);
+            } catch (err) {
+                console.error(`Error fetching member for ENLISTED role check: ${err.message}`);
+                return;
+            }
+        }
+        if (!member || !member.roles.cache.has(enlistedRoleId)) {
+            // Silently ignore screenshot if user does not have the ENLISTED role
+            return;
+        }
+    }
+
     const targetImage = message.attachments.find(a => a.contentType && a.contentType.startsWith('image/'));
     if (!targetImage) return;
 
