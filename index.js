@@ -6,7 +6,6 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 // Utilities from economy
-import { initializeTables } from './.economy/utils/database.js';
 import { setupGuildIncomeListener } from './.economy/utils/realtimeListener.js';
 import { applyDailyTax } from './.economy/utils/taxSystem.js';
 import schedule from 'node-schedule';
@@ -81,7 +80,6 @@ client.once('ready', async () => {
     console.log(`✅ Manager Bot logged in as ${client.user.tag}`);
 
     // Economy Init
-    await initializeTables(supabase);
 
     if (process.env.GUILD_INCOME_CHANNEL_ID) {
         console.log(`[REALTIME] Initializing guild income channel listener...`);

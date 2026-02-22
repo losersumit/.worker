@@ -16,10 +16,8 @@ export default {
 
         // Hook for legacy economy commands (prefix '?')
         if (message.content.startsWith('?')) {
-            // Check if message is from the economy channel
             if (process.env.CHANNEL_ID && message.channelId !== process.env.CHANNEL_ID) {
-                return message.reply('Economy commands can only be used in the designated economy channel!')
-                    .catch(err => console.log(`Could not reply to message (probably deleted): ${err.message}`));
+                return;
             }
 
             const args = message.content.slice(1).trim().split(/ +/);
