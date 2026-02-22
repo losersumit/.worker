@@ -3,6 +3,7 @@ import config from '../config.js';
 import { supabase } from '../clients/supabase.js';
 import { trackTransaction } from '../utils/economyUtils.js';
 import { resolveMessageFromLink } from '../utils/discordUtils.js';
+import { handleEnlistmentApplication } from '../features/enlistmentApp.js';
 
 export default {
     name: Events.InteractionCreate,
@@ -47,12 +48,37 @@ export default {
             if (interaction.customId.startsWith('buy_skin_')) {
                 console.log(`[Button] Identified as Skin Purchase. Handling...`);
                 await handleBuySkin(interaction, client);
+            } else if (interaction.customId === 'assign_ping_role') {
+                console.log(`[Button] Identified as Ping Role Assignment.`);
+                await handlePingRole(interaction);
+            } else if (interaction.customId === 'open_application') {
+                console.log(`[Button] Identified as Enlistment Application.`);
+                await handleEnlistmentApplication(interaction);
             } else {
                 console.log(`[Button] Unknown or handled elsewhere: ${interaction.customId}`);
             }
         }
     },
 };
+
+async function handlePingRole(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+        const pingRoleId = '1448226345887731823';
+        const member = interaction.member;
+
+        if (member.roles.cache.has(pingRoleId)) {
+            await member.roles.remove(pingRoleId);
+            await interaction.editReply(`✅ Removed the <@&${pingRoleId}> role from you.`);
+        } else {
+            await member.roles.add(pingRoleId);
+            await interaction.editReply(`✅ Assigned the <@&${pingRoleId}> role to you.`);
+        }
+    } catch (err) {
+        console.error('Error toggling ping role:', err);
+        await interaction.editReply('❌ Failed to toggle the role. Please check my permissions.');
+    }
+}
 
 async function handleBuySkin(interaction, client) {
     const skinCode = interaction.customId.replace('buy_skin_', '');
