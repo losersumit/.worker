@@ -12,7 +12,7 @@ import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } 
 import { getUserWarnings, resetWarnings, getServerStatistics } from '../systems/storage.js'; // Updated import
 import registry from "./register.js";
 import modhelp from "./modhelp.js";
-import setupshop from "./setupshop.js";
+import setwh from "./setwh.js";
 
 
 export const commands = [
@@ -188,7 +188,7 @@ export const commands = [
 
     registry,
     modhelp,
-    setupshop
+    setwh
 ];
 
 // Helper function to format dates
