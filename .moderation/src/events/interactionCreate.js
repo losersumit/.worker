@@ -142,10 +142,9 @@ async function handleBuySkin(interaction, client) {
         if (skin.roles_allowed && skin.roles_allowed.length > 0) {
             console.log(`[BuySkin] Skin requires specific roles:`, skin.roles_allowed);
 
-            // Flatten in case Supabase returns `["id1,id2"]` or `["id1", "id2"]`
-            const requiredRoleIds = skin.roles_allowed
-                .flatMap(roleId => typeof roleId === 'string' ? roleId.split(',').map(id => id.trim()) : [roleId])
-                .filter(Boolean); // Remove empty strings
+            // Extract only the digits to avoid issues with brackets, quotes, or JSON string formats
+            const rolesStr = typeof skin.roles_allowed === 'string' ? skin.roles_allowed : JSON.stringify(skin.roles_allowed);
+            const requiredRoleIds = rolesStr.match(/\d+/g) || [];
 
             let hasAllRequiredRoles = true;
             for (const id of requiredRoleIds) {
