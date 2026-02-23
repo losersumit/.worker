@@ -138,6 +138,30 @@ async function handleBuySkin(interaction, client) {
         }
         console.log(`[BuySkin] Skin found: ${skin.name} | Price: ${skin.price}`);
 
+        // 4.5 Check Specific Skin Roles
+        if (skin.roles_allowed && skin.roles_allowed.length > 0) {
+            console.log(`[BuySkin] Skin requires specific roles:`, skin.roles_allowed);
+            let hasRequiredRole = false;
+
+            for (const roleId of skin.roles_allowed) {
+                // Roles might be comma separated strings inside the array depending on how Supabase gave it to us
+                const ids = typeof roleId === 'string' ? roleId.split(',').map(id => id.trim()) : [roleId];
+
+                for (const id of ids) {
+                    if (interaction.member.roles.cache.has(id)) {
+                        hasRequiredRole = true;
+                        break;
+                    }
+                }
+                if (hasRequiredRole) break;
+            }
+
+            if (!hasRequiredRole) {
+                console.log(`[BuySkin] User does not have the required roles for the skin.`);
+                return interaction.editReply(`❌ You don't have the required role to purchase the **${skin.name}** skin.`);
+            }
+        }
+
         // 5. Check if already owned or base version owned
         console.log(`[BuySkin] Checking ownership...`);
         const { data: ownedSkins } = await supabase
