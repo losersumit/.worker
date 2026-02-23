@@ -27,10 +27,10 @@ export default {
                 }
 
                 // 2. Fetch Skins
-                // Added file_path to the select query so we can send it later
+                // Added file_path and roles_allowed to the select query so we can send it and verify later
                 const { data: ownedSkins, error: skinsError } = await client.supabase
                     .from('player_skins')
-                    .select(`skin_code, skins ( name, file_path )`)
+                    .select(`skin_code, skins ( name, file_path, roles_allowed )`)
                     .eq('player_id', player.id);
 
                 if (skinsError) {
@@ -98,6 +98,33 @@ export default {
                     try {
                         // Send logic (copied/adapted from buy logic)
                         const skin = selectedSkin.skins;
+
+                        // 3.5 Check Roles
+                        // Enlisted Check (Hardcoded base check)
+                        const startRole = '1463184412937289973';
+                        if (!interaction.member.roles.cache.has(startRole)) {
+                            return interaction.editReply('❌ You are not an Enlisted Driver, ask Commander to enlist you.');
+                        }
+
+                        // Specific Roles Check (from DB array)
+                        if (skin.roles_allowed && skin.roles_allowed.length > 0) {
+                            const requiredRoleIds = skin.roles_allowed
+                                .flatMap(roleId => typeof roleId === 'string' ? roleId.split(',').map(id => id.trim()) : [roleId])
+                                .filter(Boolean);
+
+                            let hasAllRequiredRoles = true;
+                            for (const id of requiredRoleIds) {
+                                if (!interaction.member.roles.cache.has(id)) {
+                                    hasAllRequiredRoles = false;
+                                    break;
+                                }
+                            }
+
+                            if (!hasAllRequiredRoles) {
+                                return interaction.editReply(`❌ You lost or do not have all the required roles to use the **${skin.name}** skin.`);
+                            }
+                        }
+
                         const dm = await interaction.user.createDM();
 
                         // Handle multiple links separated by comma

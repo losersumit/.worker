@@ -141,24 +141,24 @@ async function handleBuySkin(interaction, client) {
         // 4.5 Check Specific Skin Roles
         if (skin.roles_allowed && skin.roles_allowed.length > 0) {
             console.log(`[BuySkin] Skin requires specific roles:`, skin.roles_allowed);
-            let hasRequiredRole = false;
 
-            for (const roleId of skin.roles_allowed) {
-                // Roles might be comma separated strings inside the array depending on how Supabase gave it to us
-                const ids = typeof roleId === 'string' ? roleId.split(',').map(id => id.trim()) : [roleId];
+            // Flatten in case Supabase returns `["id1,id2"]` or `["id1", "id2"]`
+            const requiredRoleIds = skin.roles_allowed
+                .flatMap(roleId => typeof roleId === 'string' ? roleId.split(',').map(id => id.trim()) : [roleId])
+                .filter(Boolean); // Remove empty strings
 
-                for (const id of ids) {
-                    if (interaction.member.roles.cache.has(id)) {
-                        hasRequiredRole = true;
-                        break;
-                    }
+            let hasAllRequiredRoles = true;
+            for (const id of requiredRoleIds) {
+                if (!interaction.member.roles.cache.has(id)) {
+                    hasAllRequiredRoles = false;
+                    console.log(`[BuySkin] Missing required role: ${id}`);
+                    break;
                 }
-                if (hasRequiredRole) break;
             }
 
-            if (!hasRequiredRole) {
-                console.log(`[BuySkin] User does not have the required roles for the skin.`);
-                return interaction.editReply(`❌ You don't have the required role to purchase the **${skin.name}** skin.`);
+            if (!hasAllRequiredRoles) {
+                console.log(`[BuySkin] User does not have ALL the required roles for the skin.`);
+                return interaction.editReply(`❌ You don't have all the required roles to purchase the **${skin.name}** skin.`);
             }
         }
 
