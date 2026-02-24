@@ -213,9 +213,7 @@ export default {
                         );
 
                         const newEntry = `<@${targetUser.id}> — \`${registrationNumber}\``;
-<<<<<<< ours
-                        let replacedExistingEntry = false;
-=======
+
                         const hasExistingEntry = components.some(component =>
                             component?.type === 17 &&
                             Array.isArray(component.components) &&
@@ -228,7 +226,6 @@ export default {
 
                         let entryUpdated = false;
                         let appendTargetSet = false;
->>>>>>> theirs
 
                         const updatedComponents = components.map(component => {
                             if (component?.type !== 17 || !Array.isArray(component.components)) {
@@ -240,11 +237,6 @@ export default {
                                     return inner;
                                 }
 
-<<<<<<< ours
-                                if (inner.content.includes(`<@${targetUser.id}>`)) {
-                                    replacedExistingEntry = true;
-                                    return { ...inner, content: newEntry };
-=======
                                 if (hasExistingEntry && inner.content.includes(`<@${targetUser.id}>`)) {
                                     entryUpdated = true;
                                     const lines = inner.content.split('\n').map(line =>
@@ -256,7 +248,6 @@ export default {
                                 if (!hasExistingEntry && !appendTargetSet && !inner.content.trim().startsWith('#')) {
                                     appendTargetSet = true;
                                     return { ...inner, content: `${inner.content}\n${newEntry}` };
->>>>>>> theirs
                                 }
 
                                 return inner;
@@ -265,8 +256,8 @@ export default {
                             return { ...component, components: updatedInner };
                         });
 
-<<<<<<< ours
-                        if (!replacedExistingEntry) {
+                        // If neither an in-place update nor an append happened, push a new block
+                        if (!entryUpdated && !appendTargetSet) {
                             updatedComponents.push({
                                 type: 17,
                                 components: [
@@ -281,55 +272,46 @@ export default {
 
                         await webhook.editMessage(messageId, { components: updatedComponents });
                         embedMsg = "✅ Registry components updated.";
-=======
-                        if ((hasExistingEntry && !entryUpdated) || (!hasExistingEntry && !appendTargetSet)) {
-                            embedMsg = "⚠️ Registry text block not found for update.";
-                        } else {
-                            await webhook.editMessage(messageId, { components: updatedComponents });
-                            embedMsg = "✅ Registry components updated.";
-                        }
->>>>>>> theirs
                     } else {
                         embedMsg = "⚠️ Registry Embed not found (check config).";
                     }
+                } catch (err) {
+                    console.error("Embed update error:", err);
+                    embedMsg = "⚠️ Embed update failed.";
                 }
-            } catch (err) {
-                console.error("Embed update error:", err);
-                embedMsg = "⚠️ Embed update failed.";
-            }
 
-            // 7. Assign Enlisted Driver Role
-            let roleMsg = "";
-            try {
-                const ROLE_ID = '1463184412937289973';
-                const member = await interaction.guild.members.fetch(targetUser.id);
-                if (member) {
-                    await member.roles.add(ROLE_ID);
-                    roleMsg = "✅ Role assigned.";
-                } else {
-                    roleMsg = "⚠️ Member not found in guild.";
+                // 7. Assign Enlisted Driver Role
+                let roleMsg = "";
+                try {
+                    const ROLE_ID = '1463184412937289973';
+                    const member = await interaction.guild.members.fetch(targetUser.id);
+                    if (member) {
+                        await member.roles.add(ROLE_ID);
+                        roleMsg = "✅ Role assigned.";
+                    } else {
+                        roleMsg = "⚠️ Member not found in guild.";
+                    }
+                } catch (roleErr) {
+                    console.error("Role assignment error:", roleErr);
+                    roleMsg = "❌ Failed to assign role (Check Permissions).";
                 }
-            } catch (roleErr) {
-                console.error("Role assignment error:", roleErr);
-                roleMsg = "❌ Failed to assign role (Check Permissions).";
+
+                // Final Reply
+                const finalContent = `✅ **Registration Complete** for ${targetUser}\n` +
+                    `Guild: ${guildTag || 'None'} (${guildId})\n` +
+                    `Number: ${registrationNumber}\n` +
+                    `Tables:\n` +
+                    `> Players: ✅ Updated\n` +
+                    `> Stats: ${statsMsg}\n` +
+                    `> Economy: ${ecoMsg}\n` +
+                    `> Embed: ${embedMsg}\n` +
+                    `> Role: ${roleMsg}`;
+
+                return interaction.editReply({ content: finalContent });
+
+            } catch (error) {
+                console.error('Error in /register:', error);
+                return interaction.editReply({ content: `❌ An unexpected error occurred: ${error.message}` });
             }
-
-            // Final Reply
-            const finalContent = `✅ **Registration Complete** for ${targetUser}\n` +
-                `Guild: ${guildTag || 'None'} (${guildId})\n` +
-                `Number: ${registrationNumber}\n` +
-                `Tables:\n` +
-                `> Players: ✅ Updated\n` +
-                `> Stats: ${statsMsg}\n` +
-                `> Economy: ${ecoMsg}\n` +
-                `> Embed: ${embedMsg}\n` +
-                `> Role: ${roleMsg}`;
-
-            return interaction.editReply({ content: finalContent });
-
-        } catch (error) {
-            console.error('Error in /register:', error);
-            return interaction.editReply({ content: `❌ An unexpected error occurred: ${error.message}` });
         }
-    }
 };
