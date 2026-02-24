@@ -275,43 +275,44 @@ export default {
                     } else {
                         embedMsg = "⚠️ Registry Embed not found (check config).";
                     }
-                } catch (err) {
-                    console.error("Embed update error:", err);
-                    embedMsg = "⚠️ Embed update failed.";
-                }
-
-                // 7. Assign Enlisted Driver Role
-                let roleMsg = "";
-                try {
-                    const ROLE_ID = '1463184412937289973';
-                    const member = await interaction.guild.members.fetch(targetUser.id);
-                    if (member) {
-                        await member.roles.add(ROLE_ID);
-                        roleMsg = "✅ Role assigned.";
-                    } else {
-                        roleMsg = "⚠️ Member not found in guild.";
-                    }
-                } catch (roleErr) {
-                    console.error("Role assignment error:", roleErr);
-                    roleMsg = "❌ Failed to assign role (Check Permissions).";
-                }
-
-                // Final Reply
-                const finalContent = `✅ **Registration Complete** for ${targetUser}\n` +
-                    `Guild: ${guildTag || 'None'} (${guildId})\n` +
-                    `Number: ${registrationNumber}\n` +
-                    `Tables:\n` +
-                    `> Players: ✅ Updated\n` +
-                    `> Stats: ${statsMsg}\n` +
-                    `> Economy: ${ecoMsg}\n` +
-                    `> Embed: ${embedMsg}\n` +
-                    `> Role: ${roleMsg}`;
-
-                return interaction.editReply({ content: finalContent });
-
-            } catch (error) {
-                console.error('Error in /register:', error);
-                return interaction.editReply({ content: `❌ An unexpected error occurred: ${error.message}` });
+                } // end if (webhookUrl && messageId)
+            } catch (err) {
+                console.error("Embed update error:", err);
+                embedMsg = "⚠️ Embed update failed.";
             }
+
+            // 7. Assign Enlisted Driver Role
+            let roleMsg = "";
+            try {
+                const ROLE_ID = '1463184412937289973';
+                const member = await interaction.guild.members.fetch(targetUser.id);
+                if (member) {
+                    await member.roles.add(ROLE_ID);
+                    roleMsg = "✅ Role assigned.";
+                } else {
+                    roleMsg = "⚠️ Member not found in guild.";
+                }
+            } catch (roleErr) {
+                console.error("Role assignment error:", roleErr);
+                roleMsg = "❌ Failed to assign role (Check Permissions).";
+            }
+
+            // Final Reply
+            const finalContent = `✅ **Registration Complete** for ${targetUser}\n` +
+                `Guild: ${guildTag || 'None'} (${guildId})\n` +
+                `Number: ${registrationNumber}\n` +
+                `Tables:\n` +
+                `> Players: ✅ Updated\n` +
+                `> Stats: ${statsMsg}\n` +
+                `> Economy: ${ecoMsg}\n` +
+                `> Embed: ${embedMsg}\n` +
+                `> Role: ${roleMsg}`;
+
+            return interaction.editReply({ content: finalContent });
+
+        } catch (error) {
+            console.error('Error in /register:', error);
+            return interaction.editReply({ content: `❌ An unexpected error occurred: ${error.message}` });
         }
+    }
 };
