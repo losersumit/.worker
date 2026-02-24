@@ -213,18 +213,7 @@ export default {
                         );
 
                         const newEntry = `<@${targetUser.id}> — \`${registrationNumber}\``;
-                        const hasExistingEntry = components.some(component =>
-                            component?.type === 17 &&
-                            Array.isArray(component.components) &&
-                            component.components.some(inner =>
-                                inner?.type === 10 &&
-                                typeof inner.content === 'string' &&
-                                inner.content.includes(`<@${targetUser.id}>`)
-                            )
-                        );
-
-                        let entryUpdated = false;
-                        let appendTargetSet = false;
+                        let replacedExistingEntry = false;
 
                         const updatedComponents = components.map(component => {
                             if (component?.type !== 17 || !Array.isArray(component.components)) {
@@ -236,17 +225,9 @@ export default {
                                     return inner;
                                 }
 
-                                if (hasExistingEntry && inner.content.includes(`<@${targetUser.id}>`)) {
-                                    entryUpdated = true;
-                                    const lines = inner.content.split('\n').map(line =>
-                                        line.includes(`<@${targetUser.id}>`) ? newEntry : line
-                                    );
-                                    return { ...inner, content: lines.join('\n') };
-                                }
-
-                                if (!hasExistingEntry && !appendTargetSet && !inner.content.trim().startsWith('#')) {
-                                    appendTargetSet = true;
-                                    return { ...inner, content: `${inner.content}\n${newEntry}` };
+                                if (inner.content.includes(`<@${targetUser.id}>`)) {
+                                    replacedExistingEntry = true;
+                                    return { ...inner, content: newEntry };
                                 }
 
                                 return inner;
@@ -255,12 +236,21 @@ export default {
                             return { ...component, components: updatedInner };
                         });
 
-                        if ((hasExistingEntry && !entryUpdated) || (!hasExistingEntry && !appendTargetSet)) {
-                            embedMsg = "⚠️ Registry text block not found for update.";
-                        } else {
-                            await webhook.editMessage(messageId, { components: updatedComponents });
-                            embedMsg = "✅ Registry components updated.";
+                        if (!replacedExistingEntry) {
+                            updatedComponents.push({
+                                type: 17,
+                                components: [
+                                    {
+                                        type: 10,
+                                        content: newEntry
+                                    }
+                                ],
+                                accent_color: 196713
+                            });
                         }
+
+                        await webhook.editMessage(messageId, { components: updatedComponents });
+                        embedMsg = "✅ Registry components updated.";
                     } else {
                         embedMsg = "⚠️ Registry Embed not found (check config).";
                     }
