@@ -214,6 +214,7 @@ export default {
 
                         const newEntry = `<@${targetUser.id}> — \`${registrationNumber}\``;
 
+                        // Check if user already has an entry in any text block
                         const hasExistingEntry = components.some(component =>
                             component?.type === 17 &&
                             Array.isArray(component.components) &&
@@ -232,45 +233,47 @@ export default {
                                 return component;
                             }
 
-                            const updatedInner = component.components.map(inner => {
-                                if (inner?.type !== 10 || typeof inner.content !== 'string') {
-                                    return inner;
-                                }
-
-                                if (hasExistingEntry && inner.content.includes(`<@${targetUser.id}>`)) {
+                            // Update existing entry (line-by-line replace inside the text block)
+                            if (hasExistingEntry) {
+                                const updatedInner = component.components.map(inner => {
+                                    if (inner?.type !== 10 || typeof inner.content !== 'string') return inner;
+                                    if (!inner.content.includes(`<@${targetUser.id}>`)) return inner;
                                     entryUpdated = true;
                                     const lines = inner.content.split('\n').map(line =>
                                         line.includes(`<@${targetUser.id}>`) ? newEntry : line
                                     );
                                     return { ...inner, content: lines.join('\n') };
-                                }
+                                });
+                                return { ...component, components: updatedInner };
+                            }
 
-                                if (!hasExistingEntry && !appendTargetSet && !inner.content.trim().startsWith('#')) {
-                                    appendTargetSet = true;
+                            // Append to the entries container (identified by accent_color)
+                            if (!appendTargetSet && component.accent_color != null) {
+                                appendTargetSet = true;
+                                const updatedInner = component.components.map((inner, idx) => {
+                                    if (idx !== 0 || inner?.type !== 10 || typeof inner.content !== 'string') return inner;
                                     return { ...inner, content: `${inner.content}\n${newEntry}` };
-                                }
+                                });
+                                return { ...component, components: updatedInner };
+                            }
 
-                                return inner;
-                            });
-
-                            return { ...component, components: updatedInner };
+                            return component;
                         });
 
-                        // If neither an in-place update nor an append happened, push a new block
+                        // Fallback: no accent_color container found — push a new one
                         if (!entryUpdated && !appendTargetSet) {
                             updatedComponents.push({
                                 type: 17,
-                                components: [
-                                    {
-                                        type: 10,
-                                        content: newEntry
-                                    }
-                                ],
+                                components: [{ type: 10, content: newEntry }],
                                 accent_color: 196713
                             });
                         }
 
-                        await webhook.editMessage(messageId, { components: updatedComponents });
+                        // IS_COMPONENTS_V2 flag (32768) is required when editing V2 messages
+                        await webhook.editMessage(messageId, {
+                            components: updatedComponents,
+                            flags: 32768
+                        });
                         embedMsg = "✅ Registry components updated.";
                     } else {
                         embedMsg = "⚠️ Registry Embed not found (check config).";

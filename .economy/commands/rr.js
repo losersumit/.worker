@@ -134,7 +134,7 @@ export default {
 };
 
 async function startGame(client, message, players, amount, challengerDb, targetDb, isCompany) {
-    const gameMsg = await message.channel.send(`**Russian Roulette**\nLoading the chamber...`);
+    const gameMsg = await message.channel.send(`**Russian Roulette**\nLoading the chamber...\nhttps://media.tenor.com/x6dpuRtKHD4AAAAC/russian-roulette-gun.gif`);
 
     setTimeout(async () => {
         try {
@@ -252,7 +252,7 @@ async function handleLoss(client, message, players, loserIndex, amount, challeng
         try {
             const member = await message.guild.members.fetch(loser.id);
             if (member) {
-                if (member.bannable) {
+                if (member.moderatable) {
                     await member.timeout(timeoutDuration, 'Lost Russian Roulette');
                     message.channel.send(`🚫 ${loser} has been timed out for ${timeoutDuration / (60 * 1000)} minutes!`);
                 } else {
