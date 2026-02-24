@@ -165,7 +165,7 @@ export default {
                 }
             }
 
-            // 6. Update Embed (Original feature)
+            // 6. Update Registry Message (supports both embeds and component-based layouts)
             let embedMsg = "";
             try {
                 const webhookUrl = process.env.REGISTER_WEBHOOK_URL;
@@ -175,11 +175,12 @@ export default {
                 if (webhookUrl && messageId) {
                     const webhook = new WebhookClient({ url: webhookUrl });
                     let embed;
+                    let message;
 
                     if (channelId) {
                         try {
                             const channel = await interaction.guild.channels.fetch(channelId);
-                            const message = await channel.messages.fetch(messageId);
+                            message = await channel.messages.fetch(messageId);
                             embed = message.embeds[0];
                         } catch (e) {
                             console.error("Could not fetch original message via Bot for Embed Update:", e);
@@ -206,6 +207,50 @@ export default {
                         const newEmbed = EmbedBuilder.from(embed).setDescription(updatedLines.join('\n'));
                         await webhook.editMessage(messageId, { embeds: [newEmbed] });
                         embedMsg = "✅ Registry Embed updated.";
+                    } else if (message?.components?.length) {
+                        const components = message.components.map(component =>
+                            typeof component.toJSON === 'function' ? component.toJSON() : component
+                        );
+
+                        const newEntry = `<@${targetUser.id}> — \`${registrationNumber}\``;
+                        let replacedExistingEntry = false;
+
+                        const updatedComponents = components.map(component => {
+                            if (component?.type !== 17 || !Array.isArray(component.components)) {
+                                return component;
+                            }
+
+                            const updatedInner = component.components.map(inner => {
+                                if (inner?.type !== 10 || typeof inner.content !== 'string') {
+                                    return inner;
+                                }
+
+                                if (inner.content.includes(`<@${targetUser.id}>`)) {
+                                    replacedExistingEntry = true;
+                                    return { ...inner, content: newEntry };
+                                }
+
+                                return inner;
+                            });
+
+                            return { ...component, components: updatedInner };
+                        });
+
+                        if (!replacedExistingEntry) {
+                            updatedComponents.push({
+                                type: 17,
+                                components: [
+                                    {
+                                        type: 10,
+                                        content: newEntry
+                                    }
+                                ],
+                                accent_color: 196713
+                            });
+                        }
+
+                        await webhook.editMessage(messageId, { components: updatedComponents });
+                        embedMsg = "✅ Registry components updated.";
                     } else {
                         embedMsg = "⚠️ Registry Embed not found (check config).";
                     }
