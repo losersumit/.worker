@@ -13,6 +13,8 @@ import { getUserWarnings, resetWarnings, getServerStatistics } from '../systems/
 import registry from "./register.js";
 import modhelp from "./modhelp.js";
 import setwh from "./setwh.js";
+import addpartner from "./addpartner.js";
+import adddriver from "./adddriver.js";
 
 
 export const commands = [
@@ -188,7 +190,9 @@ export const commands = [
 
     registry,
     modhelp,
-    setwh
+    setwh,
+    addpartner,
+    adddriver
 ];
 
 // Helper function to format dates
