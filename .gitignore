@@ -14,6 +14,7 @@ scripts/sync.js
 scripts/update_buttons.js
 scripts/list_servers.js
 scripts/leave_server.js
+scripts/deleteMessage.js
 .moderation/faq.txt
 
 .economy/node_modules/
@@ -30,3 +31,4 @@ node_modules/
 .env
 .DS_Store
 *.log
+.page/
