@@ -15,6 +15,7 @@ import modhelp from "./modhelp.js";
 import setwh from "./setwh.js";
 import addpartner from "./addpartner.js";
 import adddriver from "./adddriver.js";
+import addmedia from "./addmedia.js";
 
 
 export const commands = [
@@ -192,7 +193,8 @@ export const commands = [
     modhelp,
     setwh,
     addpartner,
-    adddriver
+    adddriver,
+    addmedia
 ];
 
 // Helper function to format dates
