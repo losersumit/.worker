@@ -24,32 +24,31 @@ export default {
                     { name: 'Driver', value: 'driver' }
                 )
         )
-        .addAttachmentOption(opt =>
-            opt.setName('photo')
-                .setDescription('Profile photo to display on the website')
-                .setRequired(false)
-        )
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
+        // Role check – must have one of REGISTER_ALLOWED_ROLES or be an Administrator
+        const allowedRoles = (process.env.REGISTER_ALLOWED_ROLES || '')
+            .split(',').map(r => r.trim()).filter(Boolean);
+        const hasPermission = allowedRoles.some(id => interaction.member.roles.cache.has(id))
+            || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+        if (!hasPermission) {
+            return interaction.editReply('❌ You do not have permission to use this command.');
+        }
+
         const member = interaction.options.getMember('member');
         const user = interaction.options.getUser('member');
         const roleTitle = interaction.options.getString('role_title');
         const section = interaction.options.getString('section');
-        const photo = interaction.options.getAttachment('photo');
-
-        // Use provided photo or fall back to Discord avatar
-        const photoUrl = photo?.url || user.displayAvatarURL({ size: 512, extension: 'png' });
-
-        if (photo && !photo.contentType?.startsWith('image/')) {
-            return interaction.editReply('❌ Photo must be an image file.');
-        }
+        // Always use the member's Discord avatar (size 512, PNG)
+        const photoUrl = user.displayAvatarURL({ size: 512, extension: 'png' });
 
         const displayName = member?.displayName || user.username;
 
         const { error } = await supabase.from('website_members').insert([{
+            discord_id: user.id,
             display_name: displayName,
             role_title: roleTitle,
             photo_url: photoUrl,

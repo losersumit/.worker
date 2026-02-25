@@ -30,6 +30,15 @@ export default {
     async execute(interaction) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
+        // Role check – must have one of REGISTER_ALLOWED_ROLES or be an Administrator
+        const allowedRoles = (process.env.REGISTER_ALLOWED_ROLES || '')
+            .split(',').map(r => r.trim()).filter(Boolean);
+        const hasPermission = allowedRoles.some(id => interaction.member.roles.cache.has(id))
+            || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+        if (!hasPermission) {
+            return interaction.editReply('❌ You do not have permission to use this command.');
+        }
+
         const name = interaction.options.getString('name');
         const logo = interaction.options.getAttachment('logo');
         const background = interaction.options.getAttachment('background');

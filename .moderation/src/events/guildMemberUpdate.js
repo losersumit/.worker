@@ -10,40 +10,57 @@ export default {
         // Only act on our target guild
         if (newMember.guild.id !== TARGET_GUILD_ID) return;
 
+        // ─── 1. Enlisted role tracking ──────────────────────────
         const hadRole = oldMember.roles.cache.has(ENLISTED_ROLE_ID);
         const hasRole = newMember.roles.cache.has(ENLISTED_ROLE_ID);
 
-        // Only act if the enlisted role was added or removed
-        if (hadRole === hasRole) return;
+        if (hadRole !== hasRole) {
+            const action = hasRole ? 'added' : 'removed';
+            console.log(`[ENLISTED] Role ${action} for ${newMember.user.tag}. Updating Supabase...`);
 
-        const action = hasRole ? 'added' : 'removed';
-        console.log(`[ENLISTED] Role ${action} for ${newMember.user.tag}. Updating Supabase...`);
+            try {
+                await newMember.guild.members.fetch();
+                const enlistedCount = newMember.guild.members.cache.filter(
+                    m => m.roles.cache.has(ENLISTED_ROLE_ID)
+                ).size;
 
-        try {
-            // Count ALL members who currently have the enlisted role
-            const guild = newMember.guild;
+                const { error } = await supabase
+                    .from('approved_guilds')
+                    .update({ enlisted_drivers: enlistedCount })
+                    .eq('guild_id', TARGET_GUILD_ID);
 
-            // Fetch all members (cache should be populated via GuildMembers intent)
-            await guild.members.fetch();
-            const enlistedCount = guild.members.cache.filter(
-                m => m.roles.cache.has(ENLISTED_ROLE_ID)
-            ).size;
-
-            console.log(`[ENLISTED] Current enlisted count: ${enlistedCount}`);
-
-            // Update approved_guilds.enlisted_drivers
-            const { error } = await supabase
-                .from('approved_guilds')
-                .update({ enlisted_drivers: enlistedCount })
-                .eq('guild_id', TARGET_GUILD_ID);
-
-            if (error) {
-                console.error('[ENLISTED] ❌ Failed to update Supabase:', error.message);
-            } else {
-                console.log(`[ENLISTED] ✅ Updated enlisted_drivers to ${enlistedCount}`);
+                if (error) {
+                    console.error('[ENLISTED] ❌ Failed to update Supabase:', error.message);
+                } else {
+                    console.log(`[ENLISTED] ✅ Updated enlisted_drivers to ${enlistedCount}`);
+                }
+            } catch (err) {
+                console.error('[ENLISTED] ❌ Unexpected error:', err);
             }
-        } catch (err) {
-            console.error('[ENLISTED] ❌ Unexpected error:', err);
+        }
+
+        // ─── 2. Avatar change tracking ──────────────────────────
+        const oldAvatar = oldMember.user.avatar;
+        const newAvatar = newMember.user.avatar;
+
+        if (oldAvatar !== newAvatar) {
+            const newPhotoUrl = newMember.user.displayAvatarURL({ size: 512, extension: 'png' });
+            console.log(`[AVATAR] ${newMember.user.tag} changed avatar. Updating website_members...`);
+
+            try {
+                const { error } = await supabase
+                    .from('website_members')
+                    .update({ photo_url: newPhotoUrl })
+                    .eq('discord_id', newMember.user.id);
+
+                if (error) {
+                    console.error('[AVATAR] ❌ Failed to update photo_url:', error.message);
+                } else {
+                    console.log(`[AVATAR] ✅ Updated photo_url for ${newMember.user.tag}`);
+                }
+            } catch (err) {
+                console.error('[AVATAR] ❌ Unexpected error:', err);
+            }
         }
     },
 };
