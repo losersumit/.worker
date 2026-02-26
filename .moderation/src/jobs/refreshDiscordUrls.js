@@ -1,103 +1,76 @@
 /**
  * refreshDiscordUrls.js
- * Refreshes expiring Discord CDN attachment URLs every 12 hours.
+ * Refreshes Discord CDN attachment URLs by re-fetching the original messages.
  *
- * Discord attachment URLs expire after ~24 hours. This job:
- *  1. Reads all Discord CDN attachment URLs from media_gallery and partners
- *  2. Calls Discord's POST /attachments/refresh-urls endpoint in batches
- *  3. Updates the Supabase rows with the new fresh URLs
+ * Discord attachment URLs expire after ~24 hours.
+ * Since the message itself never expires, fetching it via the Discord API
+ * always returns a fresh, valid attachment URL.
+ *
+ * Runs every 23 hours (scheduled in index.js), covering the 24-hour window safely.
  */
 
-const DISCORD_ATTACHMENT_REGEX = /https:\/\/cdn\.discordapp\.com\/attachments\//;
-const BATCH_SIZE = 50; // Discord's max per request
+const VIDEO_EXTS = ['.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v'];
 
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {import('discord.js').Client} client
  */
-export async function refreshDiscordUrls(supabase) {
-    console.log('[URL-REFRESH] Starting Discord CDN URL refresh...');
-    const token = process.env.DISCORD_TOKEN;
-    if (!token) { console.error('[URL-REFRESH] No DISCORD_TOKEN in env'); return; }
+export async function refreshDiscordUrls(supabase, client) {
+    console.log('[URL-REFRESH] Starting Discord CDN URL refresh via message re-fetch...');
 
-    // ── 1. Collect all expiring URLs from Supabase ─────────────────────────
-    const tasks = [];
+    // Fetch all media_gallery rows that have a stored message reference
+    const { data: rows, error } = await supabase
+        .from('media_gallery')
+        .select('id, channel_id, message_id, media_url');
 
-    // media_gallery: one URL per row
-    const { data: media } = await supabase
-        .from('media_gallery').select('id, media_url');
-    (media || []).forEach(row => {
-        if (DISCORD_ATTACHMENT_REGEX.test(row.media_url)) {
-            tasks.push({ table: 'media_gallery', id: row.id, col: 'media_url', url: row.media_url });
-        }
-    });
-
-    // partners: logo_url and bg_url
-    const { data: partners } = await supabase
-        .from('partners').select('id, logo_url, bg_url');
-    (partners || []).forEach(row => {
-        if (row.logo_url && DISCORD_ATTACHMENT_REGEX.test(row.logo_url)) {
-            tasks.push({ table: 'partners', id: row.id, col: 'logo_url', url: row.logo_url });
-        }
-        if (row.bg_url && DISCORD_ATTACHMENT_REGEX.test(row.bg_url)) {
-            tasks.push({ table: 'partners', id: row.id, col: 'bg_url', url: row.bg_url });
-        }
-    });
-
-    if (tasks.length === 0) {
-        console.log('[URL-REFRESH] No Discord attachment URLs found. Nothing to refresh.');
+    if (error) {
+        console.error('[URL-REFRESH] Supabase fetch error:', error.message);
         return;
     }
 
-    console.log(`[URL-REFRESH] Found ${tasks.length} URL(s) to refresh.`);
+    const eligible = (rows || []).filter(r => r.channel_id && r.message_id);
+    if (eligible.length === 0) {
+        console.log('[URL-REFRESH] No rows with message references. Nothing to refresh.');
+        return;
+    }
 
-    // ── 2. Call Discord's refresh-urls endpoint in batches ─────────────────
-    /** @type {Map<string, string>} original → refreshed */
-    const refreshMap = new Map();
+    console.log(`[URL-REFRESH] Refreshing ${eligible.length} row(s)...`);
+    let updated = 0;
+    let failed = 0;
 
-    for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
-        const batch = tasks.slice(i, i + BATCH_SIZE).map(t => t.url);
+    for (const row of eligible) {
         try {
-            const res = await fetch('https://discord.com/api/v10/attachments/refresh-urls', {
-                method: 'POST',
-                headers: {
-                    'Authorization': 'Bot ' + token,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ attachment_urls: batch }),
-            });
+            const channel = await client.channels.fetch(row.channel_id);
+            const message = await channel.messages.fetch(row.message_id);
+            const attachment = message.attachments.first();
 
-            if (!res.ok) {
-                const text = await res.text();
-                console.error(`[URL-REFRESH] Discord API error ${res.status}: ${text}`);
+            if (!attachment) {
+                console.warn(`[URL-REFRESH] Row ${row.id}: message has no attachment anymore.`);
                 continue;
             }
 
-            const json = await res.json();
-            (json.refreshed_urls || []).forEach(entry => {
-                refreshMap.set(entry.original, entry.refreshed);
-            });
+            const newUrl = attachment.url;
+
+            // Only update if the base path changed (ignore query params like ex= timestamp)
+            const basePath = (url) => url.split('?')[0];
+            if (basePath(newUrl) === basePath(row.media_url)) continue;
+
+            const { error: updateErr } = await supabase
+                .from('media_gallery')
+                .update({ media_url: newUrl })
+                .eq('id', row.id);
+
+            if (updateErr) {
+                console.error(`[URL-REFRESH] Failed to update row ${row.id}:`, updateErr.message);
+                failed++;
+            } else {
+                updated++;
+            }
         } catch (err) {
-            console.error('[URL-REFRESH] Fetch error:', err.message);
+            console.error(`[URL-REFRESH] Could not fetch message for row ${row.id}:`, err.message);
+            failed++;
         }
     }
 
-    // ── 3. Write refreshed URLs back to Supabase ───────────────────────────
-    let updated = 0;
-    for (const task of tasks) {
-        const newUrl = refreshMap.get(task.url);
-        if (!newUrl || newUrl === task.url) continue;
-
-        const { error } = await supabase
-            .from(task.table)
-            .update({ [task.col]: newUrl })
-            .eq('id', task.id);
-
-        if (error) {
-            console.error(`[URL-REFRESH] Failed to update ${task.table}#${task.id}.${task.col}:`, error.message);
-        } else {
-            updated++;
-        }
-    }
-
-    console.log(`[URL-REFRESH] ✅ Done. ${updated}/${tasks.length} URL(s) refreshed.`);
+    console.log(`[URL-REFRESH] ✅ Done. Updated: ${updated} | Failed: ${failed} | Total: ${eligible.length}`);
 }
