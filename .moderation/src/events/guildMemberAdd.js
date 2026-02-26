@@ -1,4 +1,9 @@
-import { Events, EmbedBuilder } from 'discord.js';
+import { Events, EmbedBuilder, AttachmentBuilder } from 'discord.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export default {
     name: Events.GuildMemberAdd,
@@ -15,14 +20,19 @@ export default {
             if (welcomeChannelId) {
                 const welcomeChannel = member.guild.channels.cache.get(welcomeChannelId);
                 if (welcomeChannel && welcomeChannel.isTextBased()) {
+                    const teamImg = new AttachmentBuilder(
+                        path.join(__dirname, '../../../../team.png'),
+                        { name: 'team.png' }
+                    );
                     const welcomeEmbed = new EmbedBuilder()
                         .setColor(16742912)
-                        .setTitle('Welcome to National Command')
-                        .setDescription(`Please read <#${process.env.INFO_CHANNEL_ID || '1448029069013815296'}> thoroughly so that you will have smooth server experience. `)
-                        .setImage('https://cdn.discordapp.com/attachments/1448038019755151391/1471443121479876641/unwatermarked_Gemini_Generated_Image_i5nymki5nymki5ny.png?ex=698ef3b2&is=698da232&hm=b3e519174adf88ff3bc69ab4224f1cf835b775a8a722d47d53f4c138feb0fe1a');
+                        .setTitle('Welcome to National Mobility Command')
+                        .setDescription(`Please read <#${process.env.INFO_CHANNEL_ID || '1448029069013815296'}> thoroughly so that you will have a smooth server experience.`)
+                        .setImage('attachment://team.png');
 
                     await welcomeChannel.send({
                         content: `<@${member.id}>`,
+                        files: [teamImg],
                         embeds: [welcomeEmbed]
                     });
                 }
