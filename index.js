@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import { setupGuildIncomeListener } from './.economy/utils/realtimeListener.js';
 import { applyDailyTax } from './.economy/utils/taxSystem.js';
 import { refreshDiscordUrls } from './.moderation/src/jobs/refreshDiscordUrls.js';
+import { syncDisplayNames } from './.moderation/src/jobs/syncDisplayNames.js';
 import schedule from 'node-schedule';
 
 // Setup environment and paths
@@ -79,6 +80,9 @@ const loadLegacyCommands = async () => {
 // Ready event handling
 client.once('ready', async () => {
     console.log(`✅ Manager Bot logged in as ${client.user.tag}`);
+
+    // Sync Discord display names to Supabase on startup
+    syncDisplayNames(client, supabase).catch(err => console.error('[DISPLAYNAME-SYNC] Startup sync failed:', err));
 
     // Economy Init
 

@@ -62,5 +62,27 @@ export default {
                 console.error('[AVATAR] ❌ Unexpected error:', err);
             }
         }
+
+        // ─── 3. Nickname / display name change tracking ─────────
+        const oldNick = oldMember.displayName;
+        const newNick = newMember.displayName;
+
+        if (oldNick !== newNick) {
+            console.log(`[DISPLAYNAME] ${newMember.user.tag}: "${oldNick}" → "${newNick}"`);
+            try {
+                const { error } = await supabase
+                    .from('players')
+                    .update({ display_name: newNick })
+                    .eq('discord_id', newMember.user.id);
+
+                if (error) {
+                    console.error('[DISPLAYNAME] ❌ Failed to update display_name:', error.message);
+                } else {
+                    console.log(`[DISPLAYNAME] ✅ Updated display_name to "${newNick}"`);
+                }
+            } catch (err) {
+                console.error('[DISPLAYNAME] ❌ Unexpected error:', err);
+            }
+        }
     },
 };
