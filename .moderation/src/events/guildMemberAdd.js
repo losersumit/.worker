@@ -21,7 +21,7 @@ export default {
                 const welcomeChannel = member.guild.channels.cache.get(welcomeChannelId);
                 if (welcomeChannel && welcomeChannel.isTextBased()) {
                     const teamImg = new AttachmentBuilder(
-                        path.join(__dirname, '../../../../team.png'),
+                        path.join(__dirname, '../../../team.png'),
                         { name: 'team.png' }
                     );
                     const welcomeEmbed = new EmbedBuilder()
