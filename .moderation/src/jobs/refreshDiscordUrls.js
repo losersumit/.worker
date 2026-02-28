@@ -2,14 +2,12 @@
  * refreshDiscordUrls.js
  * Refreshes Discord CDN attachment URLs by re-fetching the original messages.
  *
- * Discord attachment URLs expire after ~24 hours.
- * Since the message itself never expires, fetching it via the Discord API
- * always returns a fresh, valid attachment URL.
+ * Discord CDN URLs for the same file always share the same base path —
+ * only the query-string tokens (ex=, is=, hm=) carry the new expiry.
+ * So we ALWAYS write the fresh URL back to Supabase; no comparison needed.
  *
- * Runs every 23 hours (scheduled in index.js), covering the 24-hour window safely.
+ * Runs on bot startup + every 23 hours via node-schedule.
  */
-
-const VIDEO_EXTS = ['.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v'];
 
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
@@ -34,7 +32,7 @@ export async function refreshDiscordUrls(supabase, client) {
         return;
     }
 
-    console.log(`[URL-REFRESH] Refreshing ${eligible.length} row(s)...`);
+    console.log(`[URL-REFRESH] Force-refreshing ${eligible.length} row(s)...`);
     let updated = 0;
     let failed = 0;
 
@@ -45,15 +43,13 @@ export async function refreshDiscordUrls(supabase, client) {
             const attachment = message.attachments.first();
 
             if (!attachment) {
-                console.warn(`[URL-REFRESH] Row ${row.id}: message has no attachment anymore.`);
+                console.warn(`[URL-REFRESH] Row ${row.id}: message has no attachment. Skipping.`);
                 continue;
             }
 
+            // ALWAYS write the fresh URL — the expiry tokens in the query-string
+            // change every time, so comparing base paths would always say "no change".
             const newUrl = attachment.url;
-
-            // Only update if the base path changed (ignore query params like ex= timestamp)
-            const basePath = (url) => url.split('?')[0];
-            if (basePath(newUrl) === basePath(row.media_url)) continue;
 
             const { error: updateErr } = await supabase
                 .from('media_gallery')
@@ -64,6 +60,7 @@ export async function refreshDiscordUrls(supabase, client) {
                 console.error(`[URL-REFRESH] Failed to update row ${row.id}:`, updateErr.message);
                 failed++;
             } else {
+                console.log(`[URL-REFRESH] ✅ Row ${row.id}: URL refreshed.`);
                 updated++;
             }
         } catch (err) {
@@ -72,5 +69,5 @@ export async function refreshDiscordUrls(supabase, client) {
         }
     }
 
-    console.log(`[URL-REFRESH] ✅ Done. Updated: ${updated} | Failed: ${failed} | Total: ${eligible.length}`);
+    console.log(`[URL-REFRESH] Done. Updated: ${updated} | Failed: ${failed} | Total: ${eligible.length}`);
 }

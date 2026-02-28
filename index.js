@@ -102,10 +102,9 @@ client.once('ready', async () => {
         await applyDailyTax(client);
     });
 
-    // Refresh Discord CDN URLs every 23 hours (safe buffer under the 24h expiry window)
-    // Re-fetches the original message to get a fresh attachment URL
-    schedule.scheduleJob('0 */23 * * *', async () => {
-        console.log(`⏰ [URL-REFRESH] Running scheduled CDN URL refresh - ${new Date().toISOString()}`);
+    // Refresh Discord CDN URLs every hour (well within Discord's 24h expiry window)
+    schedule.scheduleJob('0 * * * *', async () => {
+        console.log(`⏰ [URL-REFRESH] Running hourly CDN URL refresh - ${new Date().toISOString()}`);
         await refreshDiscordUrls(supabase, client);
     });
 
