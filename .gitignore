@@ -11,12 +11,14 @@ scripts/scan_levels.js
 scripts/unmute.js
 scripts/verify_rag.js
 scripts/sync.js
-scripts/update_buttons.js
+scripts/update.js
 scripts/list_servers.js
 scripts/leave_server.js
 scripts/deleteMessage.js
 scripts/fetch_stats.js
 .moderation/faq.txt
+scripts/webhook.js
+scripts/upload_data.js
 
 .economy/node_modules/
 .economy/.env
