@@ -12,7 +12,7 @@ export default {
                 .setTitle('Russian Roulette Rules')
                 .addFields(
                     { name: '🔫 How to Play', value: '`?rr <amount|all> <@user|nmc>`', inline: true },
-                    { name: '💰 Payouts', value: '**PVP**: Winner takes bet (10% fee)\n**PVE (NMC)**: Win = **4x** Bet', inline: true },
+                    { name: '💰 Payouts', value: '**PVP**: Winner takes bet (10% fee)\n**PVE (NMC)**: Win = **3x** Bet', inline: true },
                     { name: '⏱️ Timeouts (Loser)', value: '< 10k: **30m**\n10k-50k: **2h**\n> 50k: **4h**', inline: false },
                     { name: '📜 Mechanics', value: '• 6 Chambers, 1 Bullet.\n• 3 Turns each.\n• Failure to shoot = Forfeit.', inline: false }
                 )
@@ -71,11 +71,11 @@ export default {
             if (isCompany) {
                 // Check Company Balance (Need to pay out 3x)
                 const { data: guild } = await client.supabase.from('approved_guilds').select('guild_income').eq('guild_id', message.guildId).single();
-                const maxPayout = amount * 4;
+                const maxPayout = amount * 2;
                 const companyBalance = parseFloat(guild?.guild_income || 0);
 
                 if (companyBalance < maxPayout) {
-                    return message.reply(`The Company (NMC) cannot afford a 4x payout! Company Balance: $${Math.floor(companyBalance)}`);
+                    return message.reply(`The Company (NMC) cannot afford a 3x payout! Company Balance: $${Math.floor(companyBalance)}`);
                 }
                 players.push({ id: COMPANY_ID, username: 'NMC', bot: true, toString: () => 'NMC' }); // Mock user for NMC
                 targetId = COMPANY_ID;
@@ -134,7 +134,7 @@ export default {
 };
 
 async function startGame(client, message, players, amount, challengerDb, targetDb, isCompany) {
-    const gameMsg = await message.channel.send(`**Russian Roulette**\nLoading the chamber...\nhttps://media.tenor.com/x6dpuRtKHD4AAAAC/russian-roulette-gun.gif`);
+    const gameMsg = await message.channel.send(`**Russian Roulette**\nLoading the chamber...`);
 
     setTimeout(async () => {
         try {
@@ -275,7 +275,7 @@ async function handleLoss(client, message, players, loserIndex, amount, challeng
         // If User Loses: Company Gets Bet. User Loses Bet.
         if (!winner.bot) {
             // User Won against Company
-            winnings = amount * 4;
+            winnings = amount * 2;
             // Company pays winnings
         } else {
             // Company Won (User Lost)
@@ -323,7 +323,7 @@ async function handleLoss(client, message, players, loserIndex, amount, challeng
             // Company Loses
             updatePromises.push((async () => {
                 const { data: guild } = await client.supabase.from('approved_guilds').select('guild_income').eq('guild_id', message.guildId).single();
-                // Bug fix: The user wins 4x the bet. The company must deduct that same 4x amount (which is `winnings`).
+                // Bug fix: The user wins 2x the bet. The company must deduct that same 2x amount (which is `winnings`).
                 const newIncome = (parseFloat(guild?.guild_income) || 0) - winnings;
                 await client.supabase.from('approved_guilds').update({ guild_income: newIncome }).eq('guild_id', message.guildId);
             })());

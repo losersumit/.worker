@@ -15,6 +15,7 @@ scripts/update_buttons.js
 scripts/list_servers.js
 scripts/leave_server.js
 scripts/deleteMessage.js
+scripts/fetch_stats.js
 .moderation/faq.txt
 
 .economy/node_modules/
