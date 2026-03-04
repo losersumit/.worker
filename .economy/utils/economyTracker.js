@@ -49,6 +49,12 @@ async function trackTransaction(supabase, playerId, transactionType, amount, det
         // Purchases are logged to history.
         // If a total_spent column exists in the future, update it here.
         break;
+      case 'deposit':
+      case 'withdraw':
+      case 'steal_success':
+      case 'steal_fail':
+        // Logged to history only, no running totals
+        break;
       default:
         console.error(`Unknown transaction type: ${transactionType}`);
         return false;

@@ -56,7 +56,8 @@ export default {
           }),
         },
         fields: [
-          { name: '💰 Balance', value: `$${stats.total_income?.toLocaleString() || 0}`, inline: true },
+          { name: '💰 Wallet', value: `$${stats.total_income?.toLocaleString() || 0}`, inline: true },
+          { name: '🏦 Bank', value: `$${(stats.bank_balance || 0).toLocaleString()}`, inline: true },
           { name: '💸 Donated', value: `$${economyData.total_donated?.toLocaleString() || 0}`, inline: true },
           // Transfers removed as per request
 

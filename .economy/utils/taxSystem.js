@@ -16,12 +16,12 @@ async function applyDailyTax(client) {
       .from('player_stats')
       .select(`
     player_id,
-    total_income,
+    bank_balance,
     players!inner (
       guild_id
     )
   `)
-      .gt('total_income', 0)
+      .gt('bank_balance', 0)
       .eq('players.guild_id', TARGET_GUILD_ID);
 
     if (playersError) {
@@ -32,13 +32,13 @@ async function applyDailyTax(client) {
     let totalTaxCollected = 0;
 
     for (const player of players) {
-      // FIX: Use Math.floor to ensure integer values for bigint columns
-      const tax = Math.floor(player.total_income * 0.1);
-      const newBalance = Math.floor(player.total_income - tax);
+      // Tax only bank_balance — wallet (total_income) is untaxed
+      const tax = Math.floor(player.bank_balance * 0.1);
+      const newBankBalance = Math.floor(player.bank_balance - tax);
 
       await client.supabase
         .from('player_stats')
-        .update({ total_income: newBalance })
+        .update({ bank_balance: newBankBalance })
         .eq('player_id', player.player_id);
 
       // Track tax payment in economy history/data

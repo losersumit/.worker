@@ -12,7 +12,7 @@ export default {
                 .setTitle('Russian Roulette Rules')
                 .addFields(
                     { name: '🔫 How to Play', value: '`?rr <amount|all> <@user|nmc>`', inline: true },
-                    { name: '💰 Payouts', value: '**PVP**: Winner takes bet (10% fee)\n**PVE (NMC)**: Win = **3x** Bet', inline: true },
+                    { name: '💰 Payouts', value: '**PVP**: Winner takes bet (10% fee)\n**PVE (NMC)**: Win = **2x** Bet', inline: true },
                     { name: '⏱️ Timeouts (Loser)', value: '< 10k: **30m**\n10k-50k: **2h**\n> 50k: **4h**', inline: false },
                     { name: '📜 Mechanics', value: '• 6 Chambers, 1 Bullet.\n• 3 Turns each.\n• Failure to shoot = Forfeit.', inline: false }
                 )
@@ -38,13 +38,13 @@ export default {
                 amount = cStats.total_income;
                 if (amount <= 0) return message.reply('You have no money to bet!');
             } else {
-                amount = parseFloat(args[0]);
+                amount = Math.floor(parseFloat(args[0]));
             }
 
             if (isNaN(amount) || amount <= 0) return message.reply('Enter a valid amount.');
             if (cStats.total_income < amount) return message.reply('You have insufficient balance.');
 
-            const COMPANY_ID = '1453737415318573280'; // Verify ID
+            const COMPANY_ID = process.env.COMPANY_ID || '1453737415318573280';
             const rawTarget = args[1].toLowerCase();
 
             // Determine target
@@ -285,7 +285,7 @@ async function handleLoss(client, message, players, loserIndex, amount, challeng
     } else {
         // PVP Logic
         // Standard: Winner +90%, Loser -100%. 10% Fee.
-        fee = amount * 0.1;
+        fee = Math.floor(amount * 0.1);
         winnings = amount - fee;
     }
 
@@ -295,46 +295,37 @@ async function handleLoss(client, message, players, loserIndex, amount, challeng
 
         const updatePromises = [];
 
-        // Update Winner
+        // Update Winner (atomic RPC)
         if (!winner.bot) {
             updatePromises.push((async () => {
-                const { data: wStats } = await client.supabase.from('player_stats').select('total_income').eq('player_id', winnerId).single();
-                await client.supabase.from('player_stats').update({ total_income: wStats.total_income + winnings }).eq('player_id', winnerId);
+                await client.supabase.rpc('adjust_balance', { p_player_id: winnerId, p_amount: winnings });
                 await trackTransaction(client.supabase, winnerId, 'gamble_win', winnings, `Won Russian Roulette vs ${loser.username || 'NMC'}`);
             })());
         } else {
-            // Company Wins use same table as updates, so we might need to be careful if multiple guild updates
-            // But here winner is company, so we update guild income
-            updatePromises.push((async () => {
-                const { data: guild } = await client.supabase.from('approved_guilds').select('guild_income').eq('guild_id', message.guildId).single();
-                const newIncome = (parseFloat(guild?.guild_income) || 0) + amount;
-                await client.supabase.from('approved_guilds').update({ guild_income: newIncome }).eq('guild_id', message.guildId);
-            })());
+            // Company Wins — atomic guild_income update
+            updatePromises.push(
+                client.supabase.rpc('adjust_guild_income', { p_guild_id: message.guildId, p_amount: amount })
+            );
         }
 
-        // Update Loser
+        // Update Loser (atomic RPC)
         if (!loser.bot) {
             updatePromises.push((async () => {
-                const { data: lStats } = await client.supabase.from('player_stats').select('total_income').eq('player_id', loserId).single();
-                await client.supabase.from('player_stats').update({ total_income: lStats.total_income - amount }).eq('player_id', loserId);
+                await client.supabase.rpc('adjust_balance', { p_player_id: loserId, p_amount: -amount });
                 await trackTransaction(client.supabase, loserId, 'gamble_loss', amount, `Lost Russian Roulette vs ${winner.username || 'NMC'}`);
             })());
         } else {
-            // Company Loses
-            updatePromises.push((async () => {
-                const { data: guild } = await client.supabase.from('approved_guilds').select('guild_income').eq('guild_id', message.guildId).single();
-                // Bug fix: The user wins 2x the bet. The company must deduct that same 2x amount (which is `winnings`).
-                const newIncome = (parseFloat(guild?.guild_income) || 0) - winnings;
-                await client.supabase.from('approved_guilds').update({ guild_income: newIncome }).eq('guild_id', message.guildId);
-            })());
+            // Company Loses — atomic guild_income update
+            updatePromises.push(
+                client.supabase.rpc('adjust_guild_income', { p_guild_id: message.guildId, p_amount: -winnings })
+            );
         }
 
-        // Guild Fee (PVP Only)
+        // Guild Fee (PVP Only) — atomic, safe to run in parallel now
         if (!isCompany) {
-            updatePromises.push((async () => {
-                const { data: guild } = await client.supabase.from('approved_guilds').select('guild_income').eq('guild_id', message.guildId).single();
-                await client.supabase.from('approved_guilds').update({ guild_income: (parseFloat(guild?.guild_income) || 0) + fee }).eq('guild_id', message.guildId);
-            })());
+            updatePromises.push(
+                client.supabase.rpc('adjust_guild_income', { p_guild_id: message.guildId, p_amount: fee })
+            );
         }
 
         await Promise.all(updatePromises);

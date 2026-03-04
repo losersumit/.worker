@@ -15,8 +15,11 @@ export default {
           name: '💵 Economy',
           value:
             '`?me`\nCheck your balance and stats.\n' +
+            '`?dp <amount|all>`\nDeposit money into your bank.\n' +
+            '`?wd <amount|all>`\nWithdraw money from your bank.\n' +
             '`?transfer <amount|all> <@user>`\nSend money to another player.\n' +
-            '`?my skins`\nView your owned skins.',
+            '`?my skins`\nView your owned skins.\n' +
+            '`?guild`\nView guild treasury & top 5 richest.',
           inline: false
         },
         {
@@ -25,6 +28,12 @@ export default {
             '`Coinflip`\n`?cf help`\n' +
             '`Russian Roulette`\n`?rr help`\n' +
             '`Roulette`\n`?rl help`',
+          inline: false
+        },
+        {
+          name: '🔫 Crime',
+          value:
+            '`?steal <@user>`\nAttempt to rob another player.',
           inline: false
         },
         {

@@ -60,46 +60,24 @@ export default {
                 return message.reply('❌ The target user is not registered in the economy system.');
             }
 
-            // 3. Deduct from Company
-            const newGuildIncome = parseFloat(guild.guild_income) - amount;
-            const { error: updateGuildError } = await client.supabase
-                .from('approved_guilds')
-                .update({ guild_income: newGuildIncome })
-                .eq('guild_id', guild.guild_id);
+            // 3. Deduct from Company (atomic)
+            const { data: newGuildIncome, error: rpcGuildError } = await client.supabase
+                .rpc('adjust_guild_income', { p_guild_id: message.guildId, p_amount: -amount });
 
-            if (updateGuildError) {
-                console.error('Company deduction error:', updateGuildError);
+            if (rpcGuildError) {
+                console.error('Company deduction error:', rpcGuildError);
                 return message.reply('❌ Failed to update company account.');
             }
 
-            // 4. Add to Player (using trackTransaction for history, OR manual update + trackTransaction for record)
-            // Since trackTransaction updates economy_data but NOT player_stats.total_income (based on my read of previous files),
-            // I need to update player_stats.total_income manually, AND call trackTransaction to log it.
-            // Wait, let's check taxSystem.js -> it updates player_stats.total_income manually.
-            // And economyTracker.js -> trackTransaction updates player_economy_data and history.
-            // So I should do both.
+            // 4. Add to Player (atomic)
+            const { data: newPlayerBalance, error: rpcPlayerError } = await client.supabase
+                .rpc('adjust_balance', { p_player_id: player.id, p_amount: amount });
 
-            // Get current player stats
-            const { data: stats } = await client.supabase
-                .from('player_stats')
-                .select('total_income')
-                .eq('player_id', player.id)
-                .single();
-
-            const currentBalance = stats ? parseFloat(stats.total_income) : 0;
-            const newPlayerBalance = currentBalance + amount;
-
-            // Update player_stats
-            const { error: updatePlayerError } = await client.supabase
-                .from('player_stats')
-                .update({ total_income: newPlayerBalance })
-                .eq('player_id', player.id);
-
-            if (updatePlayerError) {
-                // Critical error: Company money gone, player didn't get it.
-                // Ideally we'd rollback, but for this simple bot, just log it.
-                console.error('Player update error:', updatePlayerError);
-                return message.reply(`⚠️ Deduced from company but failed to add to player. Please contact admin.`);
+            if (rpcPlayerError) {
+                // Critical: Company money gone, player didn't get it. Attempt rollback.
+                console.error('Player update error:', rpcPlayerError);
+                await client.supabase.rpc('adjust_guild_income', { p_guild_id: message.guildId, p_amount: amount }).catch(() => { });
+                return message.reply(`⚠️ Deducted from company but failed to add to player. Attempted rollback. Please contact admin.`);
             }
 
             // Log transaction

@@ -21,10 +21,10 @@ export default {
     await message.channel.sendTyping(); // instant feedback
     if (args.length < 2) return message.reply('Usage: ?cf <amount|all> <@user | nmc>');
 
-    let amount = parseFloat(args[0]);
+    let amount = Math.floor(parseFloat(args[0]));
     const isAllIn = args[0].toLowerCase() === 'all';
 
-    const COMPANY_ID = '1453737415318573280'; // Verify if this is the bot ID or a specific user ID for the company
+    const COMPANY_ID = process.env.COMPANY_ID || '1453737415318573280';
     const rawTarget = args[1].toLowerCase();
 
     // Determine target type
@@ -164,7 +164,6 @@ export default {
 
             // Re-fetch challenger stats to prevent exploit
             const { data: finalC } = await client.supabase.from('player_stats').select('total_income').eq('player_id', challenger.id).single();
-            const { data: finalG } = await client.supabase.from('approved_guilds').select('guild_income').eq('guild_id', message.guildId).single();
 
             if (finalC.total_income < amount) {
               return choiceInt.followUp("❌ Request failed: insufficient balance at transaction time.");
@@ -174,59 +173,17 @@ export default {
             let fee = 0;
 
             if (won) {
-              // Player Wins
-              // Player gets Amount * 0.9 (Profit is Amount * 0.9, Total Return is Amount * 1.9? No usually CF is 50/50 2x payout minus tax)
-              // Standard CF: Put in 100. Win -> Get 200 (Profit 100). Tax 10% of POT? Or Tax 10% of Profit?
-              // existing logic: 
-              //    const fee = amount * 0.1;
-              //    const winnings = amount - fee; (This implies "winnings" is the PROFIT amount, not total return?)
-              //    wait, let's check existing logic:
-              //    update({ total_income: finalT.total_income + winnings })  (Winner gets +winnings)
-              //    update({ total_income: finalC.total_income - amount }) (Looser loses -amount)
-              // So if I bet 100:
-              // Looser: -100
-              // Winner: +100 - (100*0.1) = +90.
-              // House: +10.
-              // OK.
-
-              // PVE Win:
-              // Player bet 100.
-              // Player gets +90.
-              // Company pays 90. (But also, Company lost the potential 10 fee? No.)
-              // Mathematically:
-              // Player: +90
-              // Company: -90
-              // System: 0 sum? No, usually company is the house.
-              // If existing logic is "Winner gets other person's money - tax", then the tax goes to guild.
-              // Here, Guild IS the other person.
-              // So if Player Wins: Guild pays Player 90. 
-              // (Guild loses 90). The "tax" is implicitly kept by not paying 100? No, if guild pays 100, guild loses 100.
-              // If guild pays 90, guild loses 90.
-
-              fee = amount * 0.1;
+              fee = Math.floor(amount * 0.1);
               winnings = amount - fee;
 
-              await client.supabase.from('player_stats').update({ total_income: finalC.total_income + winnings }).eq('player_id', challenger.id);
-
-              // Company update: lose winnings amount
-              const newGuildIncome = (parseFloat(finalG.guild_income) || 0) - winnings;
-              await client.supabase.from('approved_guilds').update({ guild_income: newGuildIncome }).eq('guild_id', message.guildId);
+              await client.supabase.rpc('adjust_balance', { p_player_id: challenger.id, p_amount: winnings });
+              await client.supabase.rpc('adjust_guild_income', { p_guild_id: message.guildId, p_amount: -winnings });
 
               await trackTransaction(client.supabase, challenger.id, 'gamble_win', winnings, `Won flip vs Company`);
 
             } else {
-              // Player Loses
-              // Player: -100
-              // Company: +100
-              // Tax? Usually tax is only on wins?
-              // The company "Wins" 100.
-              // Does the company pay tax to itself? No.
-
-              await client.supabase.from('player_stats').update({ total_income: finalC.total_income - amount }).eq('player_id', challenger.id);
-
-              // Company update: gain amount
-              const newGuildIncome = (parseFloat(finalG.guild_income) || 0) + amount;
-              await client.supabase.from('approved_guilds').update({ guild_income: newGuildIncome }).eq('guild_id', message.guildId);
+              await client.supabase.rpc('adjust_balance', { p_player_id: challenger.id, p_amount: -amount });
+              await client.supabase.rpc('adjust_guild_income', { p_guild_id: message.guildId, p_amount: amount });
 
               await trackTransaction(client.supabase, challenger.id, 'gamble_loss', amount, `Lost flip vs Company`);
             }
@@ -286,27 +243,32 @@ async function handleFlip(client, interaction, author, targetUser, amount, chall
       const fee = amount * 0.1;
       const winnings = amount - fee;
 
-      // Re-fetch current balance
+      // Re-fetch current balances for validation
       const { data: finalC } = await client.supabase.from('player_stats').select('total_income').eq('player_id', challenger.id).single();
       const { data: finalT } = await client.supabase.from('player_stats').select('total_income').eq('player_id', target.id).single();
 
-      // Race condition check could go here...
+      // Balance re-check — prevent going negative
+      if (finalC.total_income < amount) {
+        return choiceInt.followUp('❌ Challenger no longer has enough balance for this bet.');
+      }
+      if (finalT.total_income < amount) {
+        return choiceInt.followUp('❌ Target no longer has enough balance for this bet.');
+      }
 
       if (won) {
-        await client.supabase.from('player_stats').update({ total_income: finalT.total_income + winnings }).eq('player_id', target.id);
-        await client.supabase.from('player_stats').update({ total_income: finalC.total_income - amount }).eq('player_id', challenger.id);
+        await client.supabase.rpc('adjust_balance', { p_player_id: target.id, p_amount: winnings });
+        await client.supabase.rpc('adjust_balance', { p_player_id: challenger.id, p_amount: -amount });
         await trackTransaction(client.supabase, target.id, 'gamble_win', winnings, `Won flip vs ${author.tag}`);
         await trackTransaction(client.supabase, challenger.id, 'gamble_loss', amount, `Lost flip vs ${targetUser.tag}`);
       } else {
-        await client.supabase.from('player_stats').update({ total_income: finalC.total_income + winnings }).eq('player_id', challenger.id);
-        await client.supabase.from('player_stats').update({ total_income: finalT.total_income - amount }).eq('player_id', target.id);
+        await client.supabase.rpc('adjust_balance', { p_player_id: challenger.id, p_amount: winnings });
+        await client.supabase.rpc('adjust_balance', { p_player_id: target.id, p_amount: -amount });
         await trackTransaction(client.supabase, challenger.id, 'gamble_win', winnings, `Won flip vs ${targetUser.tag}`);
         await trackTransaction(client.supabase, target.id, 'gamble_loss', amount, `Lost flip vs ${author.tag}`);
       }
 
-      // Guild Fee Logic for PVP
-      const { data: guild } = await client.supabase.from('approved_guilds').select('guild_income').eq('guild_id', interaction.guildId).single();
-      await client.supabase.from('approved_guilds').update({ guild_income: (parseFloat(guild?.guild_income) || 0) + fee }).eq('guild_id', interaction.guildId);
+      // Guild Fee Logic for PVP (atomic)
+      await client.supabase.rpc('adjust_guild_income', { p_guild_id: interaction.guildId, p_amount: fee });
 
       const winner = won ? targetUser : author;
       await choiceInt.followUp(`🪙 Result: **${flip.toUpperCase()}**! ${winner} wins **$${winnings.toLocaleString()}** (Fee: $${fee.toLocaleString()})`);

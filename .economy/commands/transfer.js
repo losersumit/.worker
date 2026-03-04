@@ -62,26 +62,15 @@ export default {
       const receiver = receiverResult.data;
       if (!receiver) return message.reply(`${targetUser.username} is not registered.`);
 
-      // PARALLEL UPDATE
-      const updatePromises = [];
+      // Sequential atomic updates to prevent partial failure
+      // 1. Deduct from sender (atomic)
+      await client.supabase.rpc('adjust_balance', { p_player_id: sender.id, p_amount: -amount });
 
-      // Deduct Sender
-      updatePromises.push((async () => {
-        const newSenderBalance = senderStats.total_income - amount;
-        await client.supabase.from('player_stats').update({ total_income: newSenderBalance }).eq('player_id', sender.id);
-      })());
+      // 2. Add to receiver (atomic)
+      await client.supabase.rpc('adjust_balance', { p_player_id: receiver.id, p_amount: amount });
 
-      // Add Receiver
-      updatePromises.push((async () => {
-        const { data: rStats } = await client.supabase.from('player_stats').select('total_income').eq('player_id', receiver.id).single();
-        const newReceiverBalance = (rStats?.total_income || 0) + amount;
-        await client.supabase.from('player_stats').update({ total_income: newReceiverBalance }).eq('player_id', receiver.id);
-      })());
-
-      // Track
-      updatePromises.push(trackTransaction(client.supabase, sender.id, 'transfer', amount, `Transferred to ${targetUser.tag}`));
-
-      await Promise.all(updatePromises);
+      // 3. Track transaction
+      await trackTransaction(client.supabase, sender.id, 'transfer', amount, `Transferred to ${targetUser.tag}`);
 
 
       const embed = new EmbedBuilder()

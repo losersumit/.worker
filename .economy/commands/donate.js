@@ -54,50 +54,21 @@ export default {
         return message.reply(`Insufficient balance! You need $${amount}, but you only have $${stats.total_income}.`);
       }
 
-      // Execute transactions in parallel
-      const updatePromises = [];
+      // Execute transactions sequentially to prevent partial failure
+      // 1. Deduct from player (atomic)
+      await client.supabase.rpc('adjust_balance', { p_player_id: player.id, p_amount: -amount });
 
-      // Deduct from player account
-      updatePromises.push((async () => {
-        const newBalance = stats.total_income - amount;
-        const { error: updateError } = await client.supabase
-          .from('player_stats')
-          .update({ total_income: newBalance })
-          .eq('player_id', player.id);
-        if (updateError) throw new Error('Failed to deduct funds');
-      })());
+      // 2. Add to guild account (atomic)
+      const { data: newGuildIncome } = await client.supabase.rpc('adjust_guild_income', { p_guild_id: message.guildId, p_amount: amount });
 
-      // Add to guild account
-      updatePromises.push((async () => {
-        const { data: guild, error: guildError } = await client.supabase
-          .from('approved_guilds')
-          .select('guild_income')
-          .eq('guild_id', message.guildId)
-          .single();
-
-        if (!guildError && guild) {
-          const newGuildIncome = (parseFloat(guild.guild_income) || 0) + amount;
-          await client.supabase
-            .from('approved_guilds')
-            .update({ guild_income: newGuildIncome })
-            .eq('guild_id', message.guildId);
-          return newGuildIncome; // Return so we can use it in embed
-        }
-        return null; // In case guild is not found or error
-      })());
-
-      // Track donation transaction
-      updatePromises.push(trackTransaction(
+      // 3. Track donation transaction
+      await trackTransaction(
         client.supabase,
         player.id,
         'donate',
         amount,
         `Donation to NMC company`
-      ));
-
-      // Wait for all
-      const results = await Promise.all(updatePromises);
-      const newGuildIncome = results[1] || 'Updated'; // Get result from guild update promise
+      );
 
 
       const embed = new EmbedBuilder()
