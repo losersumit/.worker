@@ -25,13 +25,60 @@ const CHAT_MAX_TOKENS = Number(process.env.CHAT_MAX_TOKENS || 512);
 
 const COMPANY_NAME = process.env.COMPANY_NAME || 'the community';
 const COMPANY_SHORT = process.env.COMPANY_SHORT || '';
-const SYSTEM_PROMPT = `
-You are a friendly chatbot for ${COMPANY_NAME}${COMPANY_SHORT ? ` (${COMPANY_SHORT})` : ''}.
-Keep replies very brief, clear, and helpful.
+
+// Commander (boss) Discord ID
+const COMMANDER_ID = '1084255828107853844';
+
+// Role hierarchy for rank detection (checked top-down, first match wins)
+const RANK_ROLES = [
+    { id: '1475314856184778835', name: 'Senior Mobility Operator' },
+    { id: '1475314865878077603', name: 'Field Operator' },
+    { id: '1475314870802055421', name: 'Operator' },
+    { id: '1463184412937289973', name: 'Enlisted' },
+    { id: '1448029031672053900', name: 'Visitor' },
+];
+
+/**
+ * Resolve the highest rank a member holds from the RANK_ROLES list.
+ * @param {GuildMember} member
+ * @returns {string} The rank name, or 'Unknown' if none matched.
+ */
+function resolveRank(member) {
+    if (!member?.roles?.cache) return 'Unknown';
+    for (const rank of RANK_ROLES) {
+        if (member.roles.cache.has(rank.id)) return rank.name;
+    }
+    return 'Unknown';
+}
+
+const BASE_SYSTEM_PROMPT = `You are "Worker", the official AI assistant for ${COMPANY_NAME}${COMPANY_SHORT ? ` (${COMPANY_SHORT})` : ''} — a Virtual Trucking Company (VTC) in the mobile game Truckers of Europe 3 (TOE3).
+
+IDENTITY:
+- The Commander (Supreme Commander / Boss) of NMC is <@${COMMANDER_ID}>. Treat messages from the Commander with appropriate respect.
+- You handle server economy, moderation, support, and general knowledge about the game and the VTC.
+
+BEHAVIOR:
+- Keep replies brief, clear, and helpful.
+- You can be witty and have personality, but stay professional.
+- If someone asks who you are, you are "Worker" — NMC's command support interface.
+- If you don't know something, say so honestly.
 `;
 
+/**
+ * Build the dynamic system prompt with current user context.
+ */
+function buildSystemPrompt(member, user) {
+    const rank = resolveRank(member);
+    const isCommander = user.id === COMMANDER_ID;
+    const userLabel = isCommander
+        ? `The Commander (${user.username})`
+        : `${user.username}`;
+
+    return BASE_SYSTEM_PROMPT + `\nCURRENT USER CONTEXT:\n- Speaking to: ${userLabel}\n- Their rank: ${rank}${isCommander ? ' (Supreme Commander — highest authority)' : ''}\n`;
+}
+
 function buildChatMessages(history, prompt) {
-    const messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+    const messages = [{ role: 'system', content: BASE_SYSTEM_PROMPT }];
     for (const h of history) messages.push({ role: h.role, content: h.text });
     messages.push({ role: 'user', content: prompt });
     return messages;
@@ -120,9 +167,10 @@ export async function handleChat(message, client) {
     // 2) Groq chat (with RAG context if available)
     await message.channel.sendTyping();
 
-    // Prepare messages
+    // Prepare messages — dynamic system prompt with user context
     let messages = [];
-    messages.push({ role: 'system', content: SYSTEM_PROMPT });
+    const systemPrompt = buildSystemPrompt(message.member, message.author);
+    messages.push({ role: 'system', content: systemPrompt });
     if (faqContext) {
         messages.push({ role: 'system', content: faqContext });
     }

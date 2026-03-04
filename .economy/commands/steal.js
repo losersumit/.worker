@@ -5,9 +5,11 @@ import { groqChatCompletion } from '../../.moderation/src/clients/groq.js';
 // Cooldown maps: discordId -> timestamp
 const globalCooldowns = new Map();     // 1 hour between any steal
 const victimCooldowns = new Map();     // 3 hours per robber→victim pair
+const alertCooldowns = new Map();      // 1 hour victim alert — no one can rob this victim
 
 const GLOBAL_CD = 60 * 60 * 1000;     // 1 hour in ms
 const VICTIM_CD = 3 * 60 * 60 * 1000; // 3 hours in ms
+const ALERT_CD = 60 * 60 * 1000;      // 1 hour alert mode
 const TIMEOUT_DURATION = 30 * 60 * 1000; // 30 min timeout on failure
 
 /**
@@ -91,6 +93,13 @@ export default {
                 return message.reply(`🕐 You can't rob **${targetUser.username}** again for **${remaining} more minute${remaining !== 1 ? 's' : ''}**.`);
             }
 
+            // Victim alert mode (1h — no one can rob this victim)
+            const victimAlert = alertCooldowns.get(targetUser.id);
+            if (victimAlert && now - victimAlert < ALERT_CD) {
+                const remaining = Math.ceil((ALERT_CD - (now - victimAlert)) / 60000);
+                return message.reply(`🚨 **${targetUser.username}** is on alert! They can't be robbed for **${remaining} more minute${remaining !== 1 ? 's' : ''}**.`);
+            }
+
             // --- Fetch Players ---
             const [robberResult, victimResult] = await Promise.all([
                 client.supabase.from('players').select('id').eq('discord_id', message.author.id).single(),
@@ -124,6 +133,8 @@ export default {
             // Set cooldowns regardless of outcome
             globalCooldowns.set(message.author.id, now);
             victimCooldowns.set(pairKey, now);
+            // Put victim on alert after any robbery attempt
+            alertCooldowns.set(targetUser.id, now);
 
             if (success) {
                 // --- SUCCESS ---
