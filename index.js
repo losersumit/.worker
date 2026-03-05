@@ -10,6 +10,7 @@ import { setupGuildIncomeListener } from './.economy/utils/realtimeListener.js';
 import { applyDailyTax } from './.economy/utils/taxSystem.js';
 import { refreshDiscordUrls } from './.moderation/src/jobs/refreshDiscordUrls.js';
 import { syncDisplayNames } from './.moderation/src/jobs/syncDisplayNames.js';
+import { runMemoryCleanup } from './.moderation/src/systems/memoryCleanup.js';
 import schedule from 'node-schedule';
 
 // Setup environment and paths
@@ -100,6 +101,12 @@ client.once('ready', async () => {
     schedule.scheduleJob(rule, async () => {
         console.log(`⏰ Running scheduled daily tax at 12:00 AM (London Time) - ${new Date().toISOString()}`);
         await applyDailyTax(client);
+    });
+
+    // Schedule daily memory cleanup at 4:00 AM
+    schedule.scheduleJob('0 4 * * *', async () => {
+        console.log(`⏰ [MEMORY-CLEANUP] Running daily memory consolidation - ${new Date().toISOString()}`);
+        await runMemoryCleanup();
     });
 
     // Refresh Discord CDN URLs every hour (well within Discord's 24h expiry window)

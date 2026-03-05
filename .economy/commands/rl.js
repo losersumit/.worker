@@ -27,12 +27,6 @@ const BET_OPTIONS = [
     { id: '3rd 12', label: '3rd 12', style: ButtonStyle.Secondary, row: 2 },
 ];
 
-function getBetMultiplier(betId) {
-    if (['red', 'black', 'even', 'odd', '1-18', '19-36'].includes(betId)) return 2;
-    if (['1st 12', '2nd 12', '3rd 12'].includes(betId)) return 3;
-    return 2; // default
-}
-
 function doesBetWin(betId, resultNum) {
     const color = getRouletteColor(resultNum);
     switch (betId) {
@@ -51,55 +45,6 @@ function doesBetWin(betId, resultNum) {
 
 function formatBetChoices(choices) {
     return choices.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(', ');
-}
-
-function buildBetButtons() {
-    const row1 = new ActionRowBuilder().addComponents(
-        ...BET_OPTIONS.filter(b => b.row === 0).map(b =>
-            new ButtonBuilder().setCustomId(b.id).setLabel(b.label).setStyle(b.style)
-        )
-    );
-    const row2 = new ActionRowBuilder().addComponents(
-        ...BET_OPTIONS.filter(b => b.row === 1).map(b =>
-            new ButtonBuilder().setCustomId(b.id).setLabel(b.label).setStyle(b.style)
-        )
-    );
-    const row3 = new ActionRowBuilder().addComponents(
-        ...BET_OPTIONS.filter(b => b.row === 2).map(b =>
-            new ButtonBuilder().setCustomId(b.id).setLabel(b.label).setStyle(b.style)
-        )
-    );
-    return [row1, row2, row3];
-}
-
-/**
- * Build the pool embed showing all participants.
- * participants: Array of { user_id, username, amount, bets: string[] }
- * companyContribution: company's matching amount in the pool
- */
-function buildPoolEmbed(participants, companyContribution, status = 'Waiting for players...') {
-    const lines = participants.map(p => {
-        const choicesText = p.bets.length > 0
-            ? ` → ${formatBetChoices(p.bets)}`
-            : ' → *choosing bet...*';
-        return `**${p.username}**: $${p.amount.toLocaleString()}${choicesText}`;
-    });
-
-    const totalPool = participants.reduce((sum, p) => sum + p.amount, 0) + companyContribution;
-
-    const embed = new EmbedBuilder()
-        .setColor(0x00FF00)
-        .setTitle(`🎰 Multiplayer Roulette`)
-        .setDescription(
-            `**Pool: $${totalPool.toLocaleString()}**\n` +
-            `🏢 Company (NMC): $${companyContribution.toLocaleString()}\n\n` +
-            `**Players:**\n${lines.join('\n')}\n\n` +
-            `*${status}*`
-        )
-        .setImage(ROULETTE_IMG)
-        .setFooter({ text: `Up to ${MAX_PLAYERS} players can join` });
-
-    return embed;
 }
 
 // ========================================================================
@@ -144,14 +89,6 @@ async function updateGame(supabase, gameId, updates) {
     if (error) throw error;
 }
 
-async function deleteGame(supabase, gameId) {
-    const { error } = await supabase
-        .from('active_games')
-        .delete()
-        .eq('id', gameId);
-    if (error) throw error;
-}
-
 // ========================================================================
 // DEDUCTION / REFUND HELPERS
 // ========================================================================
@@ -176,22 +113,91 @@ async function addCompany(supabase, guildId, amount) {
     if (error) throw error;
 }
 
-// ========================================================================
-// REFUND ALL — used on cancellation / timeout
-// ========================================================================
-
 async function refundAll(supabase, guildId, game) {
     const players = game.players || [];
-    // Refund each player
     for (const p of players) {
         await addPlayerWallet(supabase, p.player_id, p.amount);
     }
-    // Only refund company if it was actually charged (status moved past 'lobby')
     if (game.status !== 'lobby' && game.company_contribution > 0) {
         await addCompany(supabase, guildId, game.company_contribution);
     }
-    // Mark game cancelled
     await updateGame(supabase, game.id, { status: 'cancelled' });
+}
+
+// ========================================================================
+// UI BUILDERS
+// ========================================================================
+
+/**
+ * Build UI components dynamically based on game state.
+ */
+function buildLobbyComponents(players, gameOwnerId, gameStarted = false) {
+    // Top 3 rows are for bet selections
+    const betRow1 = new ActionRowBuilder().addComponents(
+        ...BET_OPTIONS.filter(b => b.row === 0).map(b =>
+            new ButtonBuilder().setCustomId(b.id).setLabel(b.label).setStyle(b.style).setDisabled(gameStarted)
+        )
+    );
+    const betRow2 = new ActionRowBuilder().addComponents(
+        ...BET_OPTIONS.filter(b => b.row === 1).map(b =>
+            new ButtonBuilder().setCustomId(b.id).setLabel(b.label).setStyle(b.style).setDisabled(gameStarted)
+        )
+    );
+    const betRow3 = new ActionRowBuilder().addComponents(
+        ...BET_OPTIONS.filter(b => b.row === 2).map(b =>
+            new ButtonBuilder().setCustomId(b.id).setLabel(b.label).setStyle(b.style).setDisabled(gameStarted)
+        )
+    );
+
+    // Control row
+    const allReady = players.every(p => p.ready && p.bets.length > 0);
+    const atLeastOneWaiting = players.some(p => !p.ready);
+
+    const controlRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('confirm_bets')
+            .setLabel('✅ Confirm Bets')
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(gameStarted),
+        new ButtonBuilder()
+            .setCustomId('add_bet')
+            .setLabel('🎲 Add Bet')
+            .setStyle(ButtonStyle.Primary)
+            .setDisabled(players.length >= MAX_PLAYERS || gameStarted),
+        new ButtonBuilder()
+            .setCustomId('start_game')
+            .setLabel('🚀 Start Game')
+            .setStyle(ButtonStyle.Danger)
+            .setDisabled(!allReady || gameStarted || players.length === 0)
+    );
+
+    return [betRow1, betRow2, betRow3, controlRow];
+}
+
+function buildPoolEmbed(players, companyContribution, status) {
+    const lines = players.map(p => {
+        const choicesText = p.bets.length > 0
+            ? ` → ${formatBetChoices(p.bets)}`
+            : ' → *choosing bet...*';
+        const readyMark = p.ready ? '✅' : '⏳';
+        return `**${p.username}**: $${p.amount.toLocaleString()}${choicesText} ${readyMark}`;
+    });
+
+    const totalPool = players.reduce((sum, p) => sum + p.amount, 0) + companyContribution;
+
+    const embed = new EmbedBuilder()
+        .setColor(0x00FF00)
+        .setTitle(`🎰 Multiplayer Roulette (Winner Takes All Pool)`)
+        .setDescription(
+            `**Total Pool: $${totalPool.toLocaleString()}**\n` +
+            `🏢 Company Matches: $${companyContribution.toLocaleString()}\n\n` +
+            `**Players:**\n${lines.join('\n')}\n\n` +
+            `*${status}*`
+        )
+        .setImage(ROULETTE_IMG)
+        .setFooter({ text: `Up to ${MAX_PLAYERS} players can join. Winners split the whole pool!` });
+
+    return embed;
 }
 
 // ========================================================================
@@ -200,31 +206,30 @@ async function refundAll(supabase, guildId, game) {
 
 export default {
     name: 'rl',
-    description: 'Play Multiplayer Roulette',
+    description: 'Play Multiplayer Roulette (Parimutuel Pool)',
     async execute(message, args, client) {
-        // --- Help ---
         if (args[0] === 'help') {
             const helpEmbed = new EmbedBuilder()
                 .setColor(0x00FF00)
                 .setTitle('Roulette Help')
                 .setDescription(
-                    'Multiplayer roulette! Up to 5 players can join a single game.\n' +
-                    'The company matches all player bets into the pool.'
+                    'Multiplayer Roulette Pool! Up to 5 players can join.\n' +
+                    'The company matches all player bets to sweeten the pool.'
                 )
                 .addFields(
-                    { name: '🎲 Usage', value: '`?rl <amount|all>` — Start a roulette game', inline: false },
-                    { name: '🎯 Bet Types', value: 'Red/Black/Even/Odd/1-18/19-36 (x2)\n1st 12/2nd 12/3rd 12 (x3)\nYou can pick **multiple bets** — your money splits equally!', inline: false },
-                    { name: '👥 Multiplayer', value: 'Others click **Add Bet**, type their amount, and choose bets.\nOnly the game starter can press **Start Game**.', inline: false },
-                    { name: '💰 Payouts', value: 'Money is deducted **upfront**. Each winning sub-bet pays at its standard multiplier. Pool remainder goes to the company; deficit is covered by the company.', inline: false },
+                    { name: '🎲 Usage', value: '\`?rl <amount|all>\` — Start a game', inline: false },
+                    { name: '🎯 Bet Types', value: 'Red, Black, Even, Odd, 1-18, 19-36, 1st/2nd/3rd 12.\nYou can pick **multiple bets** — your money splits equally among them!', inline: false },
+                    { name: '👥 Multiplayer flow', value: '1. Game owner starts it.\n2. ANYONE can click **Add Bet** to join.\n3. Everyone clicks bet options ON THE SAME MESSAGE.\n4. Click **Confirm Bets** when done.\n5. Game owner clicks **Start Game**.', inline: false },
+                    { name: '💰 Parimutuel Payouts', value: 'The **entire pool** (player bets + company match) is strictly divided among the WINNING players proportionally to how much they wagered on the winning outcomes. If NO ONE hits a winning bet, the company takes the pool.', inline: false },
                 )
                 .setFooter({ text: 'Good luck!' });
             return message.reply({ embeds: [helpEmbed] });
         }
 
-        if (!args[0]) return message.reply('Usage: `?rl <amount|all>` or `?rl help`');
+        if (!args[0]) return message.reply('Usage: \`?rl <amount|all>\` or \`?rl help\`');
 
         try {
-            // --- 1. Fetch initiator data ---
+            // --- 1. Validate Initiator ---
             const { data: player } = await client.supabase
                 .from('players').select('id').eq('discord_id', message.author.id).single();
             if (!player) return message.reply('You are not registered in the economy system.');
@@ -242,192 +247,103 @@ export default {
             if (isNaN(amount) || amount <= 0) return message.reply('Enter a valid amount.');
             if (pStats.total_income < amount) return message.reply('You have insufficient balance.');
 
-            // Check company can match
+            // Check company match
             const { data: guild } = await client.supabase
                 .from('approved_guilds').select('guild_income').eq('guild_id', message.guildId).single();
             if (!guild) return message.reply('This server is not initialized for the economy system.');
 
             const companyBalance = parseFloat(guild.guild_income || 0);
             if (companyBalance < amount) {
-                return message.reply(`The Company (NMC) cannot afford to match your bet! Company Balance: $${Math.floor(companyBalance).toLocaleString()}`);
+                return message.reply(`The Company cannot afford to match your bet! Company Balance: $${Math.floor(companyBalance).toLocaleString()}`);
             }
 
-            // --- 2. Show initial bet selection for owner ---
-            const gameOwnerId = message.author.id;
-            let ownerBettingPhase = true;
+            // --- 2. Upfront Deduction & Game Creation ---
+            await deductPlayerWallet(client.supabase, player.id, amount);
 
-            const betRows = buildBetButtons();
-            const doneRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('done_betting').setLabel('✅ Confirm Bets').setStyle(ButtonStyle.Success)
+            const ownerPlayer = {
+                user_id: message.author.id,
+                player_id: player.id,
+                username: message.author.username,
+                amount: amount,
+                bets: [],
+                ready: false,
+            };
+
+            const gameOwnerId = message.author.id;
+            const game = await createGame(
+                client.supabase,
+                message.guildId,
+                message.channel.id,
+                gameOwnerId,
+                ownerPlayer
             );
 
-            const initEmbed = new EmbedBuilder()
-                .setColor(0x00FF00)
-                .setTitle(`🎰 Roulette | ${message.author.username}'s Game`)
-                .setDescription(
-                    `**${message.author.username}**, choose your bet(s)!\n` +
-                    `Your Amount: **$${amount.toLocaleString()}**\n\n` +
-                    `Click multiple bet buttons to split your money equally across them.\n` +
-                    `Press **Confirm Bets** when done.`
-                )
-                .setImage(ROULETTE_IMG)
-                .setFooter({ text: 'Select your bets, then confirm.' });
+            // --- 3. Initial UI Layout ---
+            const status = 'Waiting for players to choose bets...';
+            const embed = buildPoolEmbed([ownerPlayer], amount, status);
+            const components = buildLobbyComponents([ownerPlayer], gameOwnerId);
 
-            const mainMsg = await message.reply({
-                embeds: [initEmbed],
-                components: [...betRows, doneRow]
-            });
+            const mainMsg = await message.reply({ embeds: [embed], components });
 
-            // --- Owner bet selection phase ---
-            const ownerBets = [];
-            const ownerCollector = mainMsg.createMessageComponentCollector({ time: 60000 });
-
-            ownerCollector.on('collect', async (interaction) => {
-                if (interaction.user.id !== gameOwnerId) {
-                    return interaction.reply({ content: 'Wait for the game owner to finish setting up!', flags: MessageFlags.Ephemeral });
-                }
-
-                const id = interaction.customId;
-
-                if (id === 'done_betting') {
-                    if (ownerBets.length === 0) {
-                        return interaction.reply({ content: 'You need to select at least one bet!', flags: MessageFlags.Ephemeral });
-                    }
-                    ownerBettingPhase = false;
-                    ownerCollector.stop('done');
-                    await interaction.deferUpdate();
-                    return;
-                }
-
-                // Toggle bet selection
-                const existing = ownerBets.indexOf(id);
-                if (existing >= 0) {
-                    ownerBets.splice(existing, 1);
-                } else {
-                    ownerBets.push(id);
-                }
-
-                // Update embed to show selected bets
-                const selectedText = ownerBets.length > 0
-                    ? `Selected: **${formatBetChoices(ownerBets)}**`
-                    : 'No bets selected yet.';
-
-                const updatedEmbed = new EmbedBuilder()
-                    .setColor(0x00FF00)
-                    .setTitle(`🎰 Roulette | ${message.author.username}'s Game`)
-                    .setDescription(
-                        `**${message.author.username}**, choose your bet(s)!\n` +
-                        `Your Amount: **$${amount.toLocaleString()}**\n\n` +
-                        `${selectedText}\n` +
-                        `Your money will be split equally across selected bets.\n` +
-                        `Press **Confirm Bets** when done.`
-                    )
-                    .setImage(ROULETTE_IMG)
-                    .setFooter({ text: 'Select your bets, then confirm.' });
-
-                await interaction.update({ embeds: [updatedEmbed] });
-            });
-
-            ownerCollector.on('end', async (_, reason) => {
-                if (reason === 'time' && ownerBettingPhase) {
-                    await mainMsg.edit({ content: '⏱️ Timed out! Game cancelled.', embeds: [], components: [] });
-                    return;
-                }
-
-                if (reason !== 'done') return;
-
-                try {
-                    // --- UPFRONT DEDUCTION: owner ---
-                    await deductPlayerWallet(client.supabase, player.id, amount);
-
-                    // --- Create game in Supabase ---
-                    const ownerPlayer = {
-                        user_id: message.author.id,
-                        player_id: player.id,
-                        username: message.author.username,
-                        amount: amount,
-                        bets: [...ownerBets],
-                        ready: true,
-                    };
-
-                    const game = await createGame(
-                        client.supabase,
-                        message.guildId,
-                        message.channel.id,
-                        gameOwnerId,
-                        ownerPlayer
-                    );
-
-                    // --- Lobby Phase ---
-                    await startLobby(client, message, mainMsg, game.id, gameOwnerId);
-                } catch (err) {
-                    console.error('[Roulette] Error creating game:', err);
-                    // Attempt to refund the owner
-                    try { await addPlayerWallet(client.supabase, player.id, amount); } catch (e) { /* best effort */ }
-                    await mainMsg.edit({ content: '❌ An error occurred while creating the game. Your bet has been refunded.', embeds: [], components: [] });
-                }
-            });
+            // Run the Lobby Phase handler
+            await runLobby(client, message, mainMsg, game.id, gameOwnerId);
 
         } catch (err) {
-            console.error('[Roulette] Error:', err);
+            console.error('[Roulette] Error starting:', err);
             message.reply('An error occurred while starting Roulette.');
         }
     },
 };
 
 // ========================================================================
-// LOBBY PHASE — Add Bet / Start Game
+// LOBBY PHASE
 // ========================================================================
-async function startLobby(client, message, mainMsg, gameId, gameOwnerId) {
+
+async function runLobby(client, message, mainMsg, gameId, gameOwnerId) {
     let gameStarted = false;
-
-    // Active "waiting for amount" users
     const waitingForAmount = new Set();
-
-    function buildLobbyComponents(players) {
-        const allReady = players.every(p => p.ready);
-        const lobbyRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId('add_bet')
-                .setLabel('🎲 Add Bet')
-                .setStyle(ButtonStyle.Primary)
-                .setDisabled(players.length >= MAX_PLAYERS || gameStarted),
-            new ButtonBuilder()
-                .setCustomId('start_game')
-                .setLabel('🚀 Start Game')
-                .setStyle(ButtonStyle.Success)
-                .setDisabled(!allReady || gameStarted)
-        );
-        return [lobbyRow];
-    }
-
-    // Fetch fresh game state
-    let game = await getGame(client.supabase, gameId);
-    let players = game.players;
-
-    const poolEmbed = buildPoolEmbed(players, game.company_contribution,
-        players.length < 2
-            ? 'Waiting for players to join... or start solo!'
-            : 'Waiting for all players to choose bets...'
-    );
-    await mainMsg.edit({ embeds: [poolEmbed], components: buildLobbyComponents(players) });
-
-    const lobbyCollector = mainMsg.createMessageComponentCollector({ time: 300000 }); // 5 min
+    const lobbyCollector = mainMsg.createMessageComponentCollector({ time: 300000 }); // 5 min timeout
 
     lobbyCollector.on('collect', async (interaction) => {
         if (gameStarted) return;
 
         const id = interaction.customId;
 
-        // --- ADD BET ---
-        if (id === 'add_bet') {
-            // Refresh game state
-            game = await getGame(client.supabase, gameId);
-            players = game.players;
+        // Fetch fresh game state
+        let game = await getGame(client.supabase, gameId);
+        let players = game.players || [];
 
-            // Check if already in the game
+        // ------------------------------------------------------------
+        // START GAME
+        // ------------------------------------------------------------
+        if (id === 'start_game') {
+            if (interaction.user.id !== gameOwnerId) {
+                return interaction.reply({ content: 'Only the game starter can start the game!', flags: MessageFlags.Ephemeral });
+            }
+
+            const allReady = players.every(p => p.ready && p.bets.length > 0);
+            if (!allReady) {
+                return interaction.reply({ content: 'All players must select bets and Confirm before starting.', flags: MessageFlags.Ephemeral });
+            }
+
+            gameStarted = true;
+            lobbyCollector.stop('started');
+            await interaction.deferUpdate();
+
+            // Deduct company up front
+            await deductCompany(client.supabase, message.guildId, game.company_contribution);
+            await updateGame(client.supabase, gameId, { status: 'spinning' });
+
+            await executeSpin(client, message, mainMsg, gameId);
+            return;
+        }
+
+        // ------------------------------------------------------------
+        // ADD BET (JOIN)
+        // ------------------------------------------------------------
+        if (id === 'add_bet') {
             if (players.find(p => p.user_id === interaction.user.id)) {
-                return interaction.reply({ content: 'You are already in this game!', flags: MessageFlags.Ephemeral });
+                return interaction.reply({ content: 'You are already in this game! Pick your bets on the embed above.', flags: MessageFlags.Ephemeral });
             }
             if (players.length >= MAX_PLAYERS) {
                 return interaction.reply({ content: 'Game is full! (Max 5 players)', flags: MessageFlags.Ephemeral });
@@ -436,7 +352,6 @@ async function startLobby(client, message, mainMsg, gameId, gameOwnerId) {
                 return interaction.reply({ content: 'You are already placing a bet! Type your amount in chat.', flags: MessageFlags.Ephemeral });
             }
 
-            // Check if user is registered
             const { data: joinerPlayer } = await client.supabase
                 .from('players').select('id').eq('discord_id', interaction.user.id).single();
             if (!joinerPlayer) {
@@ -444,70 +359,42 @@ async function startLobby(client, message, mainMsg, gameId, gameOwnerId) {
             }
 
             await interaction.reply({ content: `${interaction.user}, type your **bet amount** in this channel:`, flags: MessageFlags.Ephemeral });
-
             waitingForAmount.add(interaction.user.id);
 
-            // Listen for their next message in this channel
             const msgFilter = m => m.author.id === interaction.user.id && m.channel.id === message.channel.id;
             const msgCollector = message.channel.createMessageCollector({ filter: msgFilter, time: 30000, max: 1 });
 
             msgCollector.on('collect', async (amtMsg) => {
                 waitingForAmount.delete(interaction.user.id);
-
                 const rawAmt = amtMsg.content.trim().toLowerCase();
-
-                // Delete the user's amount message
                 try { await amtMsg.delete(); } catch (e) { /* ignore */ }
 
-                // Fetch their balance
                 const { data: jStats } = await client.supabase
                     .from('player_stats').select('total_income').eq('player_id', joinerPlayer.id).single();
 
-                let joinAmount = 0;
-                if (rawAmt === 'all') {
-                    joinAmount = jStats?.total_income || 0;
-                } else {
-                    joinAmount = Math.floor(parseFloat(rawAmt));
-                }
+                let joinAmount = rawAmt === 'all' ? (jStats?.total_income || 0) : Math.floor(parseFloat(rawAmt));
 
                 if (isNaN(joinAmount) || joinAmount <= 0) {
-                    try {
-                        const errMsg = await message.channel.send(`${interaction.user}, invalid amount! Your bet was cancelled.`);
-                        setTimeout(() => errMsg.delete().catch(() => { }), 5000);
-                    } catch (e) { /* ignore */ }
-                    return;
+                    return message.channel.send(`${interaction.user}, invalid amount.`).then(m => setTimeout(() => m.delete().catch(() => { }), 5000));
                 }
-
                 if ((jStats?.total_income || 0) < joinAmount) {
-                    try {
-                        const errMsg = await message.channel.send(`${interaction.user}, you don't have enough! You need $${joinAmount.toLocaleString()}.`);
-                        setTimeout(() => errMsg.delete().catch(() => { }), 5000);
-                    } catch (e) { /* ignore */ }
-                    return;
+                    return message.channel.send(`${interaction.user}, you don't have enough balance!`).then(m => setTimeout(() => m.delete().catch(() => { }), 5000));
                 }
 
-                // Refresh game to get latest company_contribution
                 game = await getGame(client.supabase, gameId);
-                players = game.players;
+                players = game.players || [];
 
-                // Check company can match this new bet too
                 const newCompanyContribution = game.company_contribution + joinAmount;
-                const { data: freshGuild } = await client.supabase
-                    .from('approved_guilds').select('guild_income').eq('guild_id', message.guildId).single();
+                const { data: freshGuild } = await client.supabase.from('approved_guilds').select('guild_income').eq('guild_id', message.guildId).single();
                 const gBalance = parseFloat(freshGuild?.guild_income || 0);
 
                 if (gBalance < newCompanyContribution) {
-                    try {
-                        const errMsg = await message.channel.send(`${interaction.user}, the Company cannot afford to match! Bet cancelled.`);
-                        setTimeout(() => errMsg.delete().catch(() => { }), 5000);
-                    } catch (e) { /* ignore */ }
-                    return;
+                    return message.channel.send(`${interaction.user}, the Company cannot afford to match! (Balance: $${gBalance})`).then(m => setTimeout(() => m.delete().catch(() => { }), 5000));
                 }
 
-                // --- UPFRONT DEDUCTION: joiner ---
+                // Deduct Joiner
                 await deductPlayerWallet(client.supabase, joinerPlayer.id, joinAmount);
 
-                // Add participant to game (not ready yet — needs to pick bets)
                 const newPlayer = {
                     user_id: interaction.user.id,
                     player_id: joinerPlayer.id,
@@ -518,7 +405,6 @@ async function startLobby(client, message, mainMsg, gameId, gameOwnerId) {
                 };
                 players.push(newPlayer);
 
-                // Update game in Supabase
                 const newPool = game.pool + joinAmount;
                 await updateGame(client.supabase, gameId, {
                     players: players,
@@ -526,318 +412,200 @@ async function startLobby(client, message, mainMsg, gameId, gameOwnerId) {
                     company_contribution: newCompanyContribution,
                 });
 
-                game.pool = newPool;
-                game.company_contribution = newCompanyContribution;
-
-                // Update pool embed
-                const updatedEmbed = buildPoolEmbed(players, game.company_contribution, 'Waiting for all players to choose bets...');
-                await mainMsg.edit({ embeds: [updatedEmbed], components: buildLobbyComponents(players) });
-
-                // Show bet selection to this user
-                await showBetSelection(client, message, mainMsg, interaction.user, gameId, gameOwnerId, buildLobbyComponents);
+                const updatedEmbed = buildPoolEmbed(players, newCompanyContribution, 'Waiting for all players to choose bets...');
+                await mainMsg.edit({ embeds: [updatedEmbed], components: buildLobbyComponents(players, gameOwnerId) });
             });
 
-            msgCollector.on('end', async (collected, reason) => {
+            msgCollector.on('end', (collected, reason) => {
                 waitingForAmount.delete(interaction.user.id);
                 if (reason === 'time' && collected.size === 0) {
                     interaction.followUp({ content: 'You took too long! Bet cancelled.', flags: MessageFlags.Ephemeral }).catch(() => { });
                 }
             });
-
             return;
         }
 
-        // --- START GAME ---
-        if (id === 'start_game') {
-            if (interaction.user.id !== gameOwnerId) {
-                return interaction.reply({ content: 'Only the game starter can start the game!', flags: MessageFlags.Ephemeral });
+        // ------------------------------------------------------------
+        // CONFIRM BETS
+        // ------------------------------------------------------------
+        if (id === 'confirm_bets') {
+            const playerIndex = players.findIndex(p => p.user_id === interaction.user.id);
+            if (playerIndex === -1) {
+                return interaction.reply({ content: 'You have not joined this game! Click **Add Bet** first.', flags: MessageFlags.Ephemeral });
             }
 
-            // Refresh game state
-            game = await getGame(client.supabase, gameId);
-            players = game.players;
+            const pInfo = players[playerIndex];
+            if (pInfo.ready) {
+                return interaction.reply({ content: 'You have already confirmed your bets.', flags: MessageFlags.Ephemeral });
+            }
+            if (pInfo.bets.length === 0) {
+                return interaction.reply({ content: 'You must select at least one bet option before confirming.', flags: MessageFlags.Ephemeral });
+            }
+
+            players[playerIndex].ready = true;
+            await updateGame(client.supabase, gameId, { players: players });
+            await interaction.deferUpdate();
 
             const allReady = players.every(p => p.ready);
-            if (!allReady) {
-                return interaction.reply({ content: 'Not all players have chosen their bets yet!', flags: MessageFlags.Ephemeral });
+            const statusStr = allReady ? 'All players ready! The creator can start the game.' : 'Waiting for others to confirm bets...';
+
+            const updatedEmbed = buildPoolEmbed(players, game.company_contribution, statusStr);
+            await mainMsg.edit({ embeds: [updatedEmbed], components: buildLobbyComponents(players, gameOwnerId) });
+            return;
+        }
+
+        // ------------------------------------------------------------
+        // TOGGLE BET OPTIONS 
+        // ------------------------------------------------------------
+        // Any other button ID must be a bet option (red, black, 1st 12, etc)
+        const validBetIds = BET_OPTIONS.map(b => b.id);
+        if (validBetIds.includes(id)) {
+            const playerIndex = players.findIndex(p => p.user_id === interaction.user.id);
+            if (playerIndex === -1) {
+                return interaction.reply({ content: 'You have not joined this game! Click **Add Bet** first.', flags: MessageFlags.Ephemeral });
             }
 
-            gameStarted = true;
+            const pInfo = players[playerIndex];
+            if (pInfo.ready) {
+                return interaction.reply({ content: 'You cannot change your bets after confirming!', flags: MessageFlags.Ephemeral });
+            }
+
+            const betIdx = pInfo.bets.indexOf(id);
+            if (betIdx >= 0) {
+                pInfo.bets.splice(betIdx, 1);
+            } else {
+                pInfo.bets.push(id);
+            }
+
+            await updateGame(client.supabase, gameId, { players: players });
             await interaction.deferUpdate();
-            lobbyCollector.stop('started');
 
-            // --- UPFRONT DEDUCTION: company ---
-            await deductCompany(client.supabase, message.guildId, game.company_contribution);
-
-            // Update game status to spinning
-            await updateGame(client.supabase, gameId, { status: 'spinning' });
-
-            // Run the game!
-            await runMultiplayerGame(client, message, mainMsg, gameId);
+            const updatedEmbed = buildPoolEmbed(players, game.company_contribution, 'Waiting for all players to choose bets...');
+            // Keep components the same, just update embed
+            await mainMsg.edit({ embeds: [updatedEmbed] });
+            return;
         }
     });
 
     lobbyCollector.on('end', async (_, reason) => {
-        if (reason === 'time') {
-            // Refund all players on timeout
+        if (reason === 'time' && !gameStarted) {
             try {
-                game = await getGame(client.supabase, gameId);
-                await refundAll(client.supabase, message.guildId, game);
-            } catch (e) {
-                console.error('[Roulette] Error refunding on timeout:', e);
-            }
-            mainMsg.edit({ content: '⏱️ Game lobby timed out! All bets have been refunded.', embeds: [], components: [] }).catch(() => { });
+                const finalGame = await getGame(client.supabase, gameId);
+                await refundAll(client.supabase, message.guildId, finalGame);
+            } catch (e) { console.error('[Roulette] Timeout refund error:', e); }
+            mainMsg.edit({ content: '⏱️ Game lobby timed out! All bets refunded.', embeds: [], components: [] }).catch(() => { });
         }
     });
 }
 
 // ========================================================================
-// BET SELECTION FOR JOINING PLAYERS
+// PARIMUTUEL PAYOUT / EXECUTION PHASE
 // ========================================================================
-async function showBetSelection(client, message, mainMsg, user, gameId, gameOwnerId, buildLobbyComponents) {
-    const betRows = buildBetButtons();
-    const doneRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`done_bet_${user.id}`).setLabel('✅ Confirm Bets').setStyle(ButtonStyle.Success)
-    );
 
-    const betMsg = await message.channel.send({
-        content: `${user}, choose your bet(s) and press **Confirm Bets**:`,
-        components: [...betRows, doneRow]
-    });
-
-    const userBets = [];
-    const betCollector = betMsg.createMessageComponentCollector({ time: 60000 });
-
-    betCollector.on('collect', async (interaction) => {
-        if (interaction.user.id !== user.id) {
-            return interaction.reply({ content: 'Not your bet selection!', flags: MessageFlags.Ephemeral });
-        }
-
-        const btnId = interaction.customId;
-
-        if (btnId === `done_bet_${user.id}`) {
-            if (userBets.length === 0) {
-                return interaction.reply({ content: 'Select at least one bet!', flags: MessageFlags.Ephemeral });
-            }
-
-            // Update player in Supabase game
-            let game = await getGame(client.supabase, gameId);
-            let players = game.players;
-            const participant = players.find(p => p.user_id === user.id);
-            if (participant) {
-                participant.bets = [...userBets];
-                participant.ready = true;
-                await updateGame(client.supabase, gameId, { players: players });
-            }
-
-            betCollector.stop('done');
-            await interaction.deferUpdate();
-            await betMsg.delete().catch(() => { });
-
-            // Update main pool embed
-            const allReady = players.every(p => p.ready);
-            const status = allReady
-                ? 'All players ready! Game starter can press Start Game.'
-                : 'Waiting for all players to choose bets...';
-            const updatedEmbed = buildPoolEmbed(players, game.company_contribution, status);
-            await mainMsg.edit({ embeds: [updatedEmbed], components: buildLobbyComponents(players) });
-            return;
-        }
-
-        // Toggle bet
-        const existing = userBets.indexOf(btnId);
-        if (existing >= 0) {
-            userBets.splice(existing, 1);
-        } else {
-            userBets.push(btnId);
-        }
-
-        const selectedText = userBets.length > 0
-            ? `Selected: **${formatBetChoices(userBets)}**`
-            : 'No bets selected yet.';
-
-        await interaction.update({
-            content: `${user}, choose your bet(s):\n${selectedText}\nPress **Confirm Bets** when done.`,
-        });
-    });
-
-    betCollector.on('end', async (_, reason) => {
-        if (reason === 'time') {
-            // Refund and remove participant if they didn't confirm
-            let game = await getGame(client.supabase, gameId);
-            let players = game.players;
-            const idx = players.findIndex(p => p.user_id === user.id);
-            if (idx >= 0 && !players[idx].ready) {
-                const removedPlayer = players[idx];
-                players.splice(idx, 1);
-
-                // Refund the player
-                await addPlayerWallet(client.supabase, removedPlayer.player_id, removedPlayer.amount);
-
-                // Update game
-                const newPool = game.pool - removedPlayer.amount;
-                const newCompanyContribution = game.company_contribution - removedPlayer.amount;
-                await updateGame(client.supabase, gameId, {
-                    players: players,
-                    pool: newPool,
-                    company_contribution: newCompanyContribution,
-                });
-
-                const updatedEmbed = buildPoolEmbed(players, newCompanyContribution, 'A player timed out and was removed. Bet refunded.');
-                await mainMsg.edit({ embeds: [updatedEmbed], components: buildLobbyComponents(players) }).catch(() => { });
-            }
-            await betMsg.delete().catch(() => { });
-        }
-    });
-}
-
-// ========================================================================
-// GAME EXECUTION
-// ========================================================================
-async function runMultiplayerGame(client, message, mainMsg, gameId) {
-    // Fetch final game state
+async function executeSpin(client, message, mainMsg, gameId) {
     const game = await getGame(client.supabase, gameId);
     const players = game.players;
     const companyContribution = game.company_contribution;
-    const pool = game.pool + companyContribution; // total pool = player bets + company match
+    const totalPool = game.pool + companyContribution; // Entire pool to be split
 
-    // 1. Show spinning embed
     const spinEmbed = new EmbedBuilder()
         .setColor(0xFFFF00)
         .setTitle('🎰 Spinning the Wheel...')
         .setDescription(
-            players.map(p =>
-                `**${p.username}**: $${p.amount.toLocaleString()} → ${formatBetChoices(p.bets)}`
-            ).join('\n') +
-            `\n\n🏢 Company Pool: $${companyContribution.toLocaleString()}` +
-            `\n💰 Total Pool: $${pool.toLocaleString()}`
+            `**Total Pool: $${totalPool.toLocaleString()}** (Winner takes all!)\n\n` +
+            players.map(p => `**${p.username}**: $${p.amount.toLocaleString()} → ${formatBetChoices(p.bets)}`).join('\n')
         )
         .setImage(SPINNING_GIF);
 
     await mainMsg.edit({ embeds: [spinEmbed], components: [] });
 
-    // 2. Wait 5.5 seconds
     setTimeout(async () => {
         try {
-            // 3. Generate result
             const resultNum = Math.floor(Math.random() * 37); // 0-36
             const resultColor = getRouletteColor(resultNum);
 
-            // 4. Evaluate each player using STANDARD ROULETTE MULTIPLIERS
-            // Each sub-bet pays at multiplier * subAmount on win
-            const playerResults = players.map(p => {
-                const perBetAmount = Math.floor(p.amount / p.bets.length);
-                const winningBets = [];
-                const losingBets = [];
-                let totalReturn = 0;
+            // 1. Identify winning parts for each player
+            let sumOfWinningWagers = 0;
 
-                for (const bet of p.bets) {
-                    if (doesBetWin(bet, resultNum)) {
-                        winningBets.push(bet);
-                        totalReturn += perBetAmount * getBetMultiplier(bet);
-                    } else {
-                        losingBets.push(bet);
-                    }
-                }
-
+            const playerEvals = players.map(p => {
+                const wagerPerSubBet = p.amount / p.bets.length; 
+                const winningSubBets = p.bets.filter(b => doesBetWin(b, resultNum));
+                const exactWinningWagerForPlayer = winningSubBets.length * wagerPerSubBet;
+                
+                sumOfWinningWagers += exactWinningWagerForPlayer;
+                
                 return {
                     ...p,
-                    perBetAmount,
-                    winningBets,
-                    losingBets,
-                    totalReturn,
+                    winningBets: winningSubBets,
+                    losingBets: p.bets.filter(b => !winningSubBets.includes(b)),
+                    exactWinningWagerForPlayer
                 };
             });
 
-            // 5. Calculate total payouts and pool remainder
-            const totalPayouts = playerResults.reduce((s, pr) => s + pr.totalReturn, 0);
-            const poolRemainder = pool - totalPayouts;
-            // poolRemainder > 0 → company profit, poolRemainder < 0 → company deficit
-
-            // 6. Database updates — pay out winners, track transactions
-            const updatePromises = [];
             const resultLines = [];
+            const updatePromises = [];
+            let companyChange = -companyContribution; // By default they lost their matching contribution
 
-            for (const pr of playerResults) {
-                if (pr.totalReturn > 0) {
-                    // Player won something — add winnings to wallet
-                    updatePromises.push((async () => {
-                        await addPlayerWallet(client.supabase, pr.player_id, pr.totalReturn);
-                        const net = pr.totalReturn - pr.amount;
-                        if (net > 0) {
-                            await trackTransaction(client.supabase, pr.player_id, 'gamble_win', net, 'Won Multiplayer Roulette');
-                        } else if (net < 0) {
-                            await trackTransaction(client.supabase, pr.player_id, 'gamble_loss', Math.abs(net), 'Partial loss Multiplayer Roulette');
+            // 2. Distribute the Pool
+            if (sumOfWinningWagers > 0) {
+                // Someone won! Split the pool based on their proportion of the winning wager.
+                let totalDispensed = 0;
+
+                for (const p of playerEvals) {
+                    if (p.exactWinningWagerForPlayer > 0) {
+                        const winFraction = p.exactWinningWagerForPlayer / sumOfWinningWagers;
+                        const payout = Math.floor(totalPool * winFraction);
+                        totalDispensed += payout;
+
+                        updatePromises.push(addPlayerWallet(client.supabase, p.player_id, payout));
+
+                        const netProfit = payout - p.amount;
+                        if (netProfit > 0) {
+                            updatePromises.push(trackTransaction(client.supabase, p.player_id, 'gamble_win', netProfit, 'Won Parimutuel Roulette'));
+                        } else if (netProfit < 0) {
+                            // Rare: if they bet $10k on red and $10k on black to guarantee a win, but standard payout pool division doesn't cover their total $20k initial bet.
+                            updatePromises.push(trackTransaction(client.supabase, p.player_id, 'gamble_loss', Math.abs(netProfit), 'Parimutuel Roulette Partial Loss'));
                         }
-                    })());
 
-                    const net = pr.totalReturn - pr.amount;
-                    if (net > 0) {
-                        const wonBetsText = formatBetChoices(pr.winningBets);
-                        const lostBetsText = pr.losingBets.length > 0 ? ` (Lost: ${formatBetChoices(pr.losingBets)})` : '';
-                        resultLines.push(`✅ **${pr.username}** — Won: ${wonBetsText}${lostBetsText} — Profit: +$${net.toLocaleString()}`);
-                    } else if (net === 0) {
-                        resultLines.push(`➖ **${pr.username}** — Bet: ${formatBetChoices(pr.bets)} — Broke Even`);
+                        resultLines.push(`✅ **${p.username}** — payout **$${payout.toLocaleString()}** (Profit: ${netProfit >= 0 ? '+' : ''}$${netProfit.toLocaleString()})`);
                     } else {
-                        const wonBetsText = pr.winningBets.length > 0 ? ` (Won: ${formatBetChoices(pr.winningBets)})` : '';
-                        resultLines.push(`❌ **${pr.username}** — Bet: ${formatBetChoices(pr.bets)}${wonBetsText} — Lost: $${Math.abs(net).toLocaleString()}`);
+                        // Complete loss for this player
+                        updatePromises.push(trackTransaction(client.supabase, p.player_id, 'gamble_loss', p.amount, 'Lost Parimutuel Roulette'));
+                        resultLines.push(`❌ **${p.username}** — lost **$${p.amount.toLocaleString()}**`);
                     }
-                } else {
-                    // Player lost everything — money already deducted upfront
-                    updatePromises.push(
-                        trackTransaction(client.supabase, pr.player_id, 'gamble_loss', pr.amount, 'Lost Multiplayer Roulette')
-                    );
-                    resultLines.push(`❌ **${pr.username}** — Bet: ${formatBetChoices(pr.bets)} — Lost: $${pr.amount.toLocaleString()}`);
                 }
+                
+                // Any truncation remainder left directly in NMC's pocket (due to Math.floor)
+                const leftovers = totalPool - totalDispensed; 
+                if (leftovers > 0) {
+                    updatePromises.push(addCompany(client.supabase, message.guildId, leftovers));
+                    companyChange += leftovers;
+                }
+                
+            } else {
+                // No Winners — Company sweeps the entire pool
+                for (const p of playerEvals) {
+                    updatePromises.push(trackTransaction(client.supabase, p.player_id, 'gamble_loss', p.amount, 'Lost Parimutuel Roulette'));
+                    resultLines.push(`❌ **${p.username}** — lost **$${p.amount.toLocaleString()}**`);
+                }
+
+                // Company regains its own contribution + keeps all players' money
+                updatePromises.push(addCompany(client.supabase, message.guildId, totalPool));
+                companyChange = totalPool - companyContribution; // Net profit is sum of player bets
             }
 
-            // 7. Settle company — pool remainder
-            // The company already had company_contribution deducted.
-            // poolRemainder = (playerBets + companyContribution) - totalPayouts
-            // If positive: company gets the remainder back (profit)
-            // If negative: company covers the deficit (extra loss)
-            // If zero: company breaks even (already lost its contribution)
-            updatePromises.push((async () => {
-                if (poolRemainder > 0) {
-                    // Company gets the remainder as profit
-                    await addCompany(client.supabase, message.guildId, poolRemainder);
-                } else if (poolRemainder < 0) {
-                    // Company covers the deficit — deduct more from company
-                    await deductCompany(client.supabase, message.guildId, Math.abs(poolRemainder));
-                }
-                // If exactly 0, company already lost its contribution, nothing to do
-            })());
-
             await Promise.all(updatePromises);
+            await updateGame(client.supabase, gameId, { status: 'completed', result: resultNum });
 
-            // 8. Update game as completed
-            await updateGame(client.supabase, gameId, {
-                status: 'completed',
-                result: resultNum,
-            });
+            const companyNetStr = companyChange >= 0 ? `+$${Math.floor(companyChange).toLocaleString()}` : `-$${Math.floor(Math.abs(companyChange)).toLocaleString()}`;
 
-            // 9. Company net for display
-            // Company put in company_contribution. It gets back poolRemainder (if positive).
-            // companyNet = poolRemainder - companyContribution (how much company gained/lost overall)
-            // Actually: company deducted company_contribution upfront.
-            //   If poolRemainder > 0, company gets poolRemainder back.
-            //   So company net = poolRemainder - companyContribution
-            //   (negative = loss, positive = profit)
-            const companyNet = poolRemainder > 0
-                ? poolRemainder - companyContribution
-                : -companyContribution - Math.abs(poolRemainder);
-
-            // Simplify: companyNet = poolRemainder - companyContribution
-            const companyNetSimple = poolRemainder - companyContribution;
-
-            // 10. Final result embed
             const resultEmbed = new EmbedBuilder()
                 .setColor(0xFFD700)
                 .setTitle('🎰 Roulette Result')
                 .setDescription(
                     `**Final Outcome: ${resultNum} (${resultColor.toUpperCase()})**\n\n` +
                     resultLines.join('\n') +
-                    `\n\n🏢 Company net: ${companyNetSimple >= 0 ? '+' : ''}$${companyNetSimple.toLocaleString()}`
+                    `\n\n🏢 Company Net: ${companyNetStr}`
                 )
                 .setFooter({ text: 'Better luck next time!' })
                 .setTimestamp();
@@ -845,8 +613,8 @@ async function runMultiplayerGame(client, message, mainMsg, gameId) {
             await mainMsg.edit({ embeds: [resultEmbed] });
 
         } catch (error) {
-            console.error('[Roulette] Error in game execution:', error);
-            mainMsg.edit({ content: 'An error occurred processing the result.', embeds: [] }).catch(() => { });
+            console.error('[Roulette] Spin execution error:', error);
+            mainMsg.edit({ content: 'An error occurred processing the spin.', embeds: [] }).catch(() => { });
         }
     }, 5500);
 }

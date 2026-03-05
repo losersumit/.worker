@@ -12,12 +12,12 @@ import { getMemories, getRecentServerEvents, formatMemoryContext } from '../syst
 // ========================================================================
 
 const BUFFER_SIZE = 25;                          // Messages to remember per channel
-const BURST_THRESHOLD = 4;                       // Min messages in window to consider a "burst"
-const BURST_WINDOW = 45_000;                     // 45 seconds — burst detection window
-const UNPROMPTED_COOLDOWN = 0;                    // No cooldown — bot can chime in freely
-const RANDOM_CHANCE = 1.0;                        // 100% chance per qualifying burst
-const IMAGE_CHANCE = 1.0;                        // 100% chance to react to images
-const UNANSWERED_DELAY = 2 * 60 * 1000;         // 2 min — bot helps if question goes unanswered
+const BURST_THRESHOLD = 5;                       // Min messages in window to consider a "burst"
+const BURST_WINDOW = 60_000;                     // 60 seconds — burst detection window
+const UNPROMPTED_COOLDOWN = 60_000;              // 1 minute cooldown — bot cannot chime in freely
+const RANDOM_CHANCE = 0.15;                      // 15% chance per qualifying burst
+const IMAGE_CHANCE = 0.40;                       // 40% chance to react to images
+const UNANSWERED_DELAY = 2 * 60 * 1000;          // 2 min — bot helps if question goes unanswered
 const BUFFER_CLEANUP_INTERVAL = 10 * 60 * 1000;  // Clean stale buffers every 10 min
 const BUFFER_TTL = 30 * 60 * 1000;               // Buffers expire after 30 min of inactivity
 
