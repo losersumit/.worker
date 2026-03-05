@@ -218,7 +218,7 @@ export default {
                 )
                 .addFields(
                     { name: '🎲 Usage', value: '\`?rl <amount|all>\` — Start a game', inline: false },
-                    { name: '🎯 Bet Types', value: 'Red, Black, Even, Odd, 1-18, 19-36, 1st/2nd/3rd 12.\nYou can pick **multiple bets** — your money splits equally among them!', inline: false },
+                    { name: '🎯 Bet Types', value: 'Red, Black, Even, Odd, 1-18, 19-36, 1st/2nd/3rd 12.\nYou can pick **one bet** option!', inline: false },
                     { name: '👥 Multiplayer flow', value: '1. Game owner starts it.\n2. ANYONE can click **Add Bet** to join.\n3. Everyone clicks bet options ON THE SAME MESSAGE.\n4. Click **Confirm Bets** when done.\n5. Game owner clicks **Start Game**.', inline: false },
                     { name: '💰 Parimutuel Payouts', value: 'The **entire pool** (player bets + company match) is strictly divided among the WINNING players proportionally to how much they wagered on the winning outcomes. If NO ONE hits a winning bet, the company takes the pool.', inline: false },
                 )
@@ -392,6 +392,11 @@ async function runLobby(client, message, mainMsg, gameId, gameOwnerId) {
                     return message.channel.send(`${interaction.user}, the Company cannot afford to match! (Balance: $${gBalance})`).then(m => setTimeout(() => m.delete().catch(() => { }), 5000));
                 }
 
+                // If a second player joins, the company retracts its contribution.
+                if (players.length >= 1) {
+                    newCompanyContribution = 0;
+                }
+
                 // Deduct Joiner
                 await deductPlayerWallet(client.supabase, joinerPlayer.id, joinAmount);
 
@@ -470,12 +475,8 @@ async function runLobby(client, message, mainMsg, gameId, gameOwnerId) {
                 return interaction.reply({ content: 'You cannot change your bets after confirming!', flags: MessageFlags.Ephemeral });
             }
 
-            const betIdx = pInfo.bets.indexOf(id);
-            if (betIdx >= 0) {
-                pInfo.bets.splice(betIdx, 1);
-            } else {
-                pInfo.bets.push(id);
-            }
+            // Overwrite existing bet to enforce max 1 bet per player
+            pInfo.bets = [id];
 
             await updateGame(client.supabase, gameId, { players: players });
             await interaction.deferUpdate();
@@ -528,12 +529,12 @@ async function executeSpin(client, message, mainMsg, gameId) {
             let sumOfWinningWagers = 0;
 
             const playerEvals = players.map(p => {
-                const wagerPerSubBet = p.amount / p.bets.length; 
+                const wagerPerSubBet = p.amount / p.bets.length;
                 const winningSubBets = p.bets.filter(b => doesBetWin(b, resultNum));
                 const exactWinningWagerForPlayer = winningSubBets.length * wagerPerSubBet;
-                
+
                 sumOfWinningWagers += exactWinningWagerForPlayer;
-                
+
                 return {
                     ...p,
                     winningBets: winningSubBets,
@@ -561,27 +562,44 @@ async function executeSpin(client, message, mainMsg, gameId) {
 
                         const netProfit = payout - p.amount;
                         if (netProfit > 0) {
-                            updatePromises.push(trackTransaction(client.supabase, p.player_id, 'gamble_win', netProfit, 'Won Parimutuel Roulette'));
+                            // Apply 20% tax on net profit
+                            const tax = Math.floor(netProfit * 0.20);
+                            const netProfitAfterTax = netProfit - tax;
+
+                            if (tax > 0) {
+                                // Take tax from player wallet (deduct from the payout they just received)
+                                updatePromises.push(deductPlayerWallet(client.supabase, p.player_id, tax));
+                                // Add tax to company vault
+                                updatePromises.push(addCompany(client.supabase, message.guildId, tax));
+                                companyChange += tax;
+
+                                // Track the tax separately
+                                updatePromises.push(trackTransaction(client.supabase, p.player_id, 'tax', tax, 'Roulette Winnings Tax'));
+                            }
+
+                            updatePromises.push(trackTransaction(client.supabase, p.player_id, 'gamble_win', netProfitAfterTax, 'Won Parimutuel Roulette'));
+                            resultLines.push(`✅ **${p.username}** — payout **$${(payout - tax).toLocaleString()}** (Profit: +$${netProfitAfterTax.toLocaleString()}) *[-$${tax.toLocaleString()} tax]*`);
                         } else if (netProfit < 0) {
                             // Rare: if they bet $10k on red and $10k on black to guarantee a win, but standard payout pool division doesn't cover their total $20k initial bet.
                             updatePromises.push(trackTransaction(client.supabase, p.player_id, 'gamble_loss', Math.abs(netProfit), 'Parimutuel Roulette Partial Loss'));
+                            resultLines.push(`✅ **${p.username}** — payout **$${payout.toLocaleString()}** (Loss: -$${Math.abs(netProfit).toLocaleString()})`);
+                        } else {
+                            resultLines.push(`✅ **${p.username}** — payout **$${payout.toLocaleString()}** (Broke Even)`);
                         }
-
-                        resultLines.push(`✅ **${p.username}** — payout **$${payout.toLocaleString()}** (Profit: ${netProfit >= 0 ? '+' : ''}$${netProfit.toLocaleString()})`);
                     } else {
                         // Complete loss for this player
                         updatePromises.push(trackTransaction(client.supabase, p.player_id, 'gamble_loss', p.amount, 'Lost Parimutuel Roulette'));
                         resultLines.push(`❌ **${p.username}** — lost **$${p.amount.toLocaleString()}**`);
                     }
                 }
-                
+
                 // Any truncation remainder left directly in NMC's pocket (due to Math.floor)
-                const leftovers = totalPool - totalDispensed; 
+                const leftovers = totalPool - totalDispensed;
                 if (leftovers > 0) {
                     updatePromises.push(addCompany(client.supabase, message.guildId, leftovers));
                     companyChange += leftovers;
                 }
-                
+
             } else {
                 // No Winners — Company sweeps the entire pool
                 for (const p of playerEvals) {

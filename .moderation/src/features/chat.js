@@ -148,6 +148,8 @@ export async function handleChat(message, client) {
     lastAccess.set(channelKey, Date.now()); // Update access time
     const history = histories.get(channelKey);
 
+    const userName = message.member?.displayName || message.author.globalName || message.author.username;
+
     const prompt =
         message.content
             .replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '')
@@ -223,9 +225,10 @@ export async function handleChat(message, client) {
         messages.push({ role: 'system', content: faqContext });
     }
 
-    // Add history (text only for context)
-    for (const h of history) {
-        messages.push({ role: h.role, content: h.text });
+    // Add history (Format as dialogue: "Name: message")
+    if (history.length > 0) {
+        const dialogHistory = history.map(h => `${h.name}: ${h.text}`).join('\n');
+        messages.push({ role: 'system', content: `RECENT DIRECT CHAT HISTORY:\n${dialogHistory}` });
     }
 
     // Determine model to use
@@ -237,7 +240,7 @@ export async function handleChat(message, client) {
         messages.push({
             role: 'user',
             content: [
-                { type: 'text', text: prompt },
+                { type: 'text', text: `${userName}: ${prompt}` },
                 { type: 'image_url', image_url: { url: imageUrl } }
             ]
         });
@@ -248,7 +251,7 @@ export async function handleChat(message, client) {
         console.log(`[Chat] Using Vision Model: ${modelToUse} for image.`);
     } else {
         // Standard text format
-        messages.push({ role: 'user', content: prompt });
+        messages.push({ role: 'user', content: `${userName}: ${prompt}` });
     }
 
     // Call Groq
@@ -268,9 +271,11 @@ export async function handleChat(message, client) {
 
     await message.reply(replyText);
 
-    history.push({ role: 'user', text: prompt });
-    history.push({ role: 'assistant', text: replyText });
-    while (history.length > MAX_HISTORY_MESSAGES) history.shift();
+    history.push({ role: 'user', name: userName, text: prompt });
+    history.push({ role: 'assistant', name: 'Worker', text: replyText });
+    // Keep max 15 per user request
+    const MAX_DIALOG_MESSAGES = 15;
+    while (history.length > MAX_DIALOG_MESSAGES) history.shift();
 
     // Fire-and-forget: extract and save any notable facts from this conversation
     if (client.supabase && history.length >= 2) {
