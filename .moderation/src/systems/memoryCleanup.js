@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { groqChatCompletion } from './clients/groq.js';
+import { groqChatCompletion } from '../clients/groq.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
