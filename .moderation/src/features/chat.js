@@ -193,10 +193,7 @@ export async function handleChat(message, client) {
     let recentEvents = [];
     if (client.supabase) {
         try {
-            [memories, recentEvents] = await Promise.all([
-                getMemories(client.supabase, message.author.id),
-                getRecentServerEvents(client.supabase, client),
-            ]);
+            memories = await getMemories(client.supabase, message.author.id);
         } catch (err) {
             console.error('[Chat] Memory fetch error:', err.message);
         }

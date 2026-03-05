@@ -233,10 +233,8 @@ async function sendUnprompted(channel, client, buf, extraInstruction = '') {
             try {
                 // Get memories for the last person who spoke
                 const lastSpeaker = buf.messages[buf.messages.length - 1];
-                const [memories, events] = await Promise.all([
-                    getMemories(client.supabase, lastSpeaker.authorId),
-                    getRecentServerEvents(client.supabase, client),
-                ]);
+                const memories = await getMemories(client.supabase, lastSpeaker.authorId);
+                const events = []; // Leave events empty
                 memoryContext = formatMemoryContext(memories, events);
             } catch { /* non-critical */ }
         }
