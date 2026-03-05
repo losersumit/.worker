@@ -171,9 +171,10 @@ const EVENTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
  * Get recent notable economy events from the last 24 hours.
  * Results are cached for 5 minutes to avoid spam queries.
  * @param {SupabaseClient} supabase
+ * @param {Client} [client] - Optional discord client to resolve usernames
  * @returns {Promise<Array<{type: string, amount: number, details: string}>>}
  */
-export async function getRecentServerEvents(supabase) {
+export async function getRecentServerEvents(supabase, client) {
     try {
         // Return cache if fresh
         if (Date.now() - eventsCache.fetchedAt < EVENTS_CACHE_TTL) {
@@ -184,7 +185,12 @@ export async function getRecentServerEvents(supabase) {
 
         const { data, error } = await supabase
             .from('player_economy_history')
-            .select('transaction_type, amount, details')
+            .select(`
+                transaction_type, 
+                amount, 
+                details,
+                players!inner(discord_id)
+            `)
             .gte('created_at', since)
             .in('transaction_type', ['gamble_win', 'gamble_loss', 'steal_success', 'donate', 'gift'])
             .gt('amount', 10000) // Only notable events (>$10k)
@@ -196,10 +202,26 @@ export async function getRecentServerEvents(supabase) {
             return [];
         }
 
-        const events = (data || []).map(e => ({
-            type: e.transaction_type,
-            amount: e.amount,
-            details: e.details,
+        const events = await Promise.all((data || []).map(async e => {
+            let playerName = 'Someone';
+            const discordId = e.players?.discord_id;
+
+            if (discordId && client) {
+                try {
+                    const user = await client.users.fetch(discordId);
+                    playerName = user.globalName || user.username;
+                } catch {
+                    playerName = `<@${discordId}>`;
+                }
+            } else if (discordId) {
+                playerName = `<@${discordId}>`;
+            }
+
+            return {
+                type: e.transaction_type,
+                amount: e.amount,
+                details: `${playerName}: ${e.details}`,
+            };
         }));
 
         eventsCache = { data: events, fetchedAt: Date.now() };

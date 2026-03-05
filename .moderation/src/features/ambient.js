@@ -112,7 +112,7 @@ export function bufferMessage(message, client) {
 
     // Add message to buffer
     buf.messages.push({
-        author: message.author.username,
+        author: message.member?.displayName || message.author.globalName || message.author.username,
         authorId: message.author.id,
         content: message.content,
         hasImage: message.attachments.some(a => a.contentType?.startsWith('image/')),
@@ -232,7 +232,7 @@ async function sendUnprompted(channel, client, buf, extraInstruction = '') {
                 const lastSpeaker = buf.messages[buf.messages.length - 1];
                 const [memories, events] = await Promise.all([
                     getMemories(client.supabase, lastSpeaker.authorId),
-                    getRecentServerEvents(client.supabase),
+                    getRecentServerEvents(client.supabase, client),
                 ]);
                 memoryContext = formatMemoryContext(memories, events);
             } catch { /* non-critical */ }

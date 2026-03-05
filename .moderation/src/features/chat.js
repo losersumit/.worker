@@ -89,9 +89,10 @@ function getMoodString() {
 function buildSystemPrompt(member, user) {
     const rank = resolveRank(member);
     const isCommander = user.id === COMMANDER_ID;
+    const nameToUse = member?.displayName || user?.globalName || user?.username;
     const userLabel = isCommander
-        ? `The Commander (${user.username})`
-        : `${user.username}`;
+        ? `The Commander (${nameToUse})`
+        : `${nameToUse}`;
 
     return BASE_SYSTEM_PROMPT
         + `\nMOOD (current):\n${getMoodString()}\n`
@@ -195,7 +196,7 @@ export async function handleChat(message, client) {
         try {
             [memories, recentEvents] = await Promise.all([
                 getMemories(client.supabase, message.author.id),
-                getRecentServerEvents(client.supabase),
+                getRecentServerEvents(client.supabase, client),
             ]);
         } catch (err) {
             console.error('[Chat] Memory fetch error:', err.message);
@@ -273,10 +274,11 @@ export async function handleChat(message, client) {
 
     // Fire-and-forget: extract and save any notable facts from this conversation
     if (client.supabase && history.length >= 2) {
+        const nameToUse = message.member?.displayName || message.author.globalName || message.author.username;
         extractAndSaveMemories(
             client.supabase,
             message.author.id,
-            message.author.username,
+            nameToUse,
             history
         ).catch(err => console.error('[Chat] Memory extraction failed:', err.message));
     }
