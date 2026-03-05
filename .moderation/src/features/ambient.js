@@ -92,9 +92,9 @@ If you SHOULD speak, respond with ONLY your short message — nothing else.`;
  * @param {Client} client - Discord client
  */
 export function bufferMessage(message, client) {
-    // Skip ignored channels, DMs, and bot messages
+    // Skip ignored channels, DMs, and OTHER bot messages (but keep our own)
     if (!message.guild) return;
-    if (message.author.bot) return;
+    if (message.author.bot && message.author.id !== client.user.id) return;
     if (IGNORED_CHANNEL_IDS.includes(message.channel.id)) return;
 
     const channelId = message.channel.id;
@@ -135,7 +135,9 @@ export function bufferMessage(message, client) {
  * @param {Client} client - Discord client
  */
 export async function checkForUnprompted(message, client) {
-    if (!message.guild || message.author.bot) return;
+    if (!message.guild) return;
+    // Don't trigger unprompted evaluate on any bot's message, including our own
+    if (message.author.bot) return;
     if (IGNORED_CHANNEL_IDS.includes(message.channel.id)) return;
 
     const channelId = message.channel.id;
@@ -192,6 +194,7 @@ export async function checkForUnprompted(message, client) {
     // --- Trigger 3: Active burst (3% random chance) ---
     const recentMessages = buf.messages.filter(m => now - m.timestamp < BURST_WINDOW);
     if (recentMessages.length >= BURST_THRESHOLD) {
+        // Double-check no recent bot message in the window just to prevent it from repeating too quickly in a fast burst
         const roll = Math.random();
         console.log(`[Ambient] 💬 Burst detected: ${recentMessages.length} msgs in ${BURST_WINDOW / 1000}s. Roll: ${roll.toFixed(3)} (need < ${RANDOM_CHANCE})`);
         if (roll < RANDOM_CHANCE) {
