@@ -17,7 +17,7 @@ const BURST_WINDOW = 60_000;                     // 60 seconds — burst detecti
 const UNPROMPTED_COOLDOWN = 60_000;              // 1 minute cooldown — bot cannot chime in freely
 const RANDOM_CHANCE = 0.50;                      // 50% chance per qualifying burst
 const IMAGE_CHANCE = 0.50;                       // 50% chance to react to images
-const UNANSWERED_DELAY = 0;          // 2 min — bot helps if question goes unanswered
+const UNANSWERED_DELAY = 0;                      // no time — bot helps if question goes unanswered
 const BUFFER_CLEANUP_INTERVAL = 10 * 60 * 1000;  // Clean stale buffers every 10 min
 const BUFFER_TTL = 30 * 60 * 1000;               // Buffers expire after 30 min of inactivity
 
