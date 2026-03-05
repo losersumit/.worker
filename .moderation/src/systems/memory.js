@@ -82,11 +82,11 @@ export async function saveMemory(supabase, userId, fact, category = 'general') {
 const EXTRACTION_PROMPT = `You are a memory extraction system. Given a conversation between a user and "Worker" (an AI bot), extract 0-3 SHORT notable facts about the user that would be worth remembering for future conversations.
 
 Good facts to extract:
-- Preferences ("prefers the Volcano VN truck", "likes the Stream ST")
+- Preferences 
 - Personality ("sarcastic humor", "very competitive", "friendly")  
-- Notable events ("lost $500k in roulette today", "just joined NMC")
-- Skills ("good at parking oversized trailers", "level 50+ driver")
-- Relationships ("friends with X", "rivals with Y")
+- Notable events
+- Skills
+- Relationships
 
 Rules:
 - Each fact must be under 15 words
