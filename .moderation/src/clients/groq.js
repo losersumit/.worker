@@ -2,17 +2,18 @@ import '../utils/loadEnv.js';
 import axios from 'axios';
 import config from '../config.js'; // Updated import path
 
-// Two-key failover for Groq's OpenAI-compatible API.
-// The user requested these exact variable names:
+// Five-key failover for Groq's OpenAI-compatible API.
 export const api_key_one = process.env.GROQ_API_KEY_ONE || '';
 export const api_key_two = process.env.GROQ_API_KEY_TWO || process.env.GROQ_API_KEY || '';
 export const api_key_three = process.env.GROQ_API_KEY_THREE || '';
 export const api_key_four = process.env.GROQ_API_KEY_FOUR || '';
+export const api_key_five = process.env.GROQ_API_KEY_FIVE || '';
+export const api_key_six = process.env.GROQ_API_KEY_SIX || '';
 
 const GROQ_ENDPOINT =
     process.env.GROQ_ENDPOINT || 'https://api.groq.com/openai/v1/chat/completions';
 
-const keys = [api_key_one, api_key_two, api_key_three, api_key_four].filter(k => k);
+const keys = [api_key_one, api_key_two, api_key_three, api_key_four, api_key_five, api_key_six].filter(k => k);
 let activeKeyIndex = 0;
 
 function normalizeErrorMessage(err) {

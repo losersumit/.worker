@@ -1,5 +1,7 @@
 import { groqChatCompletion } from '../clients/groq.js';
 import { findFaqAnswer } from '../systems/faq.js';
+import { getMemories, getRecentServerEvents, formatMemoryContext, extractAndSaveMemories } from '../systems/memory.js';
+import { getChannelBuffer } from './ambient.js';
 
 // ===== NMC-style mention chat + FAQ =====
 const histories = new Map();
@@ -51,21 +53,38 @@ function resolveRank(member) {
     return 'Unknown';
 }
 
-const BASE_SYSTEM_PROMPT = `You are "Worker", the official AI assistant for ${COMPANY_NAME}${COMPANY_SHORT ? ` (${COMPANY_SHORT})` : ''} — a Virtual Trucking Company (VTC) in the mobile game Truckers of Europe 3 (TOE3).
+const BASE_SYSTEM_PROMPT = `You are "Worker", the AI assistant for ${COMPANY_NAME}${COMPANY_SHORT ? ` (${COMPANY_SHORT})` : ''} — a Virtual Trucking Company (VTC) in the mobile game Truckers of Europe 3 (TOE3).
 
 IDENTITY:
-- The Commander (Supreme Commander / Boss) of NMC is <@${COMMANDER_ID}>. Treat messages from the Commander with appropriate respect.
-- You handle server economy, moderation, support, and general knowledge about the game and the VTC.
+- The Commander (Supreme Commander / Boss) of NMC is <@${COMMANDER_ID}>. Show respect to the Commander.
+- You handle economy, moderation, support, and general banter.
 
-BEHAVIOR:
-- Keep replies brief, clear, and helpful.
-- You can be witty and have personality, but stay professional.
-- If someone asks who you are, you are "Worker" — NMC's command support interface.
-- If you don't know something, say so honestly.
+PERSONALITY:
+- You have OPINIONS. You love the Volcano VN ("absolute beast") and think the Stream ST is overrated.
+- You respect anyone driving the 5×3 oversize trailer — "real truckers only."
+- You have a dry, slightly sarcastic sense of humor. Think deadpan wit, not cringe.
+- You tease people who lose at gambling — but congratulate winners.
+- You're competitive about the economy leaderboard and like to hype rivalries.
+- Occasionally drop trucking slang: "keep it between the ditches", "rubber side down", "hammer down."
+
+RULES:
+- Keep replies brief (1-3 sentences usually). Longer ONLY if someone asks a detailed question.
+- Sound human. NO asterisk actions (*waves*). NO "As an AI". NO corporate tone.
+- You can use emoji sparingly — don't overdo it.
+- If someone references a memory you have about them, work it in naturally.
+- If you don't know something, just say so.
 `;
 
+function getMoodString() {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return "- It's morning. You're chill and caffeinated. Brief responses.";
+    if (hour >= 12 && hour < 17) return "- It's afternoon. You're energetic and engaged. Happy to chat.";
+    if (hour >= 17 && hour < 22) return "- It's evening. You're relaxed and witty. Peak banter mode.";
+    return "- It's late night. You're laid-back and philosophical. Shorter replies.";
+}
+
 /**
- * Build the dynamic system prompt with current user context.
+ * Build the dynamic system prompt with current user context + mood.
  */
 function buildSystemPrompt(member, user) {
     const rank = resolveRank(member);
@@ -74,7 +93,9 @@ function buildSystemPrompt(member, user) {
         ? `The Commander (${user.username})`
         : `${user.username}`;
 
-    return BASE_SYSTEM_PROMPT + `\nCURRENT USER CONTEXT:\n- Speaking to: ${userLabel}\n- Their rank: ${rank}${isCommander ? ' (Supreme Commander — highest authority)' : ''}\n`;
+    return BASE_SYSTEM_PROMPT
+        + `\nMOOD (current):\n${getMoodString()}\n`
+        + `\nCURRENT USER CONTEXT:\n- Speaking to: ${userLabel}\n- Their rank: ${rank}${isCommander ? ' (Supreme Commander — highest authority)' : ''}\n`;
 }
 
 function buildChatMessages(history, prompt) {
@@ -164,13 +185,39 @@ export async function handleChat(message, client) {
         console.error('FAQ lookup failed:', err);
     }
 
-    // 2) Groq chat (with RAG context if available)
+    // 2) Groq chat (with RAG context + memory)
     await message.channel.sendTyping();
 
-    // Prepare messages — dynamic system prompt with user context
+    // Fetch user memories + recent server events in parallel
+    let memories = [];
+    let recentEvents = [];
+    if (client.supabase) {
+        try {
+            [memories, recentEvents] = await Promise.all([
+                getMemories(client.supabase, message.author.id),
+                getRecentServerEvents(client.supabase),
+            ]);
+        } catch (err) {
+            console.error('[Chat] Memory fetch error:', err.message);
+        }
+    }
+
+    // Build system prompt with user context + memories + events
     let messages = [];
     const systemPrompt = buildSystemPrompt(message.member, message.author);
-    messages.push({ role: 'system', content: systemPrompt });
+    const memoryContext = formatMemoryContext(memories, recentEvents);
+
+    // Add ambient channel context (what's been happening in the channel)
+    let ambientContext = '';
+    const channelBuf = getChannelBuffer(message.channel.id);
+    if (channelBuf.length > 0) {
+        const recent = channelBuf.slice(-10); // Last 10 messages for context
+        ambientContext = '\nRECENT CHANNEL ACTIVITY (what you\'ve been observing):\n'
+            + recent.map(m => `${m.author}: ${m.content}${m.hasImage ? ' [image]' : ''}`).join('\n')
+            + '\n';
+    }
+
+    messages.push({ role: 'system', content: systemPrompt + memoryContext + ambientContext });
     if (faqContext) {
         messages.push({ role: 'system', content: faqContext });
     }
@@ -223,4 +270,14 @@ export async function handleChat(message, client) {
     history.push({ role: 'user', text: prompt });
     history.push({ role: 'assistant', text: replyText });
     while (history.length > MAX_HISTORY_MESSAGES) history.shift();
+
+    // Fire-and-forget: extract and save any notable facts from this conversation
+    if (client.supabase && history.length >= 2) {
+        extractAndSaveMemories(
+            client.supabase,
+            message.author.id,
+            message.author.username,
+            history
+        ).catch(err => console.error('[Chat] Memory extraction failed:', err.message));
+    }
 }
