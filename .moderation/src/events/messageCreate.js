@@ -18,6 +18,11 @@ export default {
         // Buffer EVERY message for ambient awareness (before any returns)
         bufferMessage(message, client);
 
+        // Check for unprompted reaction on EVERY message (fire-and-forget)
+        checkForUnprompted(message, client).catch(err =>
+            console.error('[Ambient] Unprompted check error:', err.message)
+        );
+
         // Hook for legacy economy commands (prefix '?')
         if (message.content.startsWith('?')) {
             if (process.env.CHANNEL_ID && message.channelId !== process.env.CHANNEL_ID) {
@@ -216,12 +221,6 @@ export default {
 
             // ===== Mention chat + FAQ =====
             await handleChat(message, client);
-
-            // ===== Ambient unprompted reactions =====
-            // Runs after chat — evaluates if bot should chime in on its own
-            checkForUnprompted(message, client).catch(err =>
-                console.error('[Ambient] Unprompted check error:', err.message)
-            );
 
         } catch (error) {
             console.error(`Error processing message: ${error}`);

@@ -140,29 +140,39 @@ export async function checkForUnprompted(message, client) {
 
     const channelId = message.channel.id;
     const buf = channelBuffers.get(channelId);
-    if (!buf || buf.messages.length < 3) return;
+    if (!buf || buf.messages.length < 1) return;
 
     const now = Date.now();
 
     // Cooldown check — don't spam
     if (now - buf.lastUnprompted < UNPROMPTED_COOLDOWN) return;
 
-    // --- Trigger 1: Unanswered question ---
     const lastMsg = buf.messages[buf.messages.length - 1];
+
+    // --- Trigger 1: Unanswered question ---
     if (lastMsg.hasQuestion) {
+        console.log(`[Ambient] ❓ Question detected from ${lastMsg.author} in #${message.channel.name}. Timer set for ${UNANSWERED_DELAY / 1000}s.`);
+
         // Clear any existing timer and set a new one
         const existingTimer = unansweredTimers.get(channelId);
         if (existingTimer) clearTimeout(existingTimer);
 
+        const questionTimestamp = lastMsg.timestamp;
+        const questionAuthorId = lastMsg.authorId;
+
         const timer = setTimeout(async () => {
             unansweredTimers.delete(channelId);
-            // Re-check: was the question answered? (did more messages arrive?)
             const currentBuf = channelBuffers.get(channelId);
             if (!currentBuf) return;
-            const lastNow = currentBuf.messages[currentBuf.messages.length - 1];
-            // If the last message is still the question (nobody replied), help
-            if (lastNow && lastNow.authorId === lastMsg.authorId && lastNow.timestamp === lastMsg.timestamp) {
-                if (now - currentBuf.lastUnprompted < UNPROMPTED_COOLDOWN) return;
+
+            // Use fresh time, not the stale `now`
+            const freshNow = Date.now();
+            if (freshNow - currentBuf.lastUnprompted < UNPROMPTED_COOLDOWN) return;
+
+            const lastCurrent = currentBuf.messages[currentBuf.messages.length - 1];
+            // If the last message is still the same question (nobody replied), help
+            if (lastCurrent && lastCurrent.authorId === questionAuthorId && lastCurrent.timestamp === questionTimestamp) {
+                console.log(`[Ambient] ❓ No reply after ${UNANSWERED_DELAY / 1000}s — bot stepping in.`);
                 await sendUnprompted(message.channel, client, currentBuf, 'Someone asked a question and nobody replied. Help them out naturally.');
             }
         }, UNANSWERED_DELAY);
@@ -170,16 +180,24 @@ export async function checkForUnprompted(message, client) {
     }
 
     // --- Trigger 2: Image shared (25% chance) ---
-    if (lastMsg.hasImage && Math.random() < IMAGE_CHANCE) {
-        await sendUnprompted(message.channel, client, buf, 'Someone just shared an image/screenshot. React to it briefly and naturally.');
-        return;
+    if (lastMsg.hasImage) {
+        const roll = Math.random();
+        console.log(`[Ambient] 🖼️ Image detected from ${lastMsg.author}. Roll: ${roll.toFixed(3)} (need < ${IMAGE_CHANCE})`);
+        if (roll < IMAGE_CHANCE) {
+            await sendUnprompted(message.channel, client, buf, 'Someone just shared an image/screenshot. React to it briefly and naturally.');
+            return;
+        }
     }
 
     // --- Trigger 3: Active burst (3% random chance) ---
     const recentMessages = buf.messages.filter(m => now - m.timestamp < BURST_WINDOW);
-    if (recentMessages.length >= BURST_THRESHOLD && Math.random() < RANDOM_CHANCE) {
-        await sendUnprompted(message.channel, client, buf);
-        return;
+    if (recentMessages.length >= BURST_THRESHOLD) {
+        const roll = Math.random();
+        console.log(`[Ambient] 💬 Burst detected: ${recentMessages.length} msgs in ${BURST_WINDOW / 1000}s. Roll: ${roll.toFixed(3)} (need < ${RANDOM_CHANCE})`);
+        if (roll < RANDOM_CHANCE) {
+            await sendUnprompted(message.channel, client, buf);
+            return;
+        }
     }
 }
 
