@@ -1,6 +1,4 @@
 .moderation/node_modules/
-.moderation/.env
-.moderation/.env.*
 .moderation/data/
 .moderation/npm-debug.log*
 .moderation/yarn-debug.log*
@@ -21,9 +19,6 @@ scripts/webhook.js
 scripts/upload_data.js
 
 .economy/node_modules/
-.economy/.env
-.economy/.env.local
-.economy/.env.*.local
 .economy/*.log
 .economy/.DS_Store
 .economy/dist/
@@ -31,7 +26,6 @@ scripts/upload_data.js
 
 # Top Level
 node_modules/
-.env
 .DS_Store
 *.log
 .page/
