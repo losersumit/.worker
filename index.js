@@ -14,6 +14,11 @@ import { runMemoryCleanup } from './.moderation/src/systems/memoryCleanup.js';
 import { scheduleRagHourlySummaries } from './.moderation/src/features/ragChat.js';
 import schedule from 'node-schedule';
 
+// AI Integration
+import { handleDiscordMessageIngestion } from './discord-ai-bot/src/ambientListener.js';
+import { startHourlySummaries as startAiReranker } from './discord-ai-bot/src/rag/summarizer.js';
+import { storeMessage } from './discord-ai-bot/src/ingestion/storeMessage.js';
+
 // Setup environment and paths
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -121,12 +126,40 @@ client.once('ready', async () => {
 
     // Hourly RAG summaries for channel context retrieval
     scheduleRagHourlySummaries(client);
+
+    // AI Bot: Hourly AI Channel Summarizer (Local RAG)
+    startAiReranker();
 });
 
 // Load events
 const init = async () => {
     await loadLegacyCommands();
     await loadEvents(client);
+
+    // Ingest all messages to the AI Brain (and try to reply)
+    client.on('messageCreate', async (message) => {
+        try {
+            if (message.author.bot || !message.content || message.content.length > 2000) return;
+
+            // 1. Store the message cleanly
+            const stored = await storeMessage({
+                message_id: message.id,
+                user_id: message.author.id,
+                username: message.member?.displayName || message.author.username,
+                channel_id: message.channel.id,
+                channel_name: message.channel.name || 'DM',
+                content: message.content,
+                timestamp: message.createdAt.toISOString()
+            });
+
+            // 2. Feed it to the ambient listener
+            if (stored) {
+                await handleDiscordMessageIngestion(stored, message);
+            }
+        } catch (err) {
+            console.error('[AI-Ingestion] messageCreate error:', err.message);
+        }
+    });
 
     // Log in to Discord
     client.login(process.env.DISCORD_TOKEN);

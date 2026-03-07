@@ -1,4 +1,4 @@
-import { query } from '../db/db.js';
+import { supabase } from '../db/db.js';
 import { sanitizeText, sha256 } from '../rag/embed.js';
 
 export async function storeMessage(message) {
@@ -17,21 +17,24 @@ export async function storeMessage(message) {
 
   const contentHash = sha256(`${payload.channel_id}|${payload.user_id}|${payload.content}|${payload.timestamp.toISOString()}`);
 
-  await query(
-    `INSERT INTO messages (message_id, user_id, username, channel_id, channel_name, content, created_at, content_hash)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-     ON CONFLICT (message_id) DO NOTHING`,
-    [
-      payload.message_id,
-      payload.user_id,
-      payload.username,
-      payload.channel_id,
-      payload.channel_name,
-      payload.content,
-      payload.timestamp,
-      contentHash
-    ]
-  );
+  const { error } = await supabase
+    .from('messages')
+    .insert({
+      message_id: payload.message_id,
+      user_id: payload.user_id,
+      username: payload.username,
+      channel_id: payload.channel_id,
+      channel_name: payload.channel_name,
+      content: payload.content,
+      created_at: payload.timestamp.toISOString(),
+      content_hash: contentHash
+    });
+
+  if (error) {
+    if (error.code !== '23505') { // Ignore duplicate key errors entirely
+      console.error('Error inserting message to Supabase:', error);
+    }
+  }
 
   return payload;
 }

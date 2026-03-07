@@ -12,6 +12,18 @@ export class Chunker {
     const key = msg.channel_id;
     if (!this.buffers.has(key)) this.buffers.set(key, []);
     const buffer = this.buffers.get(key);
+
+    // Semantic Heuristic: If it's been more than 5 minutes since the last message in this buffer, flush the buffer FIRST because it's likely a new topic.
+    if (buffer.length > 0) {
+      const lastMsgDate = new Date(buffer[buffer.length - 1].timestamp).getTime();
+      const newMsgDate = new Date(msg.timestamp).getTime();
+      if ((newMsgDate - lastMsgDate) > (5 * 60 * 1000)) { // 5 minutes
+        const staleChunk = this.flush(key);
+        this.buffers.get(key).push(msg); // Add the new message to a fresh buffer
+        return staleChunk;
+      }
+    }
+
     buffer.push(msg);
 
     if (buffer.length >= MAX_CHUNK_SIZE) {
@@ -21,8 +33,8 @@ export class Chunker {
   }
 
   flush(channelId) {
-    const buffer = this.buffers.get(channelId) || [];
-    if (buffer.length < MIN_CHUNK_SIZE) return null;
+    const buffer = this.buffers.get(channelId);
+    if (!buffer || buffer.length < MIN_CHUNK_SIZE) return null;
 
     const chunkMessages = buffer.splice(0, MAX_CHUNK_SIZE);
     const text = chunkMessages

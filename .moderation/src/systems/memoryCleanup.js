@@ -20,13 +20,38 @@ If ALL facts are important and nothing should be deleted, return an empty array 
 Example: ["is eating lunch right now", "likes trucks"]`;
 
 /**
- * Runs a standalone job to clean up user memories.
- * Fetches users who have more than 5 facts, sends them to Groq for evaluation,
- * and deletes the obsolete ones.
+ * Runs a standalone job to clean up user memories and AI RAG data.
  */
 export async function runMemoryCleanup() {
-    console.log('[Memory Cleanup] Starting daily memory consolidation...');
     try {
+        console.log('[MEMORY_CLEANUP] Starting cleanup routine...');
+
+        // --- AI RAG Database Pruning ---
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const cutoffString = thirtyDaysAgo.toISOString();
+
+        console.log(`[MEMORY_CLEANUP] Pruning AI messages and chunks older than: ${cutoffString}`);
+
+        // 1. Delete old raw messages
+        const { error: msgErr } = await supabase
+            .from('messages')
+            .delete()
+            .lt('created_at', cutoffString);
+
+        if (msgErr) console.error('[MEMORY_CLEANUP] Error pruning messages:', msgErr);
+
+        // 2. Delete old chunks (keep summaries forever)
+        const { error: chunkErr } = await supabase
+            .from('chunks')
+            .delete()
+            .lt('end_time', cutoffString);
+
+        if (chunkErr) console.error('[MEMORY_CLEANUP] Error pruning chunks:', chunkErr);
+        // -------------------------------
+
+        console.log('[MEMORY_CLEANUP] AI RAG cleanup completed. Starting user memory consolidation...');
+
         // 1. Get all memories, grouped by user
         const { data: allMemories, error } = await supabase
             .from('bot_memories')

@@ -1,9 +1,5 @@
-import { query } from '../db/db.js';
+import { supabase } from '../db/db.js';
 import { embedText } from './embed.js';
-
-function toPgVectorLiteral(arr) {
-  return `[${arr.join(',')}]`;
-}
 
 export async function retrieveContext(question, options = {}) {
   const embedding = await embedText(question);
@@ -15,47 +11,54 @@ export async function retrieveContext(question, options = {}) {
     limit = 5
   } = options;
 
-  const vectorLiteral = toPgVectorLiteral(embedding);
+  let allHits = [];
 
-  const rows = await query(
-    `
-    WITH chunk_hits AS (
-      SELECT
-        'chunk' AS source,
-        channel_id,
-        start_time AS ts,
-        text,
-        embedding <-> $1::vector AS distance
-      FROM chunks
-      WHERE ($2::text IS NULL OR channel_id = $2)
-        AND end_time > NOW() - ($3::text || ' hours')::interval
-      ORDER BY embedding <-> $1::vector
-      LIMIT $4
-    ),
-    summary_hits AS (
-      SELECT
-        'summary' AS source,
-        channel_id,
-        hour_bucket AS ts,
-        summary_text AS text,
-        embedding <-> $1::vector AS distance
-      FROM summaries
-      WHERE ($2::text IS NULL OR channel_id = $2)
-        AND hour_bucket > NOW() - ($3::text || ' hours')::interval
-      ORDER BY embedding <-> $1::vector
-      LIMIT $4
-    )
-    SELECT *
-    FROM (
-      SELECT * FROM chunk_hits
-      UNION ALL
-      SELECT * FROM summary_hits
-    ) all_hits
-    ORDER BY distance ASC
-    LIMIT $4
-    `,
-    [vectorLiteral, channelId, String(hours), limit]
-  );
+  // Try fetching chunks
+  try {
+    const { data: chunkHits, error: chunkErr } = await supabase.rpc('match_chunks', {
+      query_embedding: embedding,
+      match_threshold: 0.8, // Adjust as needed
+      match_count: limit,
+      p_channel_id: channelId,
+      p_hours: hours
+    });
 
-  return rows.rows || [];
+    if (!chunkErr && chunkHits) {
+      allHits = allHits.concat(chunkHits);
+    } else if (chunkErr) {
+      console.error("RPC match_chunks failed:", chunkErr);
+    }
+  } catch (err) {
+    console.error('Failed to retrieve chunks via RPC:', err);
+  }
+
+  // Try fetching summaries
+  try {
+    const { data: summaryHits, error: sumErr } = await supabase.rpc('match_summaries', {
+      query_embedding: embedding,
+      match_threshold: 0.8,
+      match_count: limit,
+      p_channel_id: channelId,
+      p_hours: hours
+    });
+
+    if (!sumErr && summaryHits) {
+      allHits = allHits.concat(summaryHits);
+    } else if (sumErr) {
+      console.error("RPC match_summaries failed:", sumErr);
+    }
+  } catch (err) {
+    console.error('Failed to retrieve summaries via RPC:', err);
+  }
+
+  // Fallback if RPC doesn't exist yet but user wants to use standard text search (or just return empty if migrations fail)
+  if (allHits.length === 0) {
+    // You can implement standard text search fallback here if needed using `.textSearch()`
+    // but vector search needs RPCs on Supabase.
+  }
+
+  // Sort merged results by distance
+  allHits.sort((a, b) => a.distance - b.distance);
+
+  return allHits.slice(0, limit);
 }
