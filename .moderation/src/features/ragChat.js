@@ -407,7 +407,7 @@ export async function handleRagChat(message, client) {
     const shouldAuto = shouldAutoReply(message, content);
 
     if (mentioned || repliedToBot) {
-        const q = content.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '').trim() || 'Help me with recent server context.';
+        const q = content.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '').trim() || 'Hey!';
         await askWithContext(message, client, q);
         return;
     }
@@ -415,7 +415,7 @@ export async function handleRagChat(message, client) {
     // Human-like ambient behavior: answer without explicit ping when likely needed.
     if (shouldAuto && autoReplyAllowed(message.channel.id)) {
         markAutoReply(message.channel.id);
-        const autoQuestion = content || 'React to the latest image or update naturally with server context.';
+        const autoQuestion = content || 'React to the recent conversation naturally.';
         await askWithContext(message, client, autoQuestion);
     }
 }
