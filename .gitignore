@@ -17,6 +17,8 @@ scripts/fetch_stats.js
 .moderation/faq.txt
 scripts/webhook.js
 scripts/upload_data.js
+.moderation/src/scripts/syncServerHistory.js
+.moderation/storage
 
 .economy/node_modules/
 .economy/*.log
