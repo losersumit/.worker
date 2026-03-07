@@ -29,7 +29,7 @@ export async function summarizeChannelHour(channelId, hourStart, hourEnd) {
 
   try {
     const completion = await groq.chat.completions.create({
-      model: 'mixtral-8x7b-32768',
+      model: 'llama-3.3-70b-versatile',
       temperature: 0.2,
       messages: [
         { role: 'system', content: 'Summarize Discord server discussions in concise factual bullet points.' },

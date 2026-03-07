@@ -8,7 +8,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY_ONE });
 export async function generateReply(prompt) {
   try {
     const response = await groq.chat.completions.create({
-      model: 'mixtral-8x7b-32768', // Fast Groq model suitable for this
+      model: 'llama-3.3-70b-versatile', // Fast Groq model suitable for this
       temperature: 0.3,
       messages: [
         { role: 'system', content: 'You are helpful, concise, and accurate.' },

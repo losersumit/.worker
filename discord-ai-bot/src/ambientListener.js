@@ -52,10 +52,27 @@ export async function handleDiscordMessageIngestion(stored, message) {
 
     // ─── AMBIENT REPLY PIPELINE ───
     const isBotPing = message.mentions.has(message.client.user);
-    const contentWithoutPings = message.content.replace(/<@!?[0-9]+>/g, '').trim();
+    let isReplyToBot = false;
 
-    // Only respond if the user directly pings the bot
-    if (!isBotPing || !contentWithoutPings) return;
+    if (message.reference && message.reference.messageId) {
+        try {
+            const refMsg = await message.channel.messages.fetch(message.reference.messageId);
+            if (refMsg && refMsg.author.id === message.client.user.id) {
+                isReplyToBot = true;
+            }
+        } catch (e) { }
+    }
+
+    const contentWithoutPings = message.content.replace(/<@!?[0-9]+>/g, '').trim();
+    if (!contentWithoutPings) return;
+
+    const lower = contentWithoutPings.toLowerCase();
+    const isQuestion = lower.includes('?');
+    const asks = ['why', 'what', 'who', 'when', 'where', 'how', 'help', 'explain', 'anyone know', 'can someone', 'worker', 'bot'];
+    const isRelevantKeyword = asks.some(k => lower.includes(k));
+
+    // Only respond if the user pings the bot, replies to it, explicitly asks a question, or uses a help keyword
+    if (!isBotPing && !isReplyToBot && !isQuestion && !isRelevantKeyword) return;
 
     // Check rate limit using remote Supabase DB
     const isLimited = await checkRateLimit(message.author.id);

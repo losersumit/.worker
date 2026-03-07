@@ -15,7 +15,7 @@ export async function retrieveContext(question, options = {}) {
 
   // Try fetching chunks
   try {
-    const { data: chunkHits, error: chunkErr } = await supabase.rpc('match_chunks', {
+    const { data: chunkHits, error: chunkErr } = await supabase.rpc('match_chunks_hybrid', {
       query_embedding: embedding,
       match_threshold: 0.8, // Adjust as needed
       match_count: limit,
@@ -34,7 +34,7 @@ export async function retrieveContext(question, options = {}) {
 
   // Try fetching summaries
   try {
-    const { data: summaryHits, error: sumErr } = await supabase.rpc('match_summaries', {
+    const { data: summaryHits, error: sumErr } = await supabase.rpc('match_summaries_hybrid', {
       query_embedding: embedding,
       match_threshold: 0.8,
       match_count: limit,
