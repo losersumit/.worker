@@ -12,10 +12,10 @@ const HISTORY_TTL = 3600000; // 1 hour cleanup
 // Cleanup interval for chat history (prevents memory leaks)
 setInterval(() => {
     const now = Date.now();
-    for (const [channelId, time] of lastAccess.entries()) {
+    for (const [historyKey, time] of lastAccess.entries()) {
         if (now - time > HISTORY_TTL) {
-            histories.delete(channelId);
-            lastAccess.delete(channelId);
+            histories.delete(historyKey);
+            lastAccess.delete(historyKey);
         }
     }
 }, 300000); // Check every 5 minutes
@@ -140,10 +140,12 @@ export async function handleChat(message, client) {
 
     if (!mentioned && !repliedToBot) return;
 
-    const channelKey = message.channel.id;
-    if (!histories.has(channelKey)) histories.set(channelKey, []);
-    lastAccess.set(channelKey, Date.now()); // Update access time
-    const history = histories.get(channelKey);
+    // Keep direct chat history scoped to each user in each channel.
+    // This prevents cross-user memory contamination in active channels.
+    const historyKey = `${message.channel.id}:${message.author.id}`;
+    if (!histories.has(historyKey)) histories.set(historyKey, []);
+    lastAccess.set(historyKey, Date.now()); // Update access time
+    const history = histories.get(historyKey);
 
     const userName = message.member?.displayName || message.author.globalName || message.author.username;
 
