@@ -246,8 +246,9 @@ ${formatVerifiedIdentity(verifiedIdentity)}
 
 CURRENT USER MEMORIES (trusted per-user preferences/facts):
 ${formatMemories(memories)}
+IMPORTANT: These memories represent the CURRENT truth. If a memory states an issue is resolved or changed, it completely overrides any older conversation found in the retrieved context below.
 
-RETRIEVED CHANNEL CONTEXT:
+RETRIEVED CHANNEL CONTEXT (Past 24 hours of chat):
 ${contextBlock}
 
 QUESTION:
@@ -281,6 +282,10 @@ async function askWithContext(message, client, question) {
         await message.reply('Rate limit hit. Try again in a minute.');
         return;
     }
+
+    try {
+        await message.channel.sendTyping();
+    } catch { }
 
     const [context, memories, verifiedIdentity] = await Promise.all([
         retrieveContext(client.supabase, question, message.channel.id),

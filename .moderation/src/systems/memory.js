@@ -21,7 +21,7 @@ export async function getMemories(supabase, userId) {
     try {
         const { data, error } = await supabase
             .from('bot_memories')
-            .select('fact, category')
+            .select('id, fact, category')
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
             .limit(MAX_MEMORIES_PER_USER);
@@ -79,20 +79,26 @@ export async function saveMemory(supabase, userId, fact, category = 'general') {
 // FACT EXTRACTION (runs after conversations)
 // ========================================================================
 
-const EXTRACTION_PROMPT = `You are a memory extraction system. Given a conversation between a user and "Worker" (an AI bot), extract 0-3 SHORT notable facts about the user that would be worth remembering for future conversations.
+const EXTRACTION_PROMPT = `You are a memory extraction system. Given a conversation between a user and "Worker" (an AI bot), and the user's CURRENT MEMORIES, extract notable facts about the user that would be worth remembering for future conversations, and identify any obsolete or superseded facts that should be deleted.
 
 Good facts to extract:
 - Preferences 
 - Personality ("sarcastic humor", "very competitive", "friendly")  
-- Notable events
+- Notable events / Ongoing issues
 - Skills
-- Relationships
+- Relationships / Status
+
+When to delete a fact:
+- An issue has been resolved (e.g., if a memory says "User is having radio issues" and the conversation says it's fixed).
+- A preference has changed.
 
 Rules:
 - Each fact must be under 15 words
 - Do NOT extract greetings, small talk, generic questions, or FAQ lookups
 - Do NOT extract facts about Worker, only about the USER
-- Return a JSON array: ["fact1", "fact2"] or the word NONE if nothing notable`;
+- You MUST return a valid JSON object with an "add" array (strings of new facts) and a "delete" array (integers of the IDs of old facts to delete).
+- Example: { "add": ["Likes to play racing games", "Fixed radio issue"], "delete": [142] }
+- If there is nothing to add or delete, return: { "add": [], "delete": [] }`;
 
 /**
  * Extract notable facts from a conversation and save them.
@@ -107,6 +113,12 @@ export async function extractAndSaveMemories(supabase, userId, username, convers
         // Need at least 2 messages (1 user + 1 assistant) to have a meaningful conversation
         if (!conversationHistory || conversationHistory.length < 2) return;
 
+        // Fetch existing memories to provide to the LLM
+        const existing = await getMemories(supabase, userId);
+        const existingContext = existing.length > 0
+            ? 'CURRENT MEMORIES:\n' + existing.map(m => `[ID: ${m.id}] ${m.fact}`).join('\n')
+            : 'CURRENT MEMORIES: None.';
+
         // Build conversation text
         const convoText = conversationHistory
             .map(m => {
@@ -119,32 +131,49 @@ export async function extractAndSaveMemories(supabase, userId, username, convers
             model: 'llama-3.3-70b-versatile',
             messages: [
                 { role: 'system', content: EXTRACTION_PROMPT },
-                { role: 'user', content: `Extract facts about "${username}" from this conversation:\n\n${convoText}` }
+                { role: 'user', content: `${existingContext}\n\nCONVERSATION:\n${convoText}` }
             ],
-            max_tokens: 200,
-            temperature: 0.2,
+            max_tokens: 250,
+            temperature: 0.1,
+            response_format: { type: "json_object" }
         });
 
         const raw = result?.choices?.[0]?.message?.content?.trim();
-        if (!raw || raw.toUpperCase() === 'NONE') return;
+        if (!raw) return;
 
-        // Parse JSON — handle markdown code blocks the LLM might wrap it in
-        let facts;
+        let parsed;
         try {
-            const cleaned = raw.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
-            facts = JSON.parse(cleaned);
+            parsed = JSON.parse(raw);
         } catch {
             console.log('[Memory] Could not parse extraction:', raw);
             return;
         }
 
-        if (!Array.isArray(facts) || facts.length === 0) return;
+        const toAdd = Array.isArray(parsed.add) ? parsed.add : [];
+        const toDeleteIds = Array.isArray(parsed.delete) ? parsed.delete.filter(id => Number.isInteger(id)) : [];
 
-        // Deduplicate against existing memories
-        const existing = await getMemories(supabase, userId);
-        const existingLower = existing.map(m => m.fact.toLowerCase());
+        // Handle Reletions
+        if (toDeleteIds.length > 0) {
+            const { error: delError } = await supabase
+                .from('bot_memories')
+                .delete()
+                .eq('user_id', userId)
+                .in('id', toDeleteIds);
 
-        for (const fact of facts.slice(0, 3)) {
+            if (!delError) {
+                console.log(`[Memory] 🗑️ Deleted obsolete facts for ${username}: [${toDeleteIds.join(', ')}]`);
+            } else {
+                console.error('[Memory] Delete error:', delError.message);
+            }
+        }
+
+        if (toAdd.length === 0) return;
+
+        // Fetch refreshed memories (in case some were just deleted) to check for duplicates before adding
+        const refreshedExisting = await getMemories(supabase, userId);
+        const existingLower = refreshedExisting.map(m => m.fact.toLowerCase());
+
+        for (const fact of toAdd.slice(0, 3)) {
             if (typeof fact !== 'string' || fact.length < 5) continue;
 
             const factLower = fact.toLowerCase();

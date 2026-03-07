@@ -261,6 +261,11 @@ async function sendUnprompted(channel, client, buf, extraInstruction = '') {
             return;
         }
 
+        // Send typing indicator
+        try {
+            await channel.sendTyping();
+        } catch { }
+
         // Send the message!
         await channel.send(reply);
         buf.lastUnprompted = Date.now();
