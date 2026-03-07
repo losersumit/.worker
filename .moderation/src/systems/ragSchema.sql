@@ -37,6 +37,10 @@ create table if not exists public.rag_summaries (
 
 create index if not exists idx_rag_summaries_channel_hour
   on public.rag_summaries(channel_id, hour_bucket desc);
+<<<<<<< ours
+<<<<<<< HEAD
+=======
+>>>>>>> theirs
 
 -- Trusted identity source for authority claims.
 create table if not exists public.verified_identities (
@@ -53,3 +57,8 @@ create table if not exists public.verified_identities (
 
 create index if not exists idx_verified_identities_guild_user
   on public.verified_identities(guild_id, user_id);
+<<<<<<< ours
+=======
+>>>>>>> main
+=======
+>>>>>>> theirs
