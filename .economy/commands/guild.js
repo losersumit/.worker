@@ -59,9 +59,9 @@ export default {
                         const total = entry.totalWealth.toLocaleString();
                         try {
                             const user = await client.users.fetch(discordId);
-                            return `${medals[i]} **${user.username}** — $${total}\n　　💰 $${wallet} ∙ 🏦 $${bank}`;
+                            return `${medals[i]} **${user.username}** — €${total}\n　　💰 €${wallet} ∙ 🏦 €${bank}`;
                         } catch {
-                            return `${medals[i]} <@${discordId}> — $${total}\n　　💰 $${wallet} ∙ 🏦 $${bank}`;
+                            return `${medals[i]} <@${discordId}> — €${total}\n　　💰 €${wallet} ∙ 🏦 €${bank}`;
                         }
                     })
                 );
@@ -85,7 +85,7 @@ export default {
                 fields: [
                     {
                         name: '💰 Company Balance',
-                        value: `$${guildIncome.toLocaleString()}`,
+                        value: `€${guildIncome.toLocaleString()}`,
                         inline: false,
                     },
                     {

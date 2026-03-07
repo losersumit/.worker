@@ -225,7 +225,7 @@ export async function getRecentServerEvents(supabase, client) {
             `)
             .gte('created_at', since)
             .in('transaction_type', ['gamble_win', 'gamble_loss', 'steal_success', 'donate', 'gift'])
-            .gt('amount', 10000) // Only notable events (>$10k)
+            .gt('amount', 10000) // Only notable events (>€10k)
             .order('created_at', { ascending: false })
             .limit(10);
 
@@ -285,7 +285,7 @@ export function formatMemoryContext(memories, events) {
 
     if (events.length > 0) {
         ctx += '\nRECENT SERVER ACTIVITY (last 24h):\n';
-        ctx += events.map(e => `- ${e.details} ($${(e.amount || 0).toLocaleString()})`).join('\n');
+        ctx += events.map(e => `- ${e.details} (€${(e.amount || 0).toLocaleString()})`).join('\n');
         ctx += '\nYou can reference these events if they come up in conversation.\n';
     }
 

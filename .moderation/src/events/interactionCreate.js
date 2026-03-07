@@ -183,7 +183,7 @@ async function handleBuySkin(interaction, client) {
         // 6. Check Balance
         if (stats.total_income < skin.price) {
             console.log(`[BuySkin] Insufficient funds. Needs ${skin.price}, has ${stats.total_income}`);
-            return interaction.editReply(`❌ Insufficient balance! You need $${skin.price}, but you only have $${stats.total_income}.`);
+            return interaction.editReply(`❌ Insufficient balance! You need €${skin.price}, but you only have €${stats.total_income}.`);
         }
 
         // 7. Deduct from Player Account

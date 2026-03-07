@@ -57,7 +57,7 @@ export default {
         if (amount <= 0) return message.reply('You have no money to transfer!');
       }
 
-      if (senderStats.total_income < amount) return message.reply(`Insufficient balance! You need $${amount}, but you only have $${senderStats.total_income}.`);
+      if (senderStats.total_income < amount) return message.reply(`Insufficient balance! You need €${amount}, but you only have €${senderStats.total_income}.`);
 
       const receiver = receiverResult.data;
       if (!receiver) return message.reply(`${targetUser.username} is not registered.`);
@@ -77,7 +77,7 @@ export default {
         .setColor(0x3498DB)
         .setDescription(
           `Transfer successful\n\n` +
-          `Amount: **$${amount}**\n` +
+          `Amount: **€${amount}**\n` +
           `To: ${targetUser}`
         )
         .setFooter({

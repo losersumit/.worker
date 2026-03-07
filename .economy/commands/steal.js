@@ -161,7 +161,7 @@ export default {
                 const embed = new EmbedBuilder()
                     .setColor(0x2ecc71)
                     .setTitle('🔫 Robbery Successful!')
-                    .setDescription(`${message.author} robbed **$${actualSteal.toLocaleString()}** from ${targetUser}!`)
+                    .setDescription(`${message.author} robbed **€${actualSteal.toLocaleString()}** from ${targetUser}!`)
                     .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
                     .setFooter({ text: 'Crime pays... this time.' })
                     .setTimestamp();

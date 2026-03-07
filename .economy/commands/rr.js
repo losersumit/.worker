@@ -75,7 +75,7 @@ export default {
                 const companyBalance = parseFloat(guild?.guild_income || 0);
 
                 if (companyBalance < maxPayout) {
-                    return message.reply(`The Company (NMC) cannot afford a 3x payout! Company Balance: $${Math.floor(companyBalance)}`);
+                    return message.reply(`The Company (NMC) cannot afford a 3x payout! Company Balance: €${Math.floor(companyBalance)}`);
                 }
                 players.push({ id: COMPANY_ID, username: 'NMC', bot: true, toString: () => 'NMC' }); // Mock user for NMC
                 targetId = COMPANY_ID;
@@ -102,7 +102,7 @@ export default {
                 );
 
                 const challengeMsg = await message.reply({
-                    content: `${targetUser}, ${message.author} challenges you to Russian Roulette for **$${amount.toLocaleString()}**!\n**Loser gets a timeout!**\n< 10k: 30m | 10k-50k: 2h | 50k+: 4h`,
+                    content: `${targetUser}, ${message.author} challenges you to Russian Roulette for **€${amount.toLocaleString()}**!\n**Loser gets a timeout!**\n< 10k: 30m | 10k-50k: 2h | 50k+: 4h`,
                     components: [row]
                 });
 
@@ -330,7 +330,7 @@ async function handleLoss(client, message, players, loserIndex, amount, challeng
 
         await Promise.all(updatePromises);
 
-        message.channel.send(`💰 ${winner} wins **$${winnings.toLocaleString()}**!`);
+        message.channel.send(`💰 ${winner} wins **€${winnings.toLocaleString()}**!`);
 
     } catch (err) {
         console.error('Error in money transfer:', err);

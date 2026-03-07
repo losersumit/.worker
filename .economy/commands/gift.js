@@ -46,7 +46,7 @@ export default {
             }
 
             if (guild.guild_income < amount) {
-                return message.reply(`❌ Insufficient company funds. Company Balance: $${guild.guild_income}`);
+                return message.reply(`❌ Insufficient company funds. Company Balance: €${guild.guild_income}`);
             }
 
             // 2. Get Target Player
@@ -87,10 +87,10 @@ export default {
             const embed = {
                 color: 0xffd700, // Gold
                 title: '🎁 Company Gift',
-                description: `Successfully gifted **$${amount}** to ${targetUser}!`,
+                description: `Successfully gifted **€${amount}** to ${targetUser}!`,
                 fields: [
-                    { name: 'Company Balance', value: `$${newGuildIncome}`, inline: true },
-                    { name: 'User Balance', value: `$${newPlayerBalance}`, inline: true }
+                    { name: 'Company Balance', value: `€${newGuildIncome}`, inline: true },
+                    { name: 'User Balance', value: `€${newPlayerBalance}`, inline: true }
                 ],
                 timestamp: new Date()
             };

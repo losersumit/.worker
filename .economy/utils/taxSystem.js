@@ -21,7 +21,7 @@ async function applyDailyTax(client) {
       guild_id
     )
   `)
-      .gt('bank_balance', 0)
+      .gte('bank_balance', 100000)
       .eq('players.guild_id', TARGET_GUILD_ID);
 
     if (playersError) {
@@ -67,7 +67,7 @@ async function applyDailyTax(client) {
       .update({ guild_income: newGuildIncome })
       .eq('guild_id', guild.guild_id);
 
-    console.log(`✅ Tax complete. Collected: $${totalTaxCollected}`);
+    console.log(`✅ Tax complete. Collected: €${totalTaxCollected}`);
 
     // Send embed summary
     const channelId = process.env.GENERAL_CHANNEL;
@@ -82,12 +82,12 @@ async function applyDailyTax(client) {
       fields: [
         {
           name: '💸 Total Tax Deducted',
-          value: `$${totalTaxCollected.toFixed(2)}`,
+          value: `€${totalTaxCollected.toFixed(2)}`,
           inline: true,
         },
         {
           name: '🏛️ NMC Company Balance',
-          value: `$${newGuildIncome.toFixed(2)}`,
+          value: `€${newGuildIncome.toFixed(2)}`,
           inline: true,
         },
       ],

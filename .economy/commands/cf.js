@@ -84,7 +84,7 @@ export default {
         );
 
         const challengeMsg = await message.reply({
-          content: `${targetUser}, ${message.author} challenged you to a coin flip for $${amount.toLocaleString()}!`,
+          content: `${targetUser}, ${message.author} challenged you to a coin flip for €${amount.toLocaleString()}!`,
           components: [row],
         });
 
@@ -127,7 +127,7 @@ export default {
         const companyBalance = parseFloat(guild?.guild_income || 0);
 
         if (companyBalance < maxPayout) {
-          return message.reply(`The Company (NMC) cannot afford this bet! Current Company Balance: $${Math.floor(companyBalance)}`);
+          return message.reply(`The Company (NMC) cannot afford this bet! Current Company Balance: €${Math.floor(companyBalance)}`);
         }
 
         // Direct to Flip UI
@@ -138,7 +138,7 @@ export default {
         );
 
         const choiceMsg = await message.reply({
-          content: `🏢 **Company Challenge!**\n${message.author}, playing against **NMC** for **$${amount.toLocaleString()}**.\nChoose Heads or Tails!`,
+          content: `🏢 **Company Challenge!**\n${message.author}, playing against **NMC** for **€${amount.toLocaleString()}**.\nChoose Heads or Tails!`,
           components: [choiceRow]
         });
 
@@ -188,7 +188,7 @@ export default {
               await trackTransaction(client.supabase, challenger.id, 'gamble_loss', amount, `Lost flip vs Company`);
             }
 
-            const winnerText = won ? `${message.author} wins **$${winnings.toLocaleString()}**!` : `NMC wins! You lost **$${amount.toLocaleString()}**.`;
+            const winnerText = won ? `${message.author} wins **€${winnings.toLocaleString()}**!` : `NMC wins! You lost **€${amount.toLocaleString()}**.`;
             await choiceInt.followUp(`🪙 Result: **${flip.toUpperCase()}**! ${winnerText}`);
             choiceCollector.stop();
           } catch (error) {
@@ -271,7 +271,7 @@ async function handleFlip(client, interaction, author, targetUser, amount, chall
       await client.supabase.rpc('adjust_guild_income', { p_guild_id: interaction.guildId, p_amount: fee });
 
       const winner = won ? targetUser : author;
-      await choiceInt.followUp(`🪙 Result: **${flip.toUpperCase()}**! ${winner} wins **$${winnings.toLocaleString()}** (Fee: $${fee.toLocaleString()})`);
+      await choiceInt.followUp(`🪙 Result: **${flip.toUpperCase()}**! ${winner} wins **€${winnings.toLocaleString()}** (Fee: €${fee.toLocaleString()})`);
       choiceCollector.stop();
     } catch (e) {
       console.error('Error in PVP Flip:', e);

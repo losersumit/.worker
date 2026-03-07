@@ -180,7 +180,7 @@ function buildPoolEmbed(players, companyContribution, status) {
             ? ` → ${formatBetChoices(p.bets)}`
             : ' → *choosing bet...*';
         const readyMark = p.ready ? '✅' : '⏳';
-        return `**${p.username}**: $${p.amount.toLocaleString()}${choicesText} ${readyMark}`;
+        return `**${p.username}**: €${p.amount.toLocaleString()}${choicesText} ${readyMark}`;
     });
 
     const totalPool = players.reduce((sum, p) => sum + p.amount, 0) + companyContribution;
@@ -189,8 +189,8 @@ function buildPoolEmbed(players, companyContribution, status) {
         .setColor(0x00FF00)
         .setTitle(`🎰 Multiplayer Roulette (Winner Takes All Pool)`)
         .setDescription(
-            `**Total Pool: $${totalPool.toLocaleString()}**\n` +
-            `🏢 Company Matches: $${companyContribution.toLocaleString()}\n\n` +
+            `**Total Pool: €${totalPool.toLocaleString()}**\n` +
+            `🏢 Company Matches: €${companyContribution.toLocaleString()}\n\n` +
             `**Players:**\n${lines.join('\n')}\n\n` +
             `*${status}*`
         )
@@ -254,7 +254,7 @@ export default {
 
             const companyBalance = parseFloat(guild.guild_income || 0);
             if (companyBalance < amount) {
-                return message.reply(`The Company cannot afford to match your bet! Company Balance: $${Math.floor(companyBalance).toLocaleString()}`);
+                return message.reply(`The Company cannot afford to match your bet! Company Balance: €${Math.floor(companyBalance).toLocaleString()}`);
             }
 
             // --- 2. Upfront Deduction & Game Creation ---
@@ -389,7 +389,7 @@ async function runLobby(client, message, mainMsg, gameId, gameOwnerId) {
                 const gBalance = parseFloat(freshGuild?.guild_income || 0);
 
                 if (gBalance < newCompanyContribution) {
-                    return message.channel.send(`${interaction.user}, the Company cannot afford to match! (Balance: $${gBalance})`).then(m => setTimeout(() => m.delete().catch(() => { }), 5000));
+                    return message.channel.send(`${interaction.user}, the Company cannot afford to match! (Balance: €${gBalance})`).then(m => setTimeout(() => m.delete().catch(() => { }), 5000));
                 }
 
                 // If a second player joins, the company retracts its contribution.
@@ -513,8 +513,8 @@ async function executeSpin(client, message, mainMsg, gameId) {
         .setColor(0xFFFF00)
         .setTitle('🎰 Spinning the Wheel...')
         .setDescription(
-            `**Total Pool: $${totalPool.toLocaleString()}** (Winner takes all!)\n\n` +
-            players.map(p => `**${p.username}**: $${p.amount.toLocaleString()} → ${formatBetChoices(p.bets)}`).join('\n')
+            `**Total Pool: €${totalPool.toLocaleString()}** (Winner takes all!)\n\n` +
+            players.map(p => `**${p.username}**: €${p.amount.toLocaleString()} → ${formatBetChoices(p.bets)}`).join('\n')
         )
         .setImage(SPINNING_GIF);
 
@@ -578,18 +578,18 @@ async function executeSpin(client, message, mainMsg, gameId) {
                             }
 
                             updatePromises.push(trackTransaction(client.supabase, p.player_id, 'gamble_win', netProfitAfterTax, 'Won Parimutuel Roulette'));
-                            resultLines.push(`✅ **${p.username}** — payout **$${(payout - tax).toLocaleString()}** (Profit: +$${netProfitAfterTax.toLocaleString()}) *[-$${tax.toLocaleString()} tax]*`);
+                            resultLines.push(`✅ **${p.username}** — payout **€${(payout - tax).toLocaleString()}** (Profit: +€${netProfitAfterTax.toLocaleString()}) *[-€${tax.toLocaleString()} tax]*`);
                         } else if (netProfit < 0) {
-                            // Rare: if they bet $10k on red and $10k on black to guarantee a win, but standard payout pool division doesn't cover their total $20k initial bet.
+                            // Rare: if they bet €10k on red and €10k on black to guarantee a win, but standard payout pool division doesn't cover their total €20k initial bet.
                             updatePromises.push(trackTransaction(client.supabase, p.player_id, 'gamble_loss', Math.abs(netProfit), 'Parimutuel Roulette Partial Loss'));
-                            resultLines.push(`✅ **${p.username}** — payout **$${payout.toLocaleString()}** (Loss: -$${Math.abs(netProfit).toLocaleString()})`);
+                            resultLines.push(`✅ **${p.username}** — payout **€${payout.toLocaleString()}** (Loss: -€${Math.abs(netProfit).toLocaleString()})`);
                         } else {
-                            resultLines.push(`✅ **${p.username}** — payout **$${payout.toLocaleString()}** (Broke Even)`);
+                            resultLines.push(`✅ **${p.username}** — payout **€${payout.toLocaleString()}** (Broke Even)`);
                         }
                     } else {
                         // Complete loss for this player
                         updatePromises.push(trackTransaction(client.supabase, p.player_id, 'gamble_loss', p.amount, 'Lost Parimutuel Roulette'));
-                        resultLines.push(`❌ **${p.username}** — lost **$${p.amount.toLocaleString()}**`);
+                        resultLines.push(`❌ **${p.username}** — lost **€${p.amount.toLocaleString()}**`);
                     }
                 }
 
@@ -604,7 +604,7 @@ async function executeSpin(client, message, mainMsg, gameId) {
                 // No Winners — Company sweeps the entire pool
                 for (const p of playerEvals) {
                     updatePromises.push(trackTransaction(client.supabase, p.player_id, 'gamble_loss', p.amount, 'Lost Parimutuel Roulette'));
-                    resultLines.push(`❌ **${p.username}** — lost **$${p.amount.toLocaleString()}**`);
+                    resultLines.push(`❌ **${p.username}** — lost **€${p.amount.toLocaleString()}**`);
                 }
 
                 // Company regains its own contribution + keeps all players' money
@@ -615,7 +615,7 @@ async function executeSpin(client, message, mainMsg, gameId) {
             await Promise.all(updatePromises);
             await updateGame(client.supabase, gameId, { status: 'completed', result: resultNum });
 
-            const companyNetStr = companyChange >= 0 ? `+$${Math.floor(companyChange).toLocaleString()}` : `-$${Math.floor(Math.abs(companyChange)).toLocaleString()}`;
+            const companyNetStr = companyChange >= 0 ? `+€${Math.floor(companyChange).toLocaleString()}` : `-€${Math.floor(Math.abs(companyChange)).toLocaleString()}`;
 
             const resultEmbed = new EmbedBuilder()
                 .setColor(0xFFD700)

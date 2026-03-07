@@ -51,7 +51,7 @@ export default {
       }
 
       if (stats.total_income < amount) {
-        return message.reply(`Insufficient balance! You need $${amount}, but you only have $${stats.total_income}.`);
+        return message.reply(`Insufficient balance! You need €${amount}, but you only have €${stats.total_income}.`);
       }
 
       // Execute transactions sequentially to prevent partial failure
@@ -75,8 +75,8 @@ export default {
         .setColor(0x2ECC71)
         .setDescription(
           `Donation successful\n\n` +
-          `Amount: **$${amount}**\n` +
-          `Company Balance: **$${newGuildIncome}**`
+          `Amount: **€${amount}**\n` +
+          `Company Balance: **€${newGuildIncome}**`
         )
         .setFooter({
           text: message.guild.name,

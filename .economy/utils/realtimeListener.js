@@ -25,7 +25,7 @@ async function syncIncome(client, supabase, guildId, channelId) {
     if (fetchError) {
       console.error('[REALTIME] ❌ Failed initial fetch of guild income:', fetchError.message);
     } else if (guildData) {
-      console.log(`[REALTIME] 📥 Initial sync: Income is $${guildData.guild_income}`);
+      console.log(`[REALTIME] 📥 Initial sync: Income is €${guildData.guild_income}`);
       await updateChannelName(client, guildId, channelId, guildData.guild_income);
     }
   } catch (e) {
@@ -84,7 +84,7 @@ async function updateChannelName(client, guildId, channelId, guildIncome) {
     const channel = await guild.channels.fetch(channelId);
 
     if (channel && channel.isVoiceBased?.()) {
-      const newName = `NMC = $${Math.floor(guildIncome || 0)}`;
+      const newName = `NMC = €${Math.floor(guildIncome || 0)}`;
 
       // Avoid API spam: only update if name is different
       if (channel.name !== newName) {

@@ -50,7 +50,7 @@ export default {
             }
 
             if (currentBank < amount) {
-                return message.reply(`Insufficient bank balance! You have **$${currentBank.toLocaleString()}** in your bank.`);
+                return message.reply(`Insufficient bank balance! You have **€${currentBank.toLocaleString()}** in your bank.`);
             }
 
             // 4. Update balances (convert to integer for int8 columns)
@@ -63,16 +63,16 @@ export default {
                 .eq('player_id', player.id);
 
             // 5. Track transaction
-            await trackTransaction(client.supabase, player.id, 'withdraw', amount, `Withdrew $${amount} from bank`);
+            await trackTransaction(client.supabase, player.id, 'withdraw', amount, `Withdrew €${amount} from bank`);
 
             // 6. Confirmation embed
             const embed = new EmbedBuilder()
                 .setColor(0xe67e22)
                 .setTitle('🏦 Withdrawal Successful')
-                .setDescription(`You withdrew **$${amount.toLocaleString()}** from your bank.`)
+                .setDescription(`You withdrew **€${amount.toLocaleString()}** from your bank.`)
                 .addFields(
-                    { name: '💰 Wallet', value: `$${newWallet.toLocaleString()}`, inline: true },
-                    { name: '🏦 Bank', value: `$${newBank.toLocaleString()}`, inline: true },
+                    { name: '💰 Wallet', value: `€${newWallet.toLocaleString()}`, inline: true },
+                    { name: '🏦 Bank', value: `€${newBank.toLocaleString()}`, inline: true },
                 )
                 .setFooter({ text: 'Wallet money is not taxed but can be stolen!' })
                 .setTimestamp();

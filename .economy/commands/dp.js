@@ -50,7 +50,7 @@ export default {
             }
 
             if (currentWallet < amount) {
-                return message.reply(`Insufficient wallet balance! You have **$${currentWallet.toLocaleString()}** in your wallet.`);
+                return message.reply(`Insufficient wallet balance! You have **€${currentWallet.toLocaleString()}** in your wallet.`);
             }
 
             // 4. Update balances (convert to integer for int8 columns)
@@ -63,16 +63,16 @@ export default {
                 .eq('player_id', player.id);
 
             // 5. Track transaction
-            await trackTransaction(client.supabase, player.id, 'deposit', amount, `Deposited $${amount} to bank`);
+            await trackTransaction(client.supabase, player.id, 'deposit', amount, `Deposited €${amount} to bank`);
 
             // 6. Confirmation embed
             const embed = new EmbedBuilder()
                 .setColor(0x2ecc71)
                 .setTitle('🏦 Deposit Successful')
-                .setDescription(`You deposited **$${amount.toLocaleString()}** into your bank.`)
+                .setDescription(`You deposited **€${amount.toLocaleString()}** into your bank.`)
                 .addFields(
-                    { name: '💰 Wallet', value: `$${newWallet.toLocaleString()}`, inline: true },
-                    { name: '🏦 Bank', value: `$${newBank.toLocaleString()}`, inline: true },
+                    { name: '💰 Wallet', value: `€${newWallet.toLocaleString()}`, inline: true },
+                    { name: '🏦 Bank', value: `€${newBank.toLocaleString()}`, inline: true },
                 )
                 .setFooter({ text: 'Bank deposits are safe but taxed 10% daily.' })
                 .setTimestamp();
