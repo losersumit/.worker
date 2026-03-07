@@ -100,7 +100,7 @@ Rules:
  * @param {SupabaseClient} supabase
  * @param {string} userId - Discord user ID
  * @param {string} username - Display name for the prompt
- * @param {Array} conversationHistory - Array of {role, text} objects
+ * @param {Array} conversationHistory - Array of {role, name?, text} objects
  */
 export async function extractAndSaveMemories(supabase, userId, username, conversationHistory) {
     try {
@@ -109,7 +109,10 @@ export async function extractAndSaveMemories(supabase, userId, username, convers
 
         // Build conversation text
         const convoText = conversationHistory
-            .map(m => `${m.role === 'user' ? username : 'Worker'}: ${m.text || ''}`)
+            .map(m => {
+                const speaker = m.name || (m.role === 'assistant' ? 'Worker' : username);
+                return `${speaker}: ${m.text || ''}`;
+            })
             .join('\n');
 
         const result = await groqChatCompletion({

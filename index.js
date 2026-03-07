@@ -11,6 +11,7 @@ import { applyDailyTax } from './.economy/utils/taxSystem.js';
 import { refreshDiscordUrls } from './.moderation/src/jobs/refreshDiscordUrls.js';
 import { syncDisplayNames } from './.moderation/src/jobs/syncDisplayNames.js';
 import { runMemoryCleanup } from './.moderation/src/systems/memoryCleanup.js';
+import { scheduleRagHourlySummaries } from './.moderation/src/features/ragChat.js';
 import schedule from 'node-schedule';
 
 // Setup environment and paths
@@ -117,6 +118,9 @@ client.once('ready', async () => {
 
     // Run immediately on startup so the website has fresh URLs right away
     refreshDiscordUrls(supabase, client).catch(err => console.error('[URL-REFRESH] Startup run failed:', err));
+
+    // Hourly RAG summaries for channel context retrieval
+    scheduleRagHourlySummaries(client);
 });
 
 // Load events
