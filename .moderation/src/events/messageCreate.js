@@ -4,8 +4,7 @@ import { moderateMessage, moderateImage } from '../systems/moderation.js';
 import { addWarning } from '../systems/storage.js';
 import { handleLevelScanning } from '../features/levelScanning.js';
 import { handleCounting } from '../features/counting.js';
-import { handleChat } from '../features/chat.js';
-import { bufferMessage, checkForUnprompted } from '../features/ambient.js';
+import { handleRagChat } from '../features/ragChat.js';
 import { logMessageModeration, takeModAction, getActionDescription } from '../utils/moderationUtils.js';
 import { recentActivity } from '../utils/activityState.js';
 
@@ -14,14 +13,6 @@ export default {
     async execute(message, client) {
         // Ignore messages from bots (including itself)
         if (message.author.bot) return;
-
-        // Buffer EVERY message for ambient awareness (before any returns)
-        bufferMessage(message, client);
-
-        // Check for unprompted reaction on EVERY message (fire-and-forget)
-        checkForUnprompted(message, client).catch(err =>
-            console.error('[Ambient] Unprompted check error:', err.message)
-        );
 
         // Hook for legacy economy commands (prefix '?')
         if (message.content.startsWith('?')) {
@@ -219,8 +210,8 @@ export default {
                 }
             }
 
-            // ===== Mention chat + FAQ =====
-            await handleChat(message, client);
+            // ===== RAG chat and retrieval commands =====
+            await handleRagChat(message, client);
 
         } catch (error) {
             console.error(`Error processing message: ${error}`);
