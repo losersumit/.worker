@@ -52,8 +52,9 @@ setInterval(async () => {
 }, 10 * 60 * 1000); // every 10 minutes
 // ===== END KEEP-ALIVE =====
 
-export async function embed(textOrArray, inputType = 'search_query') {
+export async function embed(textOrArray, inputType = 'search_document') {
     if (!isConfigured()) return null;
+    if (!process.env.NOMIC_API_KEY) throw new Error("No Nomic API key found in .env");
 
     const texts = Array.isArray(textOrArray) ? textOrArray : [textOrArray];
     if (texts.length === 0) return Array.isArray(textOrArray) ? [] : null;
@@ -61,21 +62,27 @@ export async function embed(textOrArray, inputType = 'search_query') {
     const allEmbeddings = [];
     for (let i = 0; i < texts.length; i += 90) {
         const batch = texts.slice(i, i + 90);
-        const resp = await axios.post(
-            'https://api.cohere.ai/v1/embed',
-            {
-                model: 'embed-english-light-v3.0',
-                texts: batch,
-                input_type: inputType
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${process.env.COHERE_API_KEY}`,
-                    'Content-Type': 'application/json'
+        try {
+            const resp = await axios.post(
+                'https://api-atlas.nomic.ai/v1/embedding/text',
+                {
+                    model: 'nomic-embed-text-v1.5',
+                    texts: batch,
+                    task_type: inputType,
+                    dimensionality: 768
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${process.env.NOMIC_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
                 }
-            }
-        );
-        allEmbeddings.push(...resp.data.embeddings);
+            );
+            allEmbeddings.push(...resp.data.embeddings);
+        } catch (err) {
+            console.error('\n[Nomic API Error]', err.response?.data || err.message);
+            throw err;
+        }
     }
 
     return Array.isArray(textOrArray) ? allEmbeddings : allEmbeddings[0];

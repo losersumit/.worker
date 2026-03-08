@@ -1,22 +1,25 @@
-.moderation/node_modules/
 .moderation/data/
-.moderation/npm-debug.log*
-.moderation/yarn-debug.log*
-.moderation/pnpm-debug.log*
-scripts/upload.js
+
+scripts/
 scripts/check_groq_keys.js
-scripts/scan_levels.js
-scripts/unmute.js
-scripts/verify_rag.js
-scripts/sync.js
-scripts/update.js
-scripts/list_servers.js
-scripts/leave_server.js
+scripts/currency_replace.cjs
+scripts/currency_replace.js
 scripts/deleteMessage.js
 scripts/fetch_stats.js
-.moderation/faq.txt
-scripts/webhook.js
+scripts/leave_server.js
+scripts/list_servers.js
+scripts/scan_levels.js
+scripts/sync.js
+scripts/syncServerHistory.js
+scripts/test_cohere.js
+scripts/test_local.js
+scripts/test_nomic.js
+scripts/unmute.js
 scripts/upload_data.js
+scripts/verify_rag.js
+scripts/webhook.js
+
+
 .moderation/src/scripts/syncServerHistory.js
 .moderation/storage
 
@@ -28,6 +31,6 @@ scripts/upload_data.js
 
 # Top Level
 node_modules/
-.DS_Store
-*.log
-.page/
+archive/
+RUN_AI_EMBEDDER.bat
+storage\exports

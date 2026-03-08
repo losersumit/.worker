@@ -42,20 +42,38 @@ function getImageAttachment(message) {
     return att || null;
 }
 
-function shouldAutoReply(message, text) {
-    const hasImage = Boolean(getImageAttachment(message));
-    if (hasImage) return true;
+async function reactToImage(message, imageAttachment) {
+    if (!imageAttachment?.url) return;
 
-    const lower = text.toLowerCase();
-    if (text.includes('?')) return true;
+    // Use the dynamic config vision model or fallback to 11b-vision
+    let modelToUse = 'llama-3.2-11b-vision-preview';
+    try {
+        const { default: config } = await import('../config.js');
+        if (config?.ai?.visionModel) modelToUse = config.ai.visionModel;
+    } catch { }
 
-    const asks = ['why', 'what', 'who', 'when', 'where', 'how', 'help', 'explain', 'anyone know', 'can someone', 'worker'];
-    if (asks.some(k => lower.includes(k))) return true;
+    try {
+        const data = await groqChatCompletion({
+            model: modelToUse,
+            messages: [{
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'Analyze this image and reply with exactly ONE single standard Unicode Emoji that best represents it. Do not send any text, words, or punctuation. ONLY one emoji.' },
+                    { type: 'image_url', image_url: { url: imageAttachment.url } }
+                ]
+            }],
+            temperature: 0.2, // Low temp for more consistent/logical emoji choices
+            max_tokens: 10,
+        });
 
-    const serverEventKeywords = ['muted', 'banned', 'warned', 'economy', 'donate', 'gamble', 'argument', 'summary', 'owner', 'admin'];
-    if (serverEventKeywords.some(k => lower.includes(k))) return true;
-
-    return false;
+        const emoji = data?.choices?.[0]?.message?.content?.trim();
+        // Basic validation to ensure it's likely an emoji and not a sentence
+        if (emoji && emoji.length <= 4 && !/[a-zA-Z0-9]/.test(emoji)) {
+            await message.react(emoji);
+        }
+    } catch (err) {
+        console.error('[RAG] Image reaction failed:', err.message);
+    }
 }
 
 function autoReplyAllowed(channelId) {
@@ -248,10 +266,15 @@ function formatVerifiedIdentity(verified) {
     ].join('\n');
 }
 
-function buildPrompt(question, context, username, memories, verifiedIdentity) {
+function buildPrompt(question, context, username, memories, verifiedIdentity, history) {
     const contextBlock = context.length
         ? context.map((c, idx) => `[${idx + 1}] (${c.type}) ${c.text}`).join('\n\n')
         : 'No relevant context found in DB.';
+
+    let dialogueBlock = 'No recent conversation.';
+    if (history && history.length > 0) {
+        dialogueBlock = history.map(turn => `${turn.name}: ${turn.text}`).join('\n');
+    }
 
     return `${BASE_PERSONALITY}
 
@@ -266,6 +289,9 @@ IMPORTANT: These memories represent the CURRENT truth. If a memory states an iss
 
 RETRIEVED CHANNEL CONTEXT (Past 24 hours of chat):
 ${contextBlock}
+
+RECENT DIALOGUE WITH CURRENT USER:
+${dialogueBlock}
 
 QUESTION:
 ${question}`;
@@ -310,7 +336,9 @@ async function askWithContext(message, client, question) {
     ]);
 
     const username = message.member?.displayName || message.author.globalName || message.author.username;
-    const prompt = buildPrompt(question, context, username, memories, verifiedIdentity);
+    const { key, history, userName } = pushConversationTurn(message, question);
+
+    const prompt = buildPrompt(question, context, username, memories, verifiedIdentity, history);
 
     const image = getImageAttachment(message);
     let modelToUse = CHAT_MODEL;
@@ -325,118 +353,137 @@ async function askWithContext(message, client, question) {
         ];
     }
 
-    const { key, history, userName } = pushConversationTurn(message, question);
+    if (image) {
+        const { default: config } = await import('../config.js');
 
-    const data = await groqChatCompletion({
-        model: modelToUse,
-        messages: [{ role: 'user', content: userContent }],
-        temperature: CHAT_TEMPERATURE,
-        max_tokens: CHAT_MAX_TOKENS,
-    });
+        const data = await groqChatCompletion({
+            model: modelToUse,
+            messages: [{ role: 'user', content: userContent }],
+            temperature: CHAT_TEMPERATURE,
+            max_tokens: CHAT_MAX_TOKENS,
+        });
 
-    const answer = data?.choices?.[0]?.message?.content?.trim() || 'No answer generated.';
-    pushAssistantTurn(key, answer);
+        const answer = data?.choices?.[0]?.message?.content?.trim() || 'No answer generated.';
+        pushAssistantTurn(key, answer);
 
-    // fire-and-forget per-user memory extraction, isolated by user+channel history key
-    extractAndSaveMemories(client.supabase, message.author.id, userName, history)
-        .catch(err => console.error('[RAG] per-user memory extraction failed:', err.message));
+        // fire-and-forget per-user memory extraction, isolated by user+channel history key
+        extractAndSaveMemories(client.supabase, message.author.id, userName, history)
+            .catch(err => console.error('[RAG] per-user memory extraction failed:', err.message));
 
-    await message.reply(answer);
-}
+        await message.reply(answer);
+    }
 
-async function buildHourlySummaryForChannel(supabase, channelId, startIso, endIso) {
-    const { data } = await supabase
-        .from('rag_messages')
-        .select('username, content, created_at')
-        .eq('channel_id', channelId)
-        .gte('created_at', startIso)
-        .lt('created_at', endIso)
-        .order('created_at', { ascending: true })
-        .limit(300);
-
-    if (!data || data.length === 0) return;
-
-    const transcript = data.map(r => `${r.username}: ${r.content}`).join('\n');
-    const resp = await groqChatCompletion({
-        model: CHAT_MODEL,
-        messages: [{ role: 'user', content: `${BASE_PERSONALITY}\n\nSummarize this one-hour server discussion in concise bullets:\n\n${transcript}` }],
-        temperature: 0.2,
-        max_tokens: 300,
-    });
-
-    const summary = resp?.choices?.[0]?.message?.content?.trim();
-    if (!summary) return;
-
-    await supabase.from('rag_summaries').upsert({
-        channel_id: channelId,
-        hour_bucket: startIso,
-        summary_text: summary,
-        created_at: new Date().toISOString(),
-    }, { onConflict: 'channel_id,hour_bucket' });
-}
-
-export function scheduleRagHourlySummaries(client) {
-    if (!client?.supabase) return;
-
-    const run = async () => {
-        const end = new Date();
-        end.setMinutes(0, 0, 0);
-        const start = new Date(end.getTime() - 60 * 60 * 1000);
-        const startIso = start.toISOString();
-        const endIso = end.toISOString();
-
-        const { data } = await client.supabase
+    async function buildHourlySummaryForChannel(supabase, channelId, startIso, endIso) {
+        const { data } = await supabase
             .from('rag_messages')
-            .select('channel_id')
+            .select('username, content, created_at')
+            .eq('channel_id', channelId)
             .gte('created_at', startIso)
             .lt('created_at', endIso)
-            .limit(2000);
+            .order('created_at', { ascending: true })
+            .limit(300);
 
-        const channels = [...new Set((data || []).map(r => r.channel_id))];
-        for (const channelId of channels) {
-            await buildHourlySummaryForChannel(client.supabase, channelId, startIso, endIso)
-                .catch(err => console.error('[RAG] hourly summary failed:', channelId, err.message));
+        if (!data || data.length === 0) return;
+
+        const transcript = data.map(r => `${r.username}: ${r.content}`).join('\n');
+        const resp = await groqChatCompletion({
+            model: CHAT_MODEL,
+            messages: [{ role: 'user', content: `${BASE_PERSONALITY}\n\nSummarize this one-hour server discussion in concise bullets:\n\n${transcript}` }],
+            temperature: 0.2,
+            max_tokens: 300,
+        });
+
+        const summary = resp?.choices?.[0]?.message?.content?.trim();
+        if (!summary) return;
+
+        await supabase.from('rag_summaries').upsert({
+            channel_id: channelId,
+            hour_bucket: startIso,
+            summary_text: summary,
+            created_at: new Date().toISOString(),
+        }, { onConflict: 'channel_id,hour_bucket' });
+    }
+
+    export function scheduleRagHourlySummaries(client) {
+        if (!client?.supabase) return;
+
+        const run = async () => {
+            const end = new Date();
+            end.setMinutes(0, 0, 0);
+            const start = new Date(end.getTime() - 60 * 60 * 1000);
+            const startIso = start.toISOString();
+            const endIso = end.toISOString();
+
+            const { data } = await client.supabase
+                .from('rag_messages')
+                .select('channel_id')
+                .gte('created_at', startIso)
+                .lt('created_at', endIso)
+                .limit(2000);
+
+            const channels = [...new Set((data || []).map(r => r.channel_id))];
+            for (const channelId of channels) {
+                await buildHourlySummaryForChannel(client.supabase, channelId, startIso, endIso)
+                    .catch(err => console.error('[RAG] hourly summary failed:', channelId, err.message));
+            }
+        };
+
+        setInterval(() => {
+            run().catch(err => console.error('[RAG] hourly summary run error:', err.message));
+        }, 60 * 60 * 1000);
+    }
+
+    export async function handleRagChat(message, client) {
+        if (!client.supabase) return;
+
+        await upsertVerifiedIdentity(client.supabase, message).catch(err =>
+            console.error('[RAG] identity sync failed:', err.message)
+        );
+
+        const stored = await storeRagMessage(client.supabase, message);
+        if (stored) {
+            const channelId = stored.channel_id;
+            if (!channelBuffers.has(channelId)) channelBuffers.set(channelId, { messages: [], lastAt: 0 });
+            const buf = channelBuffers.get(channelId);
+            buf.messages.push(stored);
+            buf.lastAt = Date.now();
+
+            await flushChunkIfReady(client.supabase, channelId, false);
         }
-    };
 
-    setInterval(() => {
-        run().catch(err => console.error('[RAG] hourly summary run error:', err.message));
-    }, 60 * 60 * 1000);
-}
+        const content = sanitizeText(message.content);
+        const mentioned = message.mentions.has(client.user);
+        const repliedToBot = await isReplyToBot(message, client);
+        const mentioned = message.mentions.has(client.user);
+        const repliedToBot = await isReplyToBot(message, client);
+        const image = getImageAttachment(message);
 
-export async function handleRagChat(message, client) {
-    if (!client.supabase) return;
+        // Rule 1: Always react to images (Auto-Emoji Vision)
+        if (image) {
+            // Fire and forget the reaction, no need to await
+            reactToImage(message, image).catch(() => { });
+        }
 
-    await upsertVerifiedIdentity(client.supabase, message).catch(err =>
-        console.error('[RAG] identity sync failed:', err.message)
-    );
+        // Rule 2: Explicitly talking to the bot (Ping or Reply)
+        if (mentioned || repliedToBot) {
+            const q = content.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '').trim() || 'Hey!';
+            await askWithContext(message, client, q);
+            return;
+        }
 
-    const stored = await storeRagMessage(client.supabase, message);
-    if (stored) {
-        const channelId = stored.channel_id;
-        if (!channelBuffers.has(channelId)) channelBuffers.set(channelId, { messages: [], lastAt: 0 });
-        const buf = channelBuffers.get(channelId);
-        buf.messages.push(stored);
-        buf.lastAt = Date.now();
-
-        await flushChunkIfReady(client.supabase, channelId, false);
+        // Rule 3: Ambient fallback - ONLY speak if it's an FAQ answer
+        if (content.length > 10 && content.includes('?')) {
+            try {
+                const faqText = await findFaqAnswer(content);
+                if (faqText) {
+                    // If we found a high-confidence FAQ answer, speak up ambiently
+                    if (autoReplyAllowed(message.channel.id)) {
+                        markAutoReply(message.channel.id);
+                        await message.reply(faqText);
+                    }
+                }
+            } catch (err) {
+                console.error('[RAG] Ambient FAQ check error:', err.message);
+            }
+        }
     }
-
-    const content = sanitizeText(message.content);
-    const mentioned = message.mentions.has(client.user);
-    const repliedToBot = await isReplyToBot(message, client);
-    const shouldAuto = shouldAutoReply(message, content);
-
-    if (mentioned || repliedToBot) {
-        const q = content.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '').trim() || 'Hey!';
-        await askWithContext(message, client, q);
-        return;
-    }
-
-    // Human-like ambient behavior: answer without explicit ping when likely needed.
-    if (shouldAuto && autoReplyAllowed(message.channel.id)) {
-        markAutoReply(message.channel.id);
-        const autoQuestion = content || 'React to the recent conversation naturally.';
-        await askWithContext(message, client, autoQuestion);
-    }
-}
