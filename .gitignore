@@ -18,6 +18,7 @@ scripts/unmute.js
 scripts/upload_data.js
 scripts/verify_rag.js
 scripts/webhook.js
+scripts/re_embed_faqs.js
 
 
 .moderation/src/scripts/syncServerHistory.js

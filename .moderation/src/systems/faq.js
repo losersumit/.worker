@@ -140,7 +140,7 @@ export async function findFaqAnswer(question) {
     const sb = getSupabase();
     if (!sb) return null;
 
-    const qVec = await embed(question);
+    const qVec = await embed(question, 'search_query');
     if (!qVec) return null;
 
     const { data } = await sb.from('faqs').select('title, content, embedding').limit(1000);
