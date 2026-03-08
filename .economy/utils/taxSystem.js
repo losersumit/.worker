@@ -7,7 +7,7 @@ import { trackTransaction } from './economyTracker.js';
 
 async function applyDailyTax(client) {
   try {
-    console.log('🏦 Applying daily 10% tax to all players...');
+    console.log('🏦 Applying daily 10% tax to players...');
 
     // Get all players with income
     const TARGET_GUILD_ID = process.env.GUILD_ID;
@@ -21,7 +21,7 @@ async function applyDailyTax(client) {
       guild_id
     )
   `)
-      .gte('bank_balance', 100000)
+      .gte('bank_balance', 50000)
       .eq('players.guild_id', TARGET_GUILD_ID);
 
     if (playersError) {

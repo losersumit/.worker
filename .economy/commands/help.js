@@ -15,8 +15,8 @@ export default {
           name: '💵 Economy',
           value:
             '`?me`\nCheck your balance and stats.\n' +
-            '`?dp <amount|all>`\nDeposit money into your bank.\n' +
-            '`?wd <amount|all>`\nWithdraw money from your bank.\n' +
+            '`?dp <amount|all>`\nDeposit money into your [Taxed 10 percent daily if you got 50k+].\n' +
+            '`?wd <amount|all>`\nWithdraw money from your bank [Can be stolen].\n' +
             '`?transfer <amount|all> <@user>`\nSend money to another player.\n' +
             '`?my skins`\nView your owned skins.\n' +
             '`?guild`\nView guild treasury & top 5 richest.',
@@ -37,10 +37,10 @@ export default {
           inline: false
         },
         {
-          name: '🤝 Community',
+          name: '🏦 Tax & Economy Rules',
           value:
-            '`?donate <amount|all>`\nDonate to NMC.\n' +
-            '`?help`\nShow this help message.',
+            '• **Daily Tax (10%)**: Deducted from **Bank Balance** at 12 AM. *Exempt if under €50,000.*\n' +
+            '• **Game Tax (20%)**: Deducted from **Gamble Winnings**. ',
           inline: false
         }
       )
