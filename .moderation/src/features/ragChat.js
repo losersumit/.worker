@@ -1,5 +1,5 @@
 import { groqChatCompletion } from '../clients/groq.js';
-import { findFaqAnswer } from '../systems/faq.js';
+import { findFaqAnswer, embed } from '../systems/faq.js';
 import { getMemories, extractAndSaveMemories } from '../systems/memory.js';
 
 const CHAT_MODEL = process.env.CHAT_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct';
@@ -160,11 +160,19 @@ async function flushChunkIfReady(supabase, channelId, force = false) {
     const rows = buf.messages.splice(0, take);
     const text = rows.map(r => `${r.username}: ${r.content}`).join('\n');
 
+    let embedding = null;
+    try {
+        embedding = await embed(text, 'search_document');
+    } catch (err) {
+        console.error('[RAG] chunk embed failed:', err.message);
+    }
+
     const payload = {
         channel_id: channelId,
         start_time: rows[0].created_at,
         end_time: rows[rows.length - 1].created_at,
         text,
+        embedding,
         created_at: new Date().toISOString(),
     };
 
@@ -180,16 +188,10 @@ function scoreRow(question, text) {
 }
 
 async function retrieveContext(supabase, question, channelId) {
+    const qVec = await embed(question, 'search_query').catch(() => null);
     const since = new Date(Date.now() - DEFAULT_LOOKBACK_HOURS * 60 * 60 * 1000).toISOString();
 
-    const [chunksRes, summariesRes] = await Promise.all([
-        supabase
-            .from('rag_chunks')
-            .select('channel_id, text, start_time, end_time, created_at')
-            .eq('channel_id', channelId)
-            .gte('end_time', since)
-            .order('end_time', { ascending: false })
-            .limit(300),
+    const fetchPromises = [
         supabase
             .from('rag_summaries')
             .select('channel_id, summary_text, hour_bucket, created_at')
@@ -197,10 +199,24 @@ async function retrieveContext(supabase, question, channelId) {
             .gte('hour_bucket', since)
             .order('hour_bucket', { ascending: false })
             .limit(72)
-    ]);
+    ];
+
+    if (qVec) {
+        fetchPromises.push(
+            supabase.rpc('match_rag_chunks', {
+                query_embedding: qVec,
+                match_threshold: 0.15,
+                match_count: 5
+            })
+        );
+    } else {
+        fetchPromises.push(Promise.resolve({ data: [] }));
+    }
+
+    const [summariesRes, chunksRes] = await Promise.all(fetchPromises);
 
     const chunkHits = (chunksRes.data || [])
-        .map(r => ({ type: 'chunk', text: r.text, at: r.end_time, score: scoreRow(question, r.text) }))
+        .map(r => ({ type: 'chunk', text: r.text, at: r.end_time || r.start_time, score: r.similarity || 1 }))
         .filter(r => r.score > 0);
 
     const summaryHits = (summariesRes.data || [])

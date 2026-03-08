@@ -52,25 +52,33 @@ setInterval(async () => {
 }, 10 * 60 * 1000); // every 10 minutes
 // ===== END KEEP-ALIVE =====
 
-export async function embed(text) {
+export async function embed(textOrArray, inputType = 'search_query') {
     if (!isConfigured()) return null;
 
-    const resp = await axios.post(
-        'https://api.cohere.ai/v1/embed',
-        {
-            model: 'embed-english-light-v3.0',
-            texts: [text],
-            input_type: 'search_query'
-        },
-        {
-            headers: {
-                Authorization: `Bearer ${process.env.COHERE_API_KEY}`,
-                'Content-Type': 'application/json'
-            }
-        }
-    );
+    const texts = Array.isArray(textOrArray) ? textOrArray : [textOrArray];
+    if (texts.length === 0) return Array.isArray(textOrArray) ? [] : null;
 
-    return resp.data.embeddings[0];
+    const allEmbeddings = [];
+    for (let i = 0; i < texts.length; i += 90) {
+        const batch = texts.slice(i, i + 90);
+        const resp = await axios.post(
+            'https://api.cohere.ai/v1/embed',
+            {
+                model: 'embed-english-light-v3.0',
+                texts: batch,
+                input_type: inputType
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${process.env.COHERE_API_KEY}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        allEmbeddings.push(...resp.data.embeddings);
+    }
+
+    return Array.isArray(textOrArray) ? allEmbeddings : allEmbeddings[0];
 }
 
 function toVec(raw) {
