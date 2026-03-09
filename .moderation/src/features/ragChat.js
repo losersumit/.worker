@@ -448,6 +448,7 @@ export async function handleRagChat(message, client) {
     }
 
     // Rule 3: Ambient fallback - ONLY speak if it's an FAQ answer
+/*
     if (content.length > 10 && content.includes('?')) {
         try {
             const faqText = await findFaqAnswer(content);
@@ -462,4 +463,5 @@ export async function handleRagChat(message, client) {
             console.error('[RAG] Ambient FAQ check error:', err.message);
         }
     }
+*/
 }

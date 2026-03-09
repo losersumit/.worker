@@ -35,3 +35,4 @@ node_modules/
 archive/
 RUN_AI_EMBEDDER.bat
 storage/exports/
+storage/
