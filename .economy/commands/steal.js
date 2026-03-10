@@ -59,6 +59,7 @@ export default {
     name: 'steal',
     description: 'Attempt to steal money from another player',
     async execute(message, args, client) {
+        return message.reply('The steal command is currently disabled.');
         await message.channel.sendTyping();
 
         const targetUser = message.mentions.users.first();

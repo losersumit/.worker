@@ -31,12 +31,6 @@ export default {
           inline: false
         },
         {
-          name: '🔫 Crime',
-          value:
-            '`?steal <@user>`\nAttempt to rob another player.',
-          inline: false
-        },
-        {
           name: '🏦 Tax & Economy Rules',
           value:
             '• **Daily Tax (10%)**: Deducted from **Bank Balance** at 12 AM. *Exempt if under €50,000.*\n' +
