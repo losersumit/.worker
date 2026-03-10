@@ -60,6 +60,7 @@ export default {
     description: 'Attempt to steal money from another player',
     async execute(message, args, client) {
         return message.reply('The steal command is currently disabled.');
+        /*
         await message.channel.sendTyping();
 
         const targetUser = message.mentions.users.first();
@@ -208,5 +209,6 @@ export default {
             console.error('Error in steal command:', error);
             message.reply('An error occurred during the robbery.');
         }
+        */
     },
 };
