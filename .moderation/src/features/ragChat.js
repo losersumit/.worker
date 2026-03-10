@@ -1,7 +1,7 @@
 import { groqChatCompletion } from '../clients/groq.js';
 import { findFaqAnswer, embed } from '../systems/faq.js';
 
-const CHAT_MODEL = process.env.CHAT_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct';
+const CHAT_MODEL = process.env.CHAT_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
 const CHAT_TEMPERATURE = Number(process.env.CHAT_TEMPERATURE || 0.6);
 const CHAT_MAX_TOKENS = Number(process.env.CHAT_MAX_TOKENS || 512);
 const AUTO_REPLY_COOLDOWN_MS = Number(process.env.RAG_AUTO_REPLY_COOLDOWN_MS || 25000);
@@ -448,20 +448,20 @@ export async function handleRagChat(message, client) {
     }
 
     // Rule 3: Ambient fallback - ONLY speak if it's an FAQ answer
-/*
-    if (content.length > 10 && content.includes('?')) {
-        try {
-            const faqText = await findFaqAnswer(content);
-            if (faqText) {
-                // If we found a high-confidence FAQ answer, speak up ambiently
-                if (autoReplyAllowed(message.channel.id)) {
-                    markAutoReply(message.channel.id);
-                    await message.reply(faqText);
+    /*
+        if (content.length > 10 && content.includes('?')) {
+            try {
+                const faqText = await findFaqAnswer(content);
+                if (faqText) {
+                    // If we found a high-confidence FAQ answer, speak up ambiently
+                    if (autoReplyAllowed(message.channel.id)) {
+                        markAutoReply(message.channel.id);
+                        await message.reply(faqText);
+                    }
                 }
+            } catch (err) {
+                console.error('[RAG] Ambient FAQ check error:', err.message);
             }
-        } catch (err) {
-            console.error('[RAG] Ambient FAQ check error:', err.message);
         }
-    }
-*/
+    */
 }

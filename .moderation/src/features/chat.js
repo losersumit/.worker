@@ -21,7 +21,7 @@ setInterval(() => {
 }, 300000); // Check every 5 minutes
 
 const CHAT_MODEL =
-    process.env.CHAT_MODEL || 'meta-llama/llama-4-maverick-17b-128e-instruct';
+    process.env.CHAT_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
 const CHAT_TEMPERATURE = Number(process.env.CHAT_TEMPERATURE || 0.7);
 const CHAT_MAX_TOKENS = Number(process.env.CHAT_MAX_TOKENS || 512);
 
