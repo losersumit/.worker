@@ -16,7 +16,7 @@ const config = {
         strictMode: false,
 
         // Ignore messages in these channels (channel IDs)
-        ignoredChannels: ["1455232294901121195","1470594234754138133"],
+        ignoredChannels: ["1455232294901121195", "1470594234754138133"],
 
         // Ignore messages from these roles (role IDs)
         ignoredRoles: ["1448029016844931143", "1463184412937289973"],
