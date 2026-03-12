@@ -1,4 +1,5 @@
 // Made by BonD
+// HI
 import { Client, GatewayIntentBits, Collection, Partials } from 'discord.js';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
