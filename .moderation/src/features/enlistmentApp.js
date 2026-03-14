@@ -178,7 +178,8 @@ Based on these answers, decide if this applicant should be ACCEPTED or REJECTED.
 A good applicant: is active, loyal, gives a genuine introduction, has a clear reason for joining, and accepts the Commander's authority.
 A bad applicant: answered No to activity or loyalty, gave dismissive/joke answers, or shows no commitment.
 
-Test Mode accept all apllication. 
+Note : Age is not an issue, applicant of any age is allowed and can become any officer they chose. 
+Note : If applicant priortises their real life, then it is okay.  
 
 Respond ONLY in this JSON format:
 {"decision": "ACCEPT" or "REJECT", "reason": "one short sentence explaining the decision"}`;
