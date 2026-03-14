@@ -177,6 +177,7 @@ Applicant answers:
 Based on these answers, decide if this applicant should be ACCEPTED or REJECTED.
 A good applicant: is active, loyal, gives a genuine introduction, has a clear reason for joining, and accepts the Commander's authority.
 A bad applicant: answered No to activity or loyalty, gave dismissive/joke answers, or shows no commitment.
+All Ages are allowed. 
 
 Respond ONLY in this JSON format:
 {"decision": "ACCEPT" or "REJECT", "reason": "one short sentence explaining the decision"}`;
