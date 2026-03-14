@@ -10,7 +10,7 @@
 
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } from 'discord.js';
 import { getUserWarnings, resetWarnings, getServerStatistics } from '../systems/storage.js'; // Updated import
-import registry from "./register.js";
+import enlist from "./enlist.js";
 import modhelp from "./modhelp.js";
 import setwh from "./setwh.js";
 import addpartner from "./addpartner.js";
@@ -189,7 +189,7 @@ export const commands = [
         }
     },
 
-    registry,
+    enlist,
     modhelp,
     setwh,
     addpartner,

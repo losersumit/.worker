@@ -7,20 +7,29 @@ dotenv.config();
 
 export default {
     data: new SlashCommandBuilder()
-        .setName('register')
-        .setDescription('Register a player with a number')
+        .setName('enlist')
+        .setDescription('Enlist a player with a number and optional officer role')
         .addUserOption(option =>
             option.setName('user')
-                .setDescription('The player to register')
+                .setDescription('The player to enlist')
                 .setRequired(true)
         )
-
         .addStringOption(option =>
             option.setName('number')
                 .setDescription('The 3-digit registration number')
                 .setRequired(true)
                 .setMinLength(3)
                 .setMaxLength(3)
+        )
+        .addStringOption(option =>
+            option.setName('officer')
+                .setDescription('Select an optional Officer role')
+                .setRequired(false)
+                .addChoices(
+                    { name: 'SMO', value: '1475314856184778835' },
+                    { name: 'FO', value: '1475314865878077603' },
+                    { name: 'O', value: '1475314870802055421' }
+                )
         ),
 
     async execute(interaction) {
@@ -284,24 +293,55 @@ export default {
                 embedMsg = "⚠️ Embed update failed.";
             }
 
-            // 7. Assign Enlisted Driver Role
+            // 7. Assign Enlisted Driver Role, optionally an Officer Role, and remove Unregistered Role
             let roleMsg = "";
             try {
-                const ROLE_ID = '1463184412937289973';
+                const ENLISTED_ROLE_ID = '1463184412937289973';
+                const UNREGISTERED_ROLE_ID = '1475196328303792138';
+                const officerRoleId = interaction.options.getString('officer');
                 const member = await interaction.guild.members.fetch(targetUser.id);
                 if (member) {
-                    await member.roles.add(ROLE_ID);
-                    roleMsg = "✅ Role assigned.";
+                    await member.roles.add(ENLISTED_ROLE_ID);
+                    roleMsg = "✅ Enlisted role assigned.";
+
+                    if (member.roles.cache.has(UNREGISTERED_ROLE_ID)) {
+                        await member.roles.remove(UNREGISTERED_ROLE_ID);
+                        roleMsg += " (Removed Unregistered Role).";
+                    }
+
+                    if (officerRoleId) {
+                        try {
+                            await member.roles.add(officerRoleId);
+                            
+                            const initialsMap = {
+                                '1475314856184778835': '[SMO]',
+                                '1475314865878077603': '[FO]',
+                                '1475314870802055421': '[O]'
+                            };
+                            const initial = initialsMap[officerRoleId];
+                            
+                            // Nickname update
+                            const currentName = member.nickname || targetUser.displayName || targetUser.username;
+                            if (!currentName.startsWith(initial)) {
+                                await member.setNickname(`${initial} ${currentName}`.substring(0, 32));
+                            }
+                            
+                            roleMsg = `✅ Enlisted & ${initial} roles assigned, nickname updated.`;
+                        } catch (officerErr) {
+                            console.error("Officer role/nickname assignment error:", officerErr);
+                            roleMsg = "✅ Enlisted assigned. ⚠️ Failed to assign officer role or update nickname.";
+                        }
+                    }
                 } else {
                     roleMsg = "⚠️ Member not found in guild.";
                 }
             } catch (roleErr) {
                 console.error("Role assignment error:", roleErr);
-                roleMsg = "❌ Failed to assign role (Check Permissions).";
+                roleMsg = "❌ Failed to assign role(s) (Check Permissions).";
             }
 
             // Final Reply
-            const finalContent = `✅ **Registration Complete** for ${targetUser}\n` +
+            const finalContent = `✅ **Enlistment Complete** for ${targetUser}\n` +
                 `Guild: ${guildTag || 'None'} (${guildId})\n` +
                 `Number: ${registrationNumber}\n` +
                 `Tables:\n` +

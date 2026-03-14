@@ -14,6 +14,7 @@ import { refreshDiscordUrls } from './.moderation/src/jobs/refreshDiscordUrls.js
 import { syncDisplayNames } from './.moderation/src/jobs/syncDisplayNames.js';
 import { runMemoryCleanup } from './.moderation/src/systems/memoryCleanup.js';
 import { scheduleRagHourlySummaries } from './.moderation/src/features/ragChat.js';
+import { runInactivityScan } from './.moderation/src/jobs/inactivityScanner.js';
 import schedule from 'node-schedule';
 
 // AI Integration
@@ -114,6 +115,15 @@ client.once('ready', async () => {
         console.log(`⏰ [MEMORY-CLEANUP] Running daily memory consolidation - ${new Date().toISOString()}`);
         await runMemoryCleanup();
     });
+
+    // Schedule daily inactivity scan at 1:00 AM
+    schedule.scheduleJob('0 1 * * *', async () => {
+        console.log(`⏰ [INACTIVITY] Running daily inactivity scan - ${new Date().toISOString()}`);
+        await runInactivityScan(client, supabase);
+    });
+
+    // Run inactivity scan immediately on startup
+    runInactivityScan(client, supabase).catch(err => console.error('[INACTIVITY] Startup scan failed:', err));
 
     // Refresh Discord CDN URLs every hour (well within Discord's 24h expiry window)
     schedule.scheduleJob('0 * * * *', async () => {

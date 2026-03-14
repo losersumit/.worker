@@ -1,6 +1,8 @@
 import axios from 'axios';
 import '../utils/loadEnv.js';
 import config from '../config.js'; // Updated import
+import { supabase } from '../clients/supabase.js';
+import { modifyRegistryComponents } from '../utils/embedManager.js';
 
 // Configuration
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -114,24 +116,87 @@ export async function processLevelScreenshot(message) {
     if (message.attachments.size === 0) return;
 
     const enlistedRoleId = process.env.ENLISTED_ROLE_ID;
-    if (enlistedRoleId) {
-        let member = message.member;
-        if (!member) {
-            try {
-                member = await message.guild.members.fetch(message.author.id);
-            } catch (err) {
-                console.error(`Error fetching member for ENLISTED role check: ${err.message}`);
-                return;
-            }
-        }
-        if (!member || !member.roles.cache.has(enlistedRoleId)) {
-            // Silently ignore screenshot if user does not have the ENLISTED role
+    const rpRoleId = process.env.RP_ROLE_ID;
+
+    // Fetch the member object
+    let member = message.member;
+    if (!member) {
+        try {
+            member = await message.guild.members.fetch(message.author.id);
+        } catch (err) {
+            console.error(`Error fetching member for role check: ${err.message}`);
             return;
         }
     }
+    if (!member) return;
+
+    const isEnlisted = enlistedRoleId && member.roles.cache.has(enlistedRoleId);
+    const isRP = rpRoleId && member.roles.cache.has(rpRoleId);
+
+    // Only process job logs for Active/Enlisted or Reserved Personnel members
+    if (!isEnlisted && !isRP) return;
 
     const targetImage = message.attachments.find(a => a.contentType && a.contentType.startsWith('image/'));
     if (!targetImage) return;
+
+    // --- REACTIVATION FLOW: If user is RP and posts a job log, reactivate them ---
+    if (isRP && !isEnlisted) {
+        console.log(`[RP Reactivation] ${message.author.username} posted a job log while RP. Reactivating...`);
+        try {
+            // Remove RP role, add Enlisted role
+            await member.roles.remove(rpRoleId);
+            await member.roles.add(enlistedRoleId);
+
+            // Fix nickname: remove [RP] prefix
+            const currentNick = member.nickname || member.user.username;
+            if (currentNick.startsWith('[RP]')) {
+                const newNick = currentNick.replace(/^\[RP\]\s*/, '').trim();
+                await member.setNickname(newNick || null).catch(e => console.error('[RP] Nickname reset failed:', e.message));
+            }
+
+            // Move embed entry: remove from RP embed, add to Enlisted embed
+            const rpWebhookUrl = process.env.RP_WEBHOOK_URL;
+            const rpMessageId = process.env.RP_EMBED_MESSAGE_ID;
+            const enlistWebhookUrl = process.env.REGISTER_WEBHOOK_URL;
+            const enlistMessageId = process.env.REGISTER_EMBED_MESSAGE_ID;
+
+            // Fetch registration number from players table
+            const { data: playerData } = await supabase
+                .from('players')
+                .select('registration_number')
+                .eq('discord_id', message.author.id)
+                .single();
+            const regNum = playerData?.registration_number;
+
+            if (rpWebhookUrl && rpMessageId) {
+                await modifyRegistryComponents(rpWebhookUrl, rpMessageId, message.author.id, { action: 'remove' });
+            }
+            if (enlistWebhookUrl && enlistMessageId && regNum) {
+                await modifyRegistryComponents(enlistWebhookUrl, enlistMessageId, message.author.id, { action: 'add', registrationNumber: regNum });
+            }
+
+            console.log(`[RP Reactivation] ${message.author.username} successfully reactivated.`);
+        } catch (err) {
+            console.error(`[RP Reactivation] Error for ${message.author.username}:`, err.message);
+        }
+    }
+
+    // --- Update last_job_log_date in Supabase ---
+    try {
+        const { data: playerData } = await supabase
+            .from('players')
+            .select('id')
+            .eq('discord_id', message.author.id)
+            .single();
+
+        if (playerData?.id) {
+            await supabase
+                .from('runs')
+                .insert({ player_id: playerData.id, created_at: new Date().toISOString() });
+        }
+    } catch (err) {
+        console.error(`[JobLog] Failed to record run for ${message.author.username}:`, err.message);
+    }
 
     // Process Image
     const level = await extractLevelFromImage(targetImage.url);
