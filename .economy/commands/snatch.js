@@ -56,16 +56,14 @@ function getLocalFallback() {
 }
 
 export default {
-    name: 'steal',
-    description: 'Attempt to steal money from another player',
+    name: 'snatch',
+    description: 'Attempt to snatch money from another player',
     async execute(message, args, client) {
-        return message.reply('The steal command is currently disabled.');
-        /*
         await message.channel.sendTyping();
 
         const targetUser = message.mentions.users.first();
         if (!targetUser) {
-            return message.reply('Usage: `?steal @user` — Try to rob another player.');
+            return message.reply('Usage: `?snatch @user` — Try to rob another player.');
         }
 
         if (targetUser.id === message.author.id) {
@@ -77,6 +75,35 @@ export default {
         }
 
         try {
+            // Fetch both members to compare roles
+            const robberMember = message.member;
+            const victimMember = await message.guild.members.fetch(targetUser.id).catch(() => null);
+
+            if (!victimMember) {
+                return message.reply("That user is not currently in the server.");
+            }
+
+            // --- Rank Hierarchy Checks ---
+            // Hierarchy: SMO > FO > O > TRAINEE > VISITOR
+            const getRankWeight = (member) => {
+                const roles = member.roles.cache;
+                if (roles.has(process.env.SMO_ROLE_ID)) return 5;
+                if (roles.has(process.env.FO_ROLE_ID)) return 4;
+                if (roles.has(process.env.O_ROLE_ID)) return 3;
+                if (roles.has(process.env.TRAINEE_ROLE_ID)) return 2;
+                if (roles.has(process.env.VISITOR_ROLE_ID)) return 1;
+                // If they have no known rank role, they are considered base level (0)
+                return 0;
+            };
+
+            const robberWeight = getRankWeight(robberMember);
+            const victimWeight = getRankWeight(victimMember);
+
+            // Robber cannot pull from someone with a strictly higher rank
+            if (victimWeight > robberWeight) {
+                return message.reply(`⛔ You cannot snatch from that user. Their rank is higher than yours!`);
+            }
+
             // --- Cooldown Checks ---
             const now = Date.now();
 
@@ -84,7 +111,7 @@ export default {
             const lastSteal = globalCooldowns.get(message.author.id);
             if (lastSteal && now - lastSteal < GLOBAL_CD) {
                 const remaining = Math.ceil((GLOBAL_CD - (now - lastSteal)) / 60000);
-                return message.reply(`🕐 You need to lay low for **${remaining} more minute${remaining !== 1 ? 's' : ''}** before attempting another robbery.`);
+                return message.reply(`🕐 You need to lay low for **${remaining} more minute${remaining !== 1 ? 's' : ''}** before attempting another snatch.`);
             }
 
             // Per-victim cooldown (3h)
@@ -92,14 +119,14 @@ export default {
             const lastVictimSteal = victimCooldowns.get(pairKey);
             if (lastVictimSteal && now - lastVictimSteal < VICTIM_CD) {
                 const remaining = Math.ceil((VICTIM_CD - (now - lastVictimSteal)) / 60000);
-                return message.reply(`🕐 You can't rob **${targetUser.username}** again for **${remaining} more minute${remaining !== 1 ? 's' : ''}**.`);
+                return message.reply(`🕐 You can't snatch from **${targetUser.username}** again for **${remaining} more minute${remaining !== 1 ? 's' : ''}**.`);
             }
 
             // Victim alert mode (1h — no one can rob this victim)
             const victimAlert = alertCooldowns.get(targetUser.id);
             if (victimAlert && now - victimAlert < ALERT_CD) {
                 const remaining = Math.ceil((ALERT_CD - (now - victimAlert)) / 60000);
-                return message.reply(`🚨 **${targetUser.username}** is on alert! They can't be robbed for **${remaining} more minute${remaining !== 1 ? 's' : ''}**.`);
+                return message.reply(`🚨 **${targetUser.username}** is on alert! They can't be snatched from for **${remaining} more minute${remaining !== 1 ? 's' : ''}**.`);
             }
 
             // --- Fetch Players ---
@@ -122,10 +149,10 @@ export default {
                 .single();
 
             if (!victimStats || victimStats.total_income <= 0) {
-                return message.reply(`**${targetUser.username}** has no money in their wallet to steal!`);
+                return message.reply(`**${targetUser.username}** has no money in their wallet to snatch!`);
             }
 
-            // --- Generate random steal amount ---
+            // --- Generate random snatch amount ---
             const maxSteal = victimStats.total_income;
             const stealAmount = Math.floor(Math.random() * maxSteal) + 1;
 
@@ -149,23 +176,23 @@ export default {
                 // Safety: re-check victim balance
                 const actualSteal = Math.min(stealAmount, freshVictim.total_income);
                 if (actualSteal <= 0) {
-                    return message.reply(`**${targetUser.username}** doesn't have enough money to steal anymore!`);
+                    return message.reply(`**${targetUser.username}** doesn't have enough money to snatch anymore!`);
                 }
 
                 // Transfer (atomic RPCs)
                 await Promise.all([
                     client.supabase.rpc('adjust_balance', { p_player_id: robber.id, p_amount: actualSteal }),
                     client.supabase.rpc('adjust_balance', { p_player_id: victim.id, p_amount: -actualSteal }),
-                    trackTransaction(client.supabase, robber.id, 'steal_success', actualSteal, `Stole from ${targetUser.username}`),
-                    trackTransaction(client.supabase, victim.id, 'steal_fail', actualSteal, `Robbed by ${message.author.username}`),
+                    trackTransaction(client.supabase, robber.id, 'steal_success', actualSteal, `Snatched from ${targetUser.username}`),
+                    trackTransaction(client.supabase, victim.id, 'steal_fail', actualSteal, `Snatched by ${message.author.username}`),
                 ]);
 
                 const embed = new EmbedBuilder()
                     .setColor(0x2ecc71)
-                    .setTitle('🔫 Robbery Successful!')
-                    .setDescription(`${message.author} robbed **€${actualSteal.toLocaleString()}** from ${targetUser}!`)
+                    .setTitle('🔫 Snatch Successful!')
+                    .setDescription(`${message.author} snatched **€${actualSteal.toLocaleString()}** from ${targetUser}!`)
                     .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
-                    .setFooter({ text: 'Crime pays... this time.' })
+                    .setFooter({ text: 'Theft pays... this time.' })
                     .setTimestamp();
 
                 await message.reply({ embeds: [embed] });
@@ -177,38 +204,37 @@ export default {
                 try {
                     const member = await message.guild.members.fetch(message.author.id);
                     if (member && member.moderatable) {
-                        await member.timeout(TIMEOUT_DURATION, 'Failed robbery attempt');
+                        await member.timeout(TIMEOUT_DURATION, 'Failed snatch attempt');
                         timeoutApplied = true;
                     }
                 } catch (err) {
-                    console.error('[Steal] Failed to apply timeout:', err.message);
+                    console.error('[Snatch] Failed to apply timeout:', err.message);
                 }
 
                 // Track failed attempt
-                await trackTransaction(client.supabase, robber.id, 'steal_fail', 0, `Failed robbery on ${targetUser.username}`);
+                await trackTransaction(client.supabase, robber.id, 'steal_fail', 0, `Failed snatch on ${targetUser.username}`);
 
                 // Generate sarcastic AI message
                 const sarcasticLine = await getSarcasticMessage(message.author.username);
 
                 const embed = new EmbedBuilder()
                     .setColor(0xe74c3c)
-                    .setTitle('🚨 Robbery Failed!')
+                    .setTitle('🚨 Snatch Failed!')
                     .setDescription(
-                        `${message.author} tried to rob ${targetUser} but got caught!\n\n` +
+                        `${message.author} tried to snatch money from ${targetUser} but got caught!\n\n` +
                         `> *"${sarcasticLine}"*` +
                         (timeoutApplied ? `\n\n🔇 **Timed out for 30 minutes!**` : '')
                     )
                     .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
-                    .setFooter({ text: 'Better luck next time, criminal.' })
+                    .setFooter({ text: 'Better luck next time, thief.' })
                     .setTimestamp();
 
                 await message.reply({ embeds: [embed] });
             }
 
         } catch (error) {
-            console.error('Error in steal command:', error);
-            message.reply('An error occurred during the robbery.');
+            console.error('Error in snatch command:', error);
+            message.reply('An error occurred during the snatch attempt.');
         }
-        */
     },
 };

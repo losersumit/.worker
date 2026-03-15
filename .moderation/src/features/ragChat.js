@@ -414,6 +414,15 @@ export function scheduleRagHourlySummaries(client) {
 export async function handleRagChat(message, client) {
     if (!client.supabase) return;
 
+    // Check if channel is ignored for chat
+    const ignoredChannels = process.env.IGNORED_CHAT_CHANNELS
+        ? process.env.IGNORED_CHAT_CHANNELS.split(',').map(id => id.trim())
+        : [];
+
+    if (ignoredChannels.includes(message.channel.id)) {
+        return; // Completely ignore tracking and chatting in this channel
+    }
+
     await upsertVerifiedIdentity(client.supabase, message).catch(err =>
         console.error('[RAG] identity sync failed:', err.message)
     );

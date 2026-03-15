@@ -7,9 +7,9 @@ export default {
         await message.channel.sendTyping();
 
         // Check permissions
-        const bossRoleId = process.env.BOSS_ROLE_ID;
+        const bossRoleId = process.env.COMMANDER_ROLE_ID;
         if (!bossRoleId) {
-            return message.reply('❌ BOSS_ROLE_ID is not configured in .env');
+            return message.reply('❌ COMMANDER_ROLE_ID is not configured in .env');
         }
 
         if (!message.member.roles.cache.has(bossRoleId)) {
