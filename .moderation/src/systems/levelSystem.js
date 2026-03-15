@@ -143,9 +143,12 @@ export async function processLevelScreenshot(message) {
     if (isRP && !isEnlisted) {
         console.log(`[RP Reactivation] ${message.author.username} posted a job log while RP. Reactivating...`);
         try {
-            // Remove RP role, add Enlisted role
+            const apRoleId = process.env.AP_ROLE_ID || '1448029015947346042'; // Provide fallback if env is missing
+
+            // Remove RP role, add Enlisted role, add AP role
             await member.roles.remove(rpRoleId);
             await member.roles.add(enlistedRoleId);
+            await member.roles.add(apRoleId);
 
             // Fix nickname: remove [RP] prefix
             const currentNick = member.nickname || member.user.username;
@@ -153,6 +156,12 @@ export async function processLevelScreenshot(message) {
                 const newNick = currentNick.replace(/^\[RP\]\s*/, '').trim();
                 await member.setNickname(newNick || null).catch(e => console.error('[RP] Nickname reset failed:', e.message));
             }
+
+            // Update database status to AP instantly so website syncs
+            await supabase
+                .from('enlisted_drivers')
+                .update({ status: 'AP' })
+                .eq('discord_id', message.author.id);
 
             // Move embed entry: remove from RP embed, add to Enlisted embed
             const rpWebhookUrl = process.env.ENLISTED_CHANNEL_WEBHOOK_URL;
@@ -175,7 +184,7 @@ export async function processLevelScreenshot(message) {
                 await modifyRegistryComponents(enlistWebhookUrl, enlistMessageId, message.author.id, { action: 'add', registrationNumber: regNum });
             }
 
-            console.log(`[RP Reactivation] ${message.author.username} successfully reactivated.`);
+            console.log(`[RP Reactivation] ${message.author.username} successfully reactivated to AP.`);
         } catch (err) {
             console.error(`[RP Reactivation] Error for ${message.author.username}:`, err.message);
         }

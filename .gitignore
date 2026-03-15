@@ -2,7 +2,7 @@
 .page
 
 .moderation/data/
-
+slot-game.txt
 scripts/
 
 .economy/node_modules/

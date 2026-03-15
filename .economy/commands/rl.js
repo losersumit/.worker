@@ -217,7 +217,7 @@ export default {
                     'The company matches all player bets to sweeten the pool.'
                 )
                 .addFields(
-                    { name: '🎲 Usage', value: '\`?rl <amount|all>\` — Start a game', inline: false },
+                    { name: '🎲 Usage', value: '\`?rl <amount|all>\` — Start a game\n\`?rl stats\` — See your history', inline: false },
                     { name: '🎯 Bet Types', value: 'Red, Black, Even, Odd, 1-18, 19-36, 1st/2nd/3rd 12.\nYou can pick **one bet** option!', inline: false },
                     { name: '👥 Multiplayer flow', value: '1. Game owner starts it.\n2. ANYONE can click **Add Bet** to join.\n3. Everyone clicks bet options ON THE SAME MESSAGE.\n4. Click **Confirm Bets** when done.\n5. Game owner clicks **Start Game**.', inline: false },
                     { name: '💰 Parimutuel Payouts', value: 'The **entire pool** (player bets + company match) is strictly divided among the WINNING players proportionally to how much they wagered on the winning outcomes. If NO ONE hits a winning bet, the company takes the pool.', inline: false },
@@ -226,7 +226,60 @@ export default {
             return message.reply({ embeds: [helpEmbed] });
         }
 
-        if (!args[0]) return message.reply('Usage: \`?rl <amount|all>\` or \`?rl help\`');
+        if (args[0] === 'stats') {
+            await message.channel.sendTyping();
+            try {
+                const { data: player } = await client.supabase.from('players').select('id').eq('discord_id', message.author.id).single();
+                if (!player) return message.reply('You are not registered in the economy system.');
+
+                // Match 'Parimutuel Roulette' details, ignoring 'Russian Roulette'
+                const { data: history } = await client.supabase
+                    .from('player_economy_history')
+                    .select('transaction_type, amount, details')
+                    .eq('player_id', player.id)
+                    .ilike('details', '%Roulette%')
+                    .not('details', 'ilike', '%Russian%');
+
+                let totalWon = 0;
+                let totalLost = 0;
+                let wins = 0;
+                let losses = 0;
+
+                for (const h of history || []) {
+                    const amt = parseFloat(h.amount);
+                    if (h.transaction_type === 'gamble_win') {
+                        totalWon += amt;
+                        wins++;
+                    } else if (h.transaction_type === 'gamble_loss') {
+                        totalLost += amt;
+                        losses++;
+                    }
+                }
+
+                const totalPlayed = wins + losses;
+                const winPercent = totalPlayed > 0 ? ((wins / totalPlayed) * 100).toFixed(1) : 0;
+                
+                const embed = new EmbedBuilder()
+                    .setColor(0x00FF00)
+                    .setTitle(`🎰 Roulette Stats: ${message.author.username}`)
+                    .addFields(
+                        { name: 'Games Played', value: `**${totalPlayed}**`, inline: true },
+                        { name: 'Win Rate', value: `**${winPercent}%**`, inline: true },
+                        { name: '\x20', value: '\x20', inline: true }, // spacer
+                        { name: 'Total Profit', value: `**€${totalWon.toLocaleString()}**`, inline: true },
+                        { name: 'Total Lost', value: `**€${totalLost.toLocaleString()}**`, inline: true },
+                        { name: 'Net Profit', value: `**€${(totalWon - totalLost).toLocaleString()}**`, inline: true }
+                    )
+                    .setThumbnail(message.author.displayAvatarURL({ dynamic: true }));
+
+                return message.reply({ embeds: [embed] });
+            } catch (err) {
+                console.error('Error fetching rl stats:', err);
+                return message.reply('Failed to load stats.');
+            }
+        }
+
+        if (!args[0]) return message.reply('Usage: \`?rl <amount|all>\`, \`?rl stats\`, or \`?rl help\`');
 
         try {
             // --- 1. Validate Initiator ---
@@ -489,12 +542,14 @@ async function runLobby(client, message, mainMsg, gameId, gameOwnerId) {
     });
 
     lobbyCollector.on('end', async (_, reason) => {
-        if (reason === 'time' && !gameStarted) {
+        if (!gameStarted) {
             try {
                 const finalGame = await getGame(client.supabase, gameId);
-                await refundAll(client.supabase, message.guildId, finalGame);
+                if (finalGame && finalGame.status === 'lobby') {
+                    await refundAll(client.supabase, message.guildId, finalGame);
+                }
             } catch (e) { console.error('[Roulette] Timeout refund error:', e); }
-            mainMsg.edit({ content: '⏱️ Game lobby timed out! All bets refunded.', embeds: [], components: [] }).catch(() => { });
+            mainMsg.edit({ content: '⏱️ Game lobby closed or timed out! All bets refunded.', embeds: [], components: [] }).catch(() => { });
         }
     });
 }

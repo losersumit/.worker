@@ -11,7 +11,7 @@ export default {
                 .setColor(0xFF0000)
                 .setTitle('Russian Roulette Rules')
                 .addFields(
-                    { name: '🔫 How to Play', value: '`?rr <amount|all> <@user|nmc>`', inline: true },
+                    { name: '🔫 How to Play', value: '`?rr <amount|all> <@user|nmc>`\n`?rr stats` — See your history', inline: true },
                     { name: '💰 Payouts', value: '**PVP**: Winner takes bet (10% fee)\n**PVE (NMC)**: Win = **2x** Bet', inline: true },
                     { name: '⏱️ Timeouts (Loser)', value: '< 10k: **30m**\n10k-50k: **2h**\n> 50k: **4h**', inline: false },
                     { name: '📜 Mechanics', value: '• 6 Chambers, 1 Bullet.\n• 3 Turns each.\n• Failure to shoot = Forfeit.', inline: false }
@@ -20,7 +20,75 @@ export default {
             return message.reply({ embeds: [embed] });
         }
 
-        if (args.length < 2) return message.reply('Usage: `?rr <amount|all> <@user | nmc>` or `?rr help`');
+        if (args[0] === 'stats') {
+            await message.channel.sendTyping();
+            try {
+                const { data: player } = await client.supabase.from('players').select('id').eq('discord_id', message.author.id).single();
+                if (!player) return message.reply('You are not registered in the economy system.');
+
+                const { data: history } = await client.supabase
+                    .from('player_economy_history')
+                    .select('transaction_type, amount, details')
+                    .eq('player_id', player.id)
+                    .ilike('details', '%Russian Roulette%');
+
+                let totalWon = 0;
+                let totalLost = 0;
+                let wins = 0;
+                let losses = 0;
+                let timeServedMs = 0;
+
+                for (const h of history || []) {
+                    const amt = parseFloat(h.amount);
+                    if (h.transaction_type === 'gamble_win') {
+                        totalWon += amt;
+                        wins++;
+                    } else if (h.transaction_type === 'gamble_loss') {
+                        totalLost += amt;
+                        losses++;
+                        
+                        // Estimate timeout served based on lost bet amount
+                        if (amt < 10000) timeServedMs += 30 * 60 * 1000;
+                        else if (amt < 50000) timeServedMs += 2 * 60 * 60 * 1000;
+                        else timeServedMs += 4 * 60 * 60 * 1000;
+                    }
+                }
+
+                const totalPlayed = wins + losses;
+                const winPercent = totalPlayed > 0 ? ((wins / totalPlayed) * 100).toFixed(1) : 0;
+                
+                // Format total timeout duration
+                let durationStr = '0m';
+                if (timeServedMs > 0) {
+                    const h = Math.floor(timeServedMs / (1000 * 60 * 60));
+                    const m = Math.floor((timeServedMs % (1000 * 60 * 60)) / (1000 * 60));
+                    durationStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+                }
+
+                const embed = new EmbedBuilder()
+                    .setColor(0xFF0000)
+                    .setTitle(`🔫 RR Stats: ${message.author.username}`)
+                    .addFields(
+                        { name: 'Games Played', value: `**${totalPlayed}**`, inline: true },
+                        { name: 'Win Rate', value: `**${winPercent}%**`, inline: true },
+                        { name: '\x20', value: '\x20', inline: true }, // spacer
+                        { name: 'Total Won', value: `**€${totalWon.toLocaleString()}**`, inline: true },
+                        { name: 'Total Lost', value: `**€${totalLost.toLocaleString()}**`, inline: true },
+                        { name: 'Net Profit', value: `**€${(totalWon - totalLost).toLocaleString()}**`, inline: true },
+                        { name: 'Times Killed', value: `**${losses}**`, inline: true },
+                        { name: 'Timeout Served', value: `**${durationStr}**`, inline: true },
+                        { name: '\x20', value: '\x20', inline: true } // spacer
+                    )
+                    .setThumbnail(message.author.displayAvatarURL({ dynamic: true }));
+
+                return message.reply({ embeds: [embed] });
+            } catch (err) {
+                console.error('Error fetching rr stats:', err);
+                return message.reply('Failed to load stats.');
+            }
+        }
+
+        if (args.length < 2) return message.reply('Usage: `?rr <amount|all> <@user | nmc>` or `?rr stats` (or `?rr help`)');
 
         await message.channel.sendTyping();
 

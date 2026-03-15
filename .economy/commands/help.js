@@ -18,6 +18,7 @@ export default {
             '`?dp <amount|all>`\nDeposit money into your [Taxed 10 percent daily if you got 50k+].\n' +
             '`?wd <amount|all>`\nWithdraw money from your bank [Can be stolen].\n' +
             '`?transfer <amount|all> <@user>`\nSend money to another player.\n' +
+            '`?snatch <@user>`\nAttempt to steal from another player.\n' +
             '`?my skins`\nView your owned skins.\n' +
             '`?guild`\nView guild treasury & top 5 richest.',
           inline: false
@@ -25,9 +26,10 @@ export default {
         {
           name: '🎲 Games',
           value:
-            '`Coinflip`\n`?cf help`\n' +
-            '`Russian Roulette`\n`?rr help`\n' +
-            '`Roulette`\n`?rl help`',
+            '`Coinflip`     — `?cf help`   | `?cf stats`\n' +
+            '`Russian R.` — `?rr help`   | `?rr stats`\n' +
+            '`Roulette`   — `?rl help`   | `?rl stats`\n' +
+            '`Slot Mach.` — `?slot help` | `?slot stats`',
           inline: false
         },
         {
