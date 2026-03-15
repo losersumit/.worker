@@ -1,10 +1,10 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } from 'discord.js';
 import { groqChatCompletion } from '../clients/groq.js';
 
-const TRAINING_ROLE_ID = '1475196328303792138';
-const TRAINING_CHANNEL_ID = '1475325604873113713';
-const REJECTION_CHANNEL_ID = '1448038019755151391';
-const REVIEW_CHANNEL_ID = '1462797901305745509';
+const TRAINING_ROLE_ID = process.env.TRAINEE_ROLE_ID || '1475196328303792138';
+const TRAINING_CHANNEL_ID = process.env.TRAINING_CHANNEL_ID || '1475325604873113713';
+const REJECTION_CHANNEL_ID = process.env.REJECTION_CHANNEL_ID || '1448038019755151391';
+const REVIEW_CHANNEL_ID = process.env.REVIEW_CHANNEL_ID || '1462797901305745509';
 
 const OFFICER_CRITERIA = {
     operator: {
@@ -37,7 +37,10 @@ export { OFFICER_CRITERIA, TRAINING_ROLE_ID, TRAINING_CHANNEL_ID, REJECTION_CHAN
 export async function handleEnlistmentApplication(interaction) {
     await interaction.deferReply({ ephemeral: true });
 
-    const BLOCKED_ROLES = ['1475196328303792138', '1482386008376086598'];
+    const BLOCKED_ROLES = [
+        process.env.TRAINEE_ROLE_ID || '1475196328303792138', 
+        process.env.ENLISTED_ROLE_ID || '1482386008376086598'
+    ];
     const member = interaction.member;
 
     if (BLOCKED_ROLES.some(roleId => member.roles.cache.has(roleId))) {

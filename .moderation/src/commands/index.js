@@ -160,8 +160,8 @@ export const commands = [
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
         async execute(interaction, config) {
-            // Permission check using REGISTER_ALLOWED_ROLES
-            const allowedRolesEnv = process.env.REGISTER_ALLOWED_ROLES || '';
+            // Permission check using ENLISTEMENT_ALLOWED_ROLES
+            const allowedRolesEnv = process.env.ENLISTEMENT_ALLOWED_ROLES || '';
             const allowedRoles = allowedRolesEnv.split(',').map(r => r.trim()).filter(Boolean);
 
             const hasPermission = allowedRoles.some(roleId => interaction.member.roles.cache.has(roleId)) ||

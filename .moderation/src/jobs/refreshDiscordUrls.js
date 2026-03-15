@@ -60,7 +60,6 @@ export async function refreshDiscordUrls(supabase, client) {
                 console.error(`[URL-REFRESH] Failed to update row ${row.id}:`, updateErr.message);
                 failed++;
             } else {
-                console.log(`[URL-REFRESH] ✅ Row ${row.id}: URL refreshed.`);
                 updated++;
             }
         } catch (err) {

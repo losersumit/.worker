@@ -3,7 +3,7 @@ import { groqChatCompletion } from '../clients/groq.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY);
 
 const CLEANUP_PROMPT = `You are a memory consolidation AI for a Discord bot named "Worker".
 Below is a list of facts currently remembered about a specific user.

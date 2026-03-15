@@ -11,13 +11,13 @@ const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 // Ordered from highest min to lowest for easier searching if needed, 
 // but find() works fine with the range check.
 const LEVEL_ROLES = [
-    { min: 100, max: Infinity, id: '1469958213997821952' },
-    { min: 75, max: 100, id: '1469958222420119715' },
-    { min: 50, max: 75, id: '1448029023530913946' },
-    { min: 30, max: 50, id: '1448029024948326472' },
-    { min: 12, max: 30, id: '1448029028970664088' },
-    { min: 5, max: 12, id: '1448029030283477074' },
-    { min: 1, max: 5, id: '1469956018908823716' }
+    { min: 100, max: Infinity, id: process.env.LEVEL_ROLE_ELITE || '1469958213997821952' },
+    { min: 75, max: 100, id: process.env.LEVEL_ROLE_SPECIALIST || '1469958222420119715' },
+    { min: 50, max: 75, id: process.env.LEVEL_ROLE_MASTER || '1448029023530913946' },
+    { min: 30, max: 50, id: process.env.LEVEL_ROLE_TACTICAL || '1448029024948326472' },
+    { min: 12, max: 30, id: process.env.LEVEL_ROLE_PROFESSIONAL || '1448029028970664088' },
+    { min: 5, max: 12, id: process.env.LEVEL_ROLE_QUALIFIED || '1448029030283477074' },
+    { min: 1, max: 5, id: process.env.LEVEL_ROLE_ROOKIE || '1469956018908823716' }
 ];
 
 const ALL_ROLE_IDS = LEVEL_ROLES.map(r => r.id);
@@ -155,10 +155,10 @@ export async function processLevelScreenshot(message) {
             }
 
             // Move embed entry: remove from RP embed, add to Enlisted embed
-            const rpWebhookUrl = process.env.RP_WEBHOOK_URL;
+            const rpWebhookUrl = process.env.ENLISTED_CHANNEL_WEBHOOK_URL;
             const rpMessageId = process.env.RP_EMBED_MESSAGE_ID;
-            const enlistWebhookUrl = process.env.REGISTER_WEBHOOK_URL;
-            const enlistMessageId = process.env.REGISTER_EMBED_MESSAGE_ID;
+            const enlistWebhookUrl = process.env.ENLISTED_CHANNEL_WEBHOOK_URL;
+            const enlistMessageId = process.env.AP_EMBED_MESSAGE_ID;
 
             // Fetch registration number from players table
             const { data: playerData } = await supabase

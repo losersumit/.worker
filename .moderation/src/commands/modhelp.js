@@ -12,7 +12,7 @@ export default {
 
     async execute(interaction, config) {
         // Permission check
-        const allowedRolesEnv = process.env.REGISTER_ALLOWED_ROLES || '';
+        const allowedRolesEnv = process.env.ENLISTEMENT_ALLOWED_ROLES || '';
         const allowedRoles = allowedRolesEnv.split(',').map(r => r.trim()).filter(Boolean);
 
         const hasPermission = allowedRoles.some(roleId => interaction.member.roles.cache.has(roleId)) ||

@@ -9,7 +9,7 @@ export default {
     name: Events.GuildMemberAdd,
     async execute(member, client) {
         try {
-            const roleId = process.env.AUTO_ROLE_ID;
+            const roleId = process.env.VISITOR_ROLE_ID || process.env.AUTO_ROLE_ID;
             if (roleId) {
                 const role = member.guild.roles.cache.get(roleId);
                 if (role) await member.roles.add(role);

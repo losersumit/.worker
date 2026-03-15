@@ -28,16 +28,16 @@ const CHAT_MAX_TOKENS = Number(process.env.CHAT_MAX_TOKENS || 512);
 const COMPANY_NAME = process.env.COMPANY_NAME || 'the community';
 const COMPANY_SHORT = process.env.COMPANY_SHORT || '';
 
-// Commander (boss) Discord ID
-const COMMANDER_ID = '1084255828107853844';
+// Commander (boss) Discord Role ID
+const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID || '1448029016844931143';
 
 // Role hierarchy for rank detection (checked top-down, first match wins)
 const RANK_ROLES = [
-    { id: '1475314856184778835', name: 'Senior Mobility Operator' },
-    { id: '1475314865878077603', name: 'Field Operator' },
-    { id: '1475314870802055421', name: 'Operator' },
-    { id: '1463184412937289973', name: 'Enlisted' },
-    { id: '1448029031672053900', name: 'Visitor' },
+    { id: process.env.SMO_ROLE_ID || '1475314856184778835', name: 'Senior Mobility Operator' },
+    { id: process.env.FO_ROLE_ID || '1475314865878077603', name: 'Field Operator' },
+    { id: process.env.O_ROLE_ID || '1475314870802055421', name: 'Operator' },
+    { id: process.env.AP_ROLE_ID || '1463184412937289973', name: 'Enlisted' },
+    { id: process.env.VISITOR_ROLE_ID || '1448029031672053900', name: 'Visitor' },
 ];
 
 /**
@@ -56,7 +56,7 @@ function resolveRank(member) {
 const BASE_SYSTEM_PROMPT = `You are "Worker", the AI assistant for ${COMPANY_NAME}${COMPANY_SHORT ? ` (${COMPANY_SHORT})` : ''} — a Virtual Trucking Company (VTC) in the mobile game Truckers of Europe 3 (TOE3).
 
 IDENTITY:
-- The Commander (Supreme Commander / Boss) of NMC is <@${COMMANDER_ID}>. Show respect to the Commander.
+- Show respect to anyone holding the Commander Role.
 - You handle economy, moderation, support, and general banter.
 
 PERSONALITY:
@@ -85,7 +85,7 @@ function getMoodString() {
  */
 function buildSystemPrompt(member, user) {
     const rank = resolveRank(member);
-    const isCommander = user.id === COMMANDER_ID;
+    const isCommander = member?.roles?.cache?.has(COMMANDER_ROLE_ID);
     const nameToUse = member?.displayName || user?.globalName || user?.username;
     const userLabel = isCommander
         ? `The Commander (${nameToUse})`
