@@ -21,7 +21,7 @@ async function applyDailyTax(client) {
       guild_id
     )
   `)
-      .gte('bank_balance', 50000)
+      .gte('bank_balance', 5000)
       .eq('players.guild_id', TARGET_GUILD_ID);
 
     if (playersError) {
@@ -33,7 +33,7 @@ async function applyDailyTax(client) {
 
     for (const player of players) {
       // Tax only bank_balance — wallet (total_income) is untaxed
-      const tax = Math.floor(player.bank_balance * 0.1);
+      const tax = Math.floor(player.bank_balance * 0.01);
       const newBankBalance = Math.floor(player.bank_balance - tax);
 
       await client.supabase
