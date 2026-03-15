@@ -4,7 +4,7 @@ import { groqChatCompletion } from '../clients/groq.js';
 const TRAINING_ROLE_ID = '1475196328303792138';
 const TRAINING_CHANNEL_ID = '1475325604873113713';
 const REJECTION_CHANNEL_ID = '1448038019755151391';
-const REVIEW_CHANNEL_ID = '1455232294901121195';
+const REVIEW_CHANNEL_ID = '1462797901305745509';
 
 const OFFICER_CRITERIA = {
     operator: {
@@ -32,8 +32,17 @@ const OFFICER_CRITERIA = {
     },
 };
 
+export { OFFICER_CRITERIA, TRAINING_ROLE_ID, TRAINING_CHANNEL_ID, REJECTION_CHANNEL_ID };
+
 export async function handleEnlistmentApplication(interaction) {
     await interaction.deferReply({ ephemeral: true });
+
+    const BLOCKED_ROLES = ['1475196328303792138', '1482386008376086598'];
+    const member = interaction.member;
+
+    if (BLOCKED_ROLES.some(roleId => member.roles.cache.has(roleId))) {
+        return interaction.editReply('❌ You are already a Trainee or Enlisted member — you cannot apply again.');
+    }
 
     const user = interaction.user;
 
@@ -93,51 +102,39 @@ async function startApplicationQuestions(user, dmChannel, client, guild) {
     const askButtonQuestion = async (questionText, yesId, noId) => {
         const timeLeft = deadline - Date.now();
         if (timeLeft <= 0) throw new Error('timeout');
-
         const embed = new EmbedBuilder().setColor('#2b2d31').setDescription(questionText);
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(yesId).setLabel('Yes').setStyle(ButtonStyle.Success),
             new ButtonBuilder().setCustomId(noId).setLabel('No').setStyle(ButtonStyle.Danger)
         );
-
         const msg = await dmChannel.send({ embeds: [embed], components: [row] });
         try {
             const i = await msg.awaitMessageComponent({ filter: i => i.user.id === user.id, time: timeLeft });
             await i.update({ components: [] });
             return i.customId === yesId ? 'Yes' : 'No';
-        } catch {
-            throw new Error('timeout');
-        }
+        } catch { throw new Error('timeout'); }
     };
 
     const askTextQuestion = async (questionText) => {
         const timeLeft = deadline - Date.now();
         if (timeLeft <= 0) throw new Error('timeout');
-
         const embed = new EmbedBuilder().setColor('#2b2d31').setDescription(questionText);
         await dmChannel.send({ embeds: [embed] });
         try {
             const collected = await dmChannel.awaitMessages({ filter: m => m.author.id === user.id, max: 1, time: timeLeft, errors: ['time'] });
             return collected.first().content;
-        } catch {
-            throw new Error('timeout');
-        }
+        } catch { throw new Error('timeout'); }
     };
 
     const askOfficerQuestion = async () => {
         const timeLeft = deadline - Date.now();
         if (timeLeft <= 0) throw new Error('timeout');
-
-        const embed = new EmbedBuilder()
-            .setColor('#2b2d31')
-            .setDescription('**Question 7/7:**\nWhich officer role do you want to work towards?');
-
+        const embed = new EmbedBuilder().setColor('#2b2d31').setDescription('**Question 7/7:**\nWhich officer role do you want to work towards?');
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('officer_o').setLabel('Operator').setStyle(ButtonStyle.Primary),
             new ButtonBuilder().setCustomId('officer_fo').setLabel('Field Operator').setStyle(ButtonStyle.Primary),
             new ButtonBuilder().setCustomId('officer_smo').setLabel('Senior Mobility Operator').setStyle(ButtonStyle.Primary)
         );
-
         const msg = await dmChannel.send({ embeds: [embed], components: [row] });
         try {
             const i = await msg.awaitMessageComponent({ filter: i => i.user.id === user.id, time: timeLeft });
@@ -145,9 +142,7 @@ async function startApplicationQuestions(user, dmChannel, client, guild) {
             if (i.customId === 'officer_o') return 'operator';
             if (i.customId === 'officer_fo') return 'field_operator';
             return 'smo';
-        } catch {
-            throw new Error('timeout');
-        }
+        } catch { throw new Error('timeout'); }
     };
 
     try {
@@ -159,9 +154,9 @@ async function startApplicationQuestions(user, dmChannel, client, guild) {
         answers.authority = await askTextQuestion('**Question 6/7:**\nDo you accept that the Commander has final authority in all company decisions, including member removal?');
         answers.officerKey = await askOfficerQuestion();
 
-        await dmChannel.send('✅ Thank you! Your application is being reviewed by our AI system...');
+        await dmChannel.send('✅ Application submitted! Waiting for someone to review it.');
 
-        // --- AI REVIEW ---
+        // --- AI REVIEW (advisory only — humans make final call via buttons) ---
         const officerLabel = OFFICER_CRITERIA[answers.officerKey].label;
         const aiPrompt = `You are reviewing a driver enlistment application for a Virtual Trucking Company called National Mobility Command (NMC) in the game Truckers of Europe 3.
 
@@ -178,14 +173,11 @@ Based on these answers, decide if this applicant should be ACCEPTED or REJECTED.
 A good applicant: is active, loyal, gives a genuine introduction, has a clear reason for joining, and accepts the Commander's authority.
 A bad applicant: answered No to activity or loyalty, gave dismissive/joke answers, or shows no commitment.
 
-Note : Age is not an issue, applicant of any age is allowed and can become any officer they chose. 
-Note : If applicant priortises their real life, then it is okay.  
-Note : Go easy on applicants, only reject if it is really bad, otherwise accept.
 Respond ONLY in this JSON format:
 {"decision": "ACCEPT" or "REJECT", "reason": "one short sentence explaining the decision"}`;
 
         let aiDecision = 'ACCEPT';
-        let aiReason = 'Application looks good!';
+        let aiReason = 'Application looks solid.';
 
         try {
             const data = await groqChatCompletion({
@@ -194,9 +186,7 @@ Respond ONLY in this JSON format:
                 temperature: 0.3,
                 max_tokens: 100,
             });
-
             const raw = data?.choices?.[0]?.message?.content?.trim() || '';
-            // Extract JSON safely from the response
             const jsonMatch = raw.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 const parsed = JSON.parse(jsonMatch[0]);
@@ -206,16 +196,16 @@ Respond ONLY in this JSON format:
                 }
             }
         } catch (aiErr) {
-            console.error('[App] AI review failed, defaulting to ACCEPT:', aiErr.message);
+            console.error('[App] AI review failed:', aiErr.message);
         }
 
-        // --- POST APPLICATION EMBED TO REVIEW CHANNEL ---
+        // --- POST APPLICATION EMBED WITH ACCEPT/REJECT BUTTONS ---
         const reviewChannel = await client.channels.fetch(REVIEW_CHANNEL_ID).catch(() => null);
         if (reviewChannel) {
             const resultEmbed = new EmbedBuilder()
                 .setTitle('New Enlistment Application')
                 .setAuthor({ name: user.tag, iconURL: user.displayAvatarURL() })
-                .setColor(aiDecision === 'ACCEPT' ? '#00ff00' : '#ff0000')
+                .setColor(aiDecision === 'ACCEPT' ? '#00ff00' : '#ff4444')
                 .addFields(
                     { name: 'User', value: `<@${user.id}> (${user.id})` },
                     { name: '1. Active?', value: answers.active },
@@ -225,69 +215,22 @@ Respond ONLY in this JSON format:
                     { name: '5. Why NMC?', value: answers.whyNMC || '*No answer*' },
                     { name: '6. Accepts authority?', value: answers.authority || '*No answer*' },
                     { name: '7. Officer goal', value: officerLabel },
-                    { name: `🤖 AI Verdict: ${aiDecision}`, value: aiReason }
+                    { name: `🤖 AI Suggestion: ${aiDecision}`, value: aiReason }
                 )
                 .setTimestamp();
 
-            await reviewChannel.send({ embeds: [resultEmbed] });
-        }
+            const buttonRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`app_accept:${user.id}:${answers.officerKey}`)
+                    .setLabel('✅ Accept')
+                    .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                    .setCustomId(`app_reject:${user.id}`)
+                    .setLabel('❌ Reject')
+                    .setStyle(ButtonStyle.Danger)
+            );
 
-        // --- HANDLE ACCEPT ---
-        if (aiDecision === 'ACCEPT') {
-            // DM the user
-            await dmChannel.send(`🎉 Congratulations! Your application has been **accepted**! You are now entering your training period. Check <#${TRAINING_CHANNEL_ID}> for your next steps.`);
-
-            // Assign training role
-            try {
-                const member = await guild.members.fetch(user.id);
-                await member.roles.add(TRAINING_ROLE_ID);
-            } catch (roleErr) {
-                console.error('[App] Failed to assign training role:', roleErr.message);
-            }
-
-            // Post training embed in training channel
-            const trainingChannel = await client.channels.fetch(TRAINING_CHANNEL_ID).catch(() => null);
-            if (trainingChannel) {
-                const officer = OFFICER_CRITERIA[answers.officerKey];
-                const trainingEmbed = new EmbedBuilder()
-                    .setTitle('🚛 Training Period Commenced!')
-                    .setColor('#f5c518')
-                    .setDescription(
-                        `Welcome to the NMC! <@${user.id}> has entered their training period.\n\n` +
-                        `**Officer goal: ${officer.label}**\n\n` +
-                        `Here are the eligibility requirements:\n\n` +
-                        officer.criteria +
-                        `\n\n**Post proof here and ping the commander!**`
-                    )
-                    .setTimestamp()
-                    .setFooter({ text: 'National Mobility Command • NMC' });
-
-                await trainingChannel.send({ content: `<@${user.id}>`, embeds: [trainingEmbed] });
-            }
-        }
-
-        // --- HANDLE REJECT ---
-        if (aiDecision === 'REJECT') {
-            // DM the user
-            await dmChannel.send(`❌ Unfortunately, your application has not been accepted at this time. You are welcome to apply again in the future after reviewing what we look for in a driver.`);
-
-            // Post in rejection channel with disappointed father energy
-            const rejectionChannel = await client.channels.fetch(REJECTION_CHANNEL_ID).catch(() => null);
-            if (rejectionChannel) {
-                const rejectEmbed = new EmbedBuilder()
-                    .setTitle('Application Reviewed')
-                    .setColor('#8B0000')
-                    .setDescription(
-                        `<@${user.id}>... I have to be honest with you.\n\n` +
-                        `I looked at your application. I read every word. And I must say — I expected more from you.\n\n` +
-                        `**Reason:** ${aiReason}\n\n` +
-                        `This isn't the end. Think about what we stand for here at NMC, reflect on what you wrote, and come back when you're ready to give it your all. The door isn't closed — but it's not open right now either.`
-                    )
-                    .setTimestamp()
-                    .setFooter({ text: 'National Mobility Command • NMC' });
-
-                await rejectionChannel.send({ content: `<@${user.id}>`, embeds: [rejectEmbed] });
-            }
+            await reviewChannel.send({ embeds: [resultEmbed], components: [buttonRow] });
         }
 
     } catch (err) {
@@ -298,4 +241,95 @@ Respond ONLY in this JSON format:
             dmChannel.send('❌ An error occurred during your application. Please try again.').catch(() => { });
         }
     }
+}
+
+/**
+ * Called from interactionCreate when ✅ Accept button is clicked.
+ */
+export async function executeApplicationAccept(interaction, userId, officerKey) {
+    await interaction.deferUpdate();
+
+    const guild = interaction.guild;
+    const client = interaction.client;
+
+    const officer = OFFICER_CRITERIA[officerKey] || OFFICER_CRITERIA.operator;
+
+    // Assign training role
+    try {
+        const member = await guild.members.fetch(userId);
+        await member.roles.add(TRAINING_ROLE_ID);
+    } catch (err) {
+        console.error('[App Accept] Failed to assign training role:', err.message);
+    }
+
+    // DM the user
+    try {
+        const user = await client.users.fetch(userId);
+        await user.send(`🎉 Congratulations! Your NMC application has been **accepted**! You are now entering your training period. Check <#${TRAINING_CHANNEL_ID}> for your next steps.`);
+    } catch { /* DMs may be closed */ }
+
+    // Post training embed
+    const trainingChannel = await client.channels.fetch(TRAINING_CHANNEL_ID).catch(() => null);
+    if (trainingChannel) {
+        const trainingEmbed = new EmbedBuilder()
+            .setTitle('🚛 Training Period Commenced!')
+            .setColor('#f5c518')
+            .setDescription(
+                `Welcome to the NMC! <@${userId}> has entered their training period.\n\n` +
+                `**Officer goal: ${officer.label}**\n\n` +
+                `Here are the eligibility requirements:\n\n` +
+                officer.criteria +
+                `\n\n**Post proof here and ping the commander!**`
+            )
+            .setTimestamp()
+            .setFooter({ text: 'National Mobility Command • NMC' });
+
+        await trainingChannel.send({ content: `<@${userId}>`, embeds: [trainingEmbed] });
+    }
+
+    // Disable buttons on the review embed
+    const disabledRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('accepted').setLabel('✅ Accepted').setStyle(ButtonStyle.Success).setDisabled(true),
+        new ButtonBuilder().setCustomId('na').setLabel('❌ Reject').setStyle(ButtonStyle.Danger).setDisabled(true)
+    );
+    await interaction.message.edit({ components: [disabledRow] }).catch(() => { });
+}
+
+/**
+ * Called from interactionCreate when ❌ Reject button is clicked.
+ */
+export async function executeApplicationReject(interaction, userId) {
+    await interaction.deferUpdate();
+
+    const client = interaction.client;
+
+    // DM the user
+    try {
+        const user = await client.users.fetch(userId);
+        await user.send(`❌ Unfortunately, your NMC application has not been accepted at this time. Feel free to apply again once you've reflected on what we look for in a driver.`);
+    } catch { /* DMs may be closed */ }
+
+    // Post rejection embed with disappointed-father tone
+    const rejectionChannel = await client.channels.fetch(REJECTION_CHANNEL_ID).catch(() => null);
+    if (rejectionChannel) {
+        const rejectEmbed = new EmbedBuilder()
+            .setTitle('Application Reviewed')
+            .setColor('#8B0000')
+            .setDescription(
+                `<@${userId}>... I have to be honest with you.\n\n` +
+                `I looked at your application. I read every word. And I must say — I expected more from you.\n\n` +
+                `This isn't the end. Think about what we stand for here at NMC, reflect on what you wrote, and come back when you're ready to give it your all. The door isn't closed — but it's not open right now either.`
+            )
+            .setTimestamp()
+            .setFooter({ text: 'National Mobility Command • NMC' });
+
+        await rejectionChannel.send({ content: `<@${userId}>`, embeds: [rejectEmbed] });
+    }
+
+    // Disable buttons on the review embed
+    const disabledRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('na').setLabel('✅ Accept').setStyle(ButtonStyle.Success).setDisabled(true),
+        new ButtonBuilder().setCustomId('rejected').setLabel('❌ Rejected').setStyle(ButtonStyle.Danger).setDisabled(true)
+    );
+    await interaction.message.edit({ components: [disabledRow] }).catch(() => { });
 }

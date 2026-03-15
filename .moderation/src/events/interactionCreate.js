@@ -3,7 +3,7 @@ import config from '../config.js';
 import { supabase } from '../clients/supabase.js';
 import { trackTransaction } from '../utils/economyUtils.js';
 import { resolveMessageFromLink } from '../utils/discordUtils.js';
-import { handleEnlistmentApplication } from '../features/enlistmentApp.js';
+import { handleEnlistmentApplication, executeApplicationAccept, executeApplicationReject } from '../features/enlistmentApp.js';
 
 export default {
     name: Events.InteractionCreate,
@@ -54,6 +54,16 @@ export default {
             } else if (interaction.customId === 'open_application') {
                 console.log(`[Button] Identified as Enlistment Application.`);
                 await handleEnlistmentApplication(interaction);
+            } else if (interaction.customId.startsWith('app_accept:')) {
+                const parts = interaction.customId.split(':');
+                const userId = parts[1];
+                const officerKey = parts[2] || 'operator';
+                console.log(`[Button] Application Accept for user ${userId}`);
+                await executeApplicationAccept(interaction, userId, officerKey);
+            } else if (interaction.customId.startsWith('app_reject:')) {
+                const userId = interaction.customId.split(':')[1];
+                console.log(`[Button] Application Reject for user ${userId}`);
+                await executeApplicationReject(interaction, userId);
             } else {
                 console.log(`[Button] Unknown or handled elsewhere: ${interaction.customId}`);
             }

@@ -26,6 +26,16 @@ export default {
             const command = client.legacyCommands?.get(commandName);
 
             if (command) {
+                // Block Reserved Personnel from all economy commands except ?help and ?me
+                const RP_ROLE_ID = process.env.RP_ROLE_ID || '1482059608536387795';
+                const ALLOWED_FOR_RP = ['help', 'me'];
+                if (
+                    !ALLOWED_FOR_RP.includes(commandName) &&
+                    message.member?.roles?.cache?.has(RP_ROLE_ID)
+                ) {
+                    return message.reply('🔒 You are **Reserved Personnel** and cannot use economy commands. Post a job log to get active again!');
+                }
+
                 try {
                     await command.execute(message, args, client);
                 } catch (error) {
@@ -36,6 +46,7 @@ export default {
                 return;
             }
         }
+
 
         // Level Scanning (Job Logs)
         await handleLevelScanning(message);

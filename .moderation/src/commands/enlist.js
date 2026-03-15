@@ -297,12 +297,14 @@ export default {
             let roleMsg = "";
             try {
                 const ENLISTED_ROLE_ID = '1463184412937289973';
+                const ENLISTED_TAG_ROLE_ID = '1482386008376086598';
                 const UNREGISTERED_ROLE_ID = '1475196328303792138';
                 const officerRoleId = interaction.options.getString('officer');
                 const member = await interaction.guild.members.fetch(targetUser.id);
                 if (member) {
                     await member.roles.add(ENLISTED_ROLE_ID);
-                    roleMsg = "✅ Enlisted role assigned.";
+                    await member.roles.add(ENLISTED_TAG_ROLE_ID);
+                    roleMsg = "✅ Enlisted roles assigned.";
 
                     if (member.roles.cache.has(UNREGISTERED_ROLE_ID)) {
                         await member.roles.remove(UNREGISTERED_ROLE_ID);
