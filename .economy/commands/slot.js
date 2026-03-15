@@ -11,17 +11,17 @@ const HELP_ICON = '<:slotmachine:1482714341634740428>';
 
 // Symbol definitions
 const SYMBOLS = {
-    '777':        { emoji: '<:777:1482721437440671744>',        triple: 100000, double: 8000 },
-    'Seven':      { emoji: '<:Seven:1482721411779924029>',      triple: 50000,  double: 3000 },
+    '777':        { emoji: '<:777:1482721437440671744>',        triple: 100000, double: 300 },
+    'Seven':      { emoji: '<:Seven:1482721411779924029>',      triple: 50000,  double: 200 },
     'Bonus':      { emoji: '<:Bonus:1482721420760060095>',      triple: 0,      double: 0,     isBonus: true },
     'Wild':       { emoji: '<:Wild:1482721409733099531>',       triple: 35000,  double: 0,     isWild: true },
-    'Dollar':     { emoji: '<:Dollar:1482721416028754024>',     triple: 25000,  double: 1000 },
-    'Crown':      { emoji: '<:Crown:1482721423024848986>',      triple: 15000,  double: 500 },
-    'Bar':        { emoji: '<:Bar:1482721429760901191>',        triple: 10000,  double: 250 },
-    'Watermelon': { emoji: '<:Watermelon:1482721432004988968>', triple: 7000,   double: 150 },
-    'Apple':      { emoji: '<:Apple:1482721427353505802>',      triple: 5000,   double: 100 },
-    'Cherry':     { emoji: '<:Cherry:1482721418125906024>',     triple: 3500,   double: 80 },
-    'Lemon':      { emoji: '<:Lemon:1482721413776281764>',      triple: 2500,   double: 60 },
+    'Dollar':     { emoji: '<:Dollar:1482721416028754024>',     triple: 25000,  double: 150 },
+    'Crown':      { emoji: '<:Crown:1482721423024848986>',      triple: 15000,  double: 120 },
+    'Bar':        { emoji: '<:Bar:1482721429760901191>',        triple: 10000,  double: 100 },
+    'Watermelon': { emoji: '<:Watermelon:1482721432004988968>', triple: 7000,   double: 80 },
+    'Apple':      { emoji: '<:Apple:1482721427353505802>',      triple: 5000,   double: 70 },
+    'Cherry':     { emoji: '<:Cherry:1482721418125906024>',     triple: 3500,   double: 60 },
+    'Lemon':      { emoji: '<:Lemon:1482721413776281764>',      triple: 2500,   double: 55 },
     'Cards':      { emoji: '<:Cards:1482721425147297834>',      triple: 2000,   double: 0 },
 };
 
@@ -442,15 +442,15 @@ export default {
                     {
                         name: '✨ Double Payouts (2 matching)',
                         value:
-                            `${SYMBOLS['777'].emoji} **777** — €8,000\n` +
-                            `${SYMBOLS['Seven'].emoji} **Seven** — €3,000\n` +
-                            `${SYMBOLS['Dollar'].emoji} **Dollar** — €1,000\n` +
-                            `${SYMBOLS['Crown'].emoji} **Crown** — €500\n` +
-                            `${SYMBOLS['Bar'].emoji} **Bar** — €250\n` +
-                            `${SYMBOLS['Watermelon'].emoji} **Watermelon** — €150\n` +
-                            `${SYMBOLS['Apple'].emoji} **Apple** — €100\n` +
-                            `${SYMBOLS['Cherry'].emoji} **Cherry** — €80\n` +
-                            `${SYMBOLS['Lemon'].emoji} **Lemon** — €60`,
+                            `${SYMBOLS['777'].emoji} **777** — €300\n` +
+                            `${SYMBOLS['Seven'].emoji} **Seven** — €200\n` +
+                            `${SYMBOLS['Dollar'].emoji} **Dollar** — €150\n` +
+                            `${SYMBOLS['Crown'].emoji} **Crown** — €120\n` +
+                            `${SYMBOLS['Bar'].emoji} **Bar** — €100\n` +
+                            `${SYMBOLS['Watermelon'].emoji} **Watermelon** — €80\n` +
+                            `${SYMBOLS['Apple'].emoji} **Apple** — €70\n` +
+                            `${SYMBOLS['Cherry'].emoji} **Cherry** — €60\n` +
+                            `${SYMBOLS['Lemon'].emoji} **Lemon** — €55`,
                         inline: false
                     },
                     { name: '\u200b', value: '─────────────────────────────', inline: false },
