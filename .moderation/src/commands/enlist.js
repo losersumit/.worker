@@ -306,6 +306,19 @@ export default {
                     await member.roles.add(ENLISTED_TAG_ROLE_ID);
                     roleMsg = "✅ Enlisted roles assigned.";
 
+                    try {
+                        const photoUrl = targetUser.displayAvatarURL({ size: 512, extension: 'png' });
+                        await supabase.from('enlisted_drivers').upsert({
+                            discord_id: targetUser.id,
+                            display_name: targetUser.username,
+                            unit_number: registrationNumber,
+                            status: 'AP',
+                            photo_url: photoUrl
+                        }, { onConflict: 'discord_id' });
+                    } catch (dbErr) {
+                        console.error("Failed to insert into enlisted_drivers:", dbErr);
+                    }
+
                     if (member.roles.cache.has(UNREGISTERED_ROLE_ID)) {
                         await member.roles.remove(UNREGISTERED_ROLE_ID);
                         roleMsg += " (Removed Unregistered Role).";

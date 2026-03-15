@@ -1,87 +1,109 @@
 import { Events } from 'discord.js';
 import { supabase } from '../clients/supabase.js';
 
-const ENLISTED_ROLE_ID = process.env.ENLISTED_ROLE_ID || '1463184412937289973';
+const ENLISTED_ROLE_ID = process.env.ENLISTED_ROLE_ID || '1482386008376086598';
+const AP_ROLE_ID = '1463184412937289973';
+const RP_ROLE_ID = '1482059608536387795';
 const TARGET_GUILD_ID = '1448027116074434593';
 
 export default {
     name: Events.GuildMemberUpdate,
     async execute(oldMember, newMember) {
-        // Only act on our target guild
         if (newMember.guild.id !== TARGET_GUILD_ID) return;
 
-        // ─── 1. Enlisted role tracking ──────────────────────────
-        const hadRole = oldMember.roles.cache.has(ENLISTED_ROLE_ID);
-        const hasRole = newMember.roles.cache.has(ENLISTED_ROLE_ID);
+        const hadEnlisted = oldMember.roles.cache.has(ENLISTED_ROLE_ID);
+        const hasEnlisted = newMember.roles.cache.has(ENLISTED_ROLE_ID);
 
-        if (hadRole !== hasRole) {
-            const action = hasRole ? 'added' : 'removed';
-            console.log(`[ENLISTED] Role ${action} for ${newMember.user.tag}. Updating Supabase...`);
+        const hadAP = oldMember.roles.cache.has(AP_ROLE_ID);
+        const hasAP = newMember.roles.cache.has(AP_ROLE_ID);
 
-            try {
-                await newMember.guild.members.fetch();
-                const enlistedCount = newMember.guild.members.cache.filter(
-                    m => m.roles.cache.has(ENLISTED_ROLE_ID)
-                ).size;
+        const hadRP = oldMember.roles.cache.has(RP_ROLE_ID);
+        const hasRP = newMember.roles.cache.has(RP_ROLE_ID);
 
-                const { error } = await supabase
-                    .from('approved_guilds')
-                    .update({ enlisted_drivers: enlistedCount })
-                    .eq('guild_id', TARGET_GUILD_ID);
-
-                if (error) {
-                    console.error('[ENLISTED] ❌ Failed to update Supabase:', error.message);
-                } else {
-                    console.log(`[ENLISTED] ✅ Updated enlisted_drivers to ${enlistedCount}`);
-                }
-            } catch (err) {
-                console.error('[ENLISTED] ❌ Unexpected error:', err);
-            }
-        }
-
-        // ─── 2. Avatar change tracking ──────────────────────────
+        const oldNick = oldMember.displayName;
+        const newNick = newMember.displayName;
+        
         const oldAvatar = oldMember.user.avatar;
         const newAvatar = newMember.user.avatar;
 
-        if (oldAvatar !== newAvatar) {
-            const newPhotoUrl = newMember.user.displayAvatarURL({ size: 512, extension: 'png' });
-            console.log(`[AVATAR] ${newMember.user.tag} changed avatar. Updating website_members...`);
-
+        // Ensure display_name updates in `players` table as before
+        if (oldNick !== newNick) {
             try {
-                const { error } = await supabase
-                    .from('website_members')
-                    .update({ photo_url: newPhotoUrl })
-                    .eq('discord_id', newMember.user.id);
-
-                if (error) {
-                    console.error('[AVATAR] ❌ Failed to update photo_url:', error.message);
-                } else {
-                    console.log(`[AVATAR] ✅ Updated photo_url for ${newMember.user.tag}`);
-                }
+                await supabase.from('players').update({ display_name: newNick }).eq('discord_id', newMember.user.id);
             } catch (err) {
-                console.error('[AVATAR] ❌ Unexpected error:', err);
+                console.error('[DISPLAYNAME] Update error:', err);
             }
         }
 
-        // ─── 3. Nickname / display name change tracking ─────────
-        const oldNick = oldMember.displayName;
-        const newNick = newMember.displayName;
+        // Logic for returning the correct status based on roles
+        const determineStatus = () => {
+            if (hasAP) return 'AP';
+            if (hasRP) return 'RP';
+            return null; // fallback
+        };
 
-        if (oldNick !== newNick) {
-            console.log(`[DISPLAYNAME] ${newMember.user.tag}: "${oldNick}" → "${newNick}"`);
+        // 1. ADDED ENLISTED ROLE -> Add to enlisted_drivers
+        if (!hadEnlisted && hasEnlisted) {
+            console.log(`[ENLISTED] ${newMember.user.tag} gained enlisted role, adding to table...`);
             try {
-                const { error } = await supabase
+                // Fetch unit number from players table
+                const { data: playerData } = await supabase
                     .from('players')
-                    .update({ display_name: newNick })
-                    .eq('discord_id', newMember.user.id);
+                    .select('registration_number')
+                    .eq('discord_id', newMember.user.id)
+                    .single();
 
-                if (error) {
-                    console.error('[DISPLAYNAME] ❌ Failed to update display_name:', error.message);
-                } else {
-                    console.log(`[DISPLAYNAME] ✅ Updated display_name to "${newNick}"`);
-                }
+                const unitNumber = playerData ? playerData.registration_number : null;
+                const status = determineStatus();
+                const photoUrl = newMember.user.displayAvatarURL({ size: 512, extension: 'png' });
+
+                await supabase.from('enlisted_drivers').upsert({
+                    discord_id: newMember.user.id,
+                    display_name: newNick,
+                    unit_number: unitNumber,
+                    status: status,
+                    photo_url: photoUrl
+                }, { onConflict: 'discord_id' });
+                
+                console.log(`[ENLISTED] ✅ Added ${newMember.user.tag} to enlisted_drivers`);
             } catch (err) {
-                console.error('[DISPLAYNAME] ❌ Unexpected error:', err);
+                console.error('[ENLISTED] ❌ Failed to insert:', err);
+            }
+        }
+
+        // 2. REMOVED ENLISTED ROLE -> Remove from enlisted_drivers
+        else if (hadEnlisted && !hasEnlisted) {
+            console.log(`[ENLISTED] ${newMember.user.tag} lost enlisted role, removing from table...`);
+            try {
+                await supabase.from('enlisted_drivers').delete().eq('discord_id', newMember.user.id);
+                console.log(`[ENLISTED] ✅ Removed ${newMember.user.tag} from enlisted_drivers`);
+            } catch (err) {
+                console.error('[ENLISTED] ❌ Failed to delete:', err);
+            }
+        }
+
+        // 3. MAINTAINING ENLISTED ROLE -> Check for updates to status, nickname, or avatar
+        else if (hasEnlisted) {
+            const updates = {};
+            
+            if (hadAP !== hasAP || hadRP !== hasRP) {
+                updates.status = determineStatus();
+            }
+            if (oldNick !== newNick) {
+                updates.display_name = newNick;
+            }
+            if (oldAvatar !== newAvatar) {
+                updates.photo_url = newMember.user.displayAvatarURL({ size: 512, extension: 'png' });
+            }
+
+            if (Object.keys(updates).length > 0) {
+                console.log(`[ENLISTED] ${newMember.user.tag} updating enlisted_drivers details...`);
+                try {
+                    await supabase.from('enlisted_drivers').update(updates).eq('discord_id', newMember.user.id);
+                    console.log(`[ENLISTED] ✅ Details updated for ${newMember.user.tag}`);
+                } catch (err) {
+                    console.error('[ENLISTED] ❌ Failed to update details:', err);
+                }
             }
         }
     },
