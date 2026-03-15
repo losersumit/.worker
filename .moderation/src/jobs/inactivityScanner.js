@@ -205,17 +205,26 @@ async function rebuildRegistryEmbed(webhookUrl, messageId, sortedMembers) {
 
     try {
         const webhook = new WebhookClient({ url: webhookUrl });
-        
+        // Build the correct header text based on which message we're editing
+        let headerText = "# Active Personnel";
+        if (messageId === process.env.RP_EMBED_MESSAGE_ID) {
+            headerText = "# Reserved Personnel";
+        }
+
         // Generate the text block
         const entryLines = sortedMembers.map(item => `<@${item.member.id}> — \`${item.regNumber}\``);
         const textContent = entryLines.length > 0 ? entryLines.join('\n') : '*No personnel currently.*';
 
-        // Assuming V2 Component Layout: type 17 container with accent color
+        // Reconstruct the JSON layout exactly as requested by the user
         const updatedComponents = [
             {
                 type: 17,
+                components: [{ type: 10, content: headerText }]
+            },
+            {
+                type: 17,
                 components: [{ type: 10, content: textContent }],
-                accent_color: 196713
+                accent_color: 10181046
             }
         ];
 
