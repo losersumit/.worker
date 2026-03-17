@@ -134,6 +134,16 @@ client.once('ready', async () => {
     // Run immediately on startup so the website has fresh URLs right away
     refreshDiscordUrls(supabase, client).catch(err => console.error('[URL-REFRESH] Startup run failed:', err));
 
+    // Refresh Permanent Slot Machines
+    import('./.economy/utils/postSlots.js').then(({ postPermanentSlots }) => {
+        postPermanentSlots(client).catch(err => console.error('[SLOTS] Startup refresh failed:', err));
+    }).catch(err => console.error('Failed to load postSlots script:', err));
+
+    // Refresh Permanent Roulette Tables
+    import('./.economy/utils/postRouletteTables.js').then(({ postPermanentRouletteTables }) => {
+        postPermanentRouletteTables(client).catch(err => console.error('[ROULETTE] Startup refresh failed:', err));
+    }).catch(err => console.error('Failed to load postRouletteTables script:', err));
+
     // Hourly RAG summaries for channel context retrieval
     scheduleRagHourlySummaries(client);
 });
@@ -150,3 +160,4 @@ const init = async () => {
 };
 
 init();
+

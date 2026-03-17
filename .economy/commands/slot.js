@@ -674,3 +674,11 @@ export default {
         }
     }
 };
+
+export {
+    BET, MIN_GUILD_INCOME, SPIN_EMOJI, SYMBOLS, REEL_STRIP, RANDOM_COLORS,
+    randomColor, spinReel, evaluateResult, getEmoji, sleep,
+    formatHistoryFields, sessionStats, statsLine, addHistoryToEmbed,
+    runSpinAnimation, buildFinalEmbed, processPayout, runBonusRound,
+    executeSingleSpin, buildButtons, buildDisabledButtons, buildEndButtons, runBatchSpins
+};
