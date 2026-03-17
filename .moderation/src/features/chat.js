@@ -1,3 +1,4 @@
+import '../utils/loadEnv.js';
 import { groqChatCompletion } from '../clients/groq.js';
 import { findFaqAnswer } from '../systems/faq.js';
 import { getMemories, getRecentServerEvents, formatMemoryContext, extractAndSaveMemories } from '../systems/memory.js';

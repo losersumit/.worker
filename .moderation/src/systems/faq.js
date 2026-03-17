@@ -5,7 +5,7 @@
 // - Cosine similarity
 // - Returns FAQ answer or null
 
-import 'dotenv/config';
+import '../utils/loadEnv.js';
 import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
 
@@ -15,8 +15,8 @@ let supabase = null;
 function isConfigured() {
     return Boolean(
         process.env.SUPABASE_URL &&
-        process.env.SUPABASE_SERVICE_KEY &&
-        process.env.COHERE_API_KEY
+        (process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY) &&
+        process.env.NOMIC_API_KEY
     );
 }
 
@@ -27,7 +27,8 @@ function getThreshold() {
 export function getSupabase() {
     if (!isConfigured()) return null;
     if (supabase) return supabase;
-    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, {
+    const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
+    supabase = createClient(process.env.SUPABASE_URL, key, {
         auth: { persistSession: false }
     });
     return supabase;
@@ -131,7 +132,7 @@ export async function findFaqAnswer(question) {
         if (!warnedMissingEnv) {
             warnedMissingEnv = true;
             console.warn(
-                'FAQ lookup disabled: missing SUPABASE_URL, SUPABASE_SERVICE_KEY, or COHERE_API_KEY.'
+                'FAQ lookup disabled: missing SUPABASE_URL, SUPABASE_KEY, or NOMIC_API_KEY.'
             );
         }
         return null;

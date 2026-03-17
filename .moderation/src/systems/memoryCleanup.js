@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { groqChatCompletion } from '../clients/groq.js';
-import dotenv from 'dotenv';
-dotenv.config();
+import '../utils/loadEnv.js';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY);
 

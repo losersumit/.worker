@@ -1,3 +1,4 @@
+import '../utils/loadEnv.js';
 import { groqChatCompletion } from '../clients/groq.js';
 import { findFaqAnswer, embed } from '../systems/faq.js';
 

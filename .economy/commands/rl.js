@@ -437,7 +437,7 @@ async function runLobby(client, message, mainMsg, gameId, gameOwnerId) {
                 game = await getGame(client.supabase, gameId);
                 players = game.players || [];
 
-                const newCompanyContribution = game.company_contribution + joinAmount;
+                let newCompanyContribution = game.company_contribution + joinAmount;
                 const { data: freshGuild } = await client.supabase.from('approved_guilds').select('guild_income').eq('guild_id', message.guildId).single();
                 const gBalance = parseFloat(freshGuild?.guild_income || 0);
 

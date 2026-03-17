@@ -95,10 +95,8 @@ export async function runInactivityScan(client, supabase) {
                         .maybeSingle();
 
                     if (!lastRun) {
-                        // 0 runs. Check join date against grace period
-                        if (enlistDate < cutoffDate) {
-                            isInactive = true; // Joined > 7 days ago and 0 runs
-                        }
+                        // 0 runs. Always RP.
+                        isInactive = true;
                     } else {
                         // Has runs. Check if last run is older than 7 days
                         if (new Date(lastRun.created_at) < cutoffDate) {
@@ -106,10 +104,8 @@ export async function runInactivityScan(client, supabase) {
                         }
                     }
                 } else {
-                    // Not in players table. Fallback to check enlist date only
-                    if (enlistDate < cutoffDate) {
-                        isInactive = true;
-                    }
+                    // Not in players table. Fallback to 0 runs. Always RP.
+                    isInactive = true;
                 }
 
                 // --- ROLE & DB UPDATES ---
