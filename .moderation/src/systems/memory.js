@@ -7,6 +7,45 @@ import { groqChatCompletion } from '../clients/groq.js';
 
 const MAX_MEMORIES_PER_USER = 20;
 
+
+const MEMORY_TABLE_CANDIDATES = ['bot_memories', 'memories', 'user_memories'];
+let resolvedMemoryTable = null;
+let warnedMissingMemoryTable = false;
+
+function isMissingTableError(error) {
+    return error?.code === 'PGRST205' || /Could not find the table/i.test(error?.message || '');
+}
+
+export async function getMemoryTableName(supabase) {
+    if (resolvedMemoryTable) {
+        return resolvedMemoryTable;
+    }
+
+    for (const tableName of MEMORY_TABLE_CANDIDATES) {
+        const { error } = await supabase
+            .from(tableName)
+            .select('id', { head: true, count: 'exact' })
+            .limit(1);
+
+        if (!error) {
+            resolvedMemoryTable = tableName;
+            return resolvedMemoryTable;
+        }
+
+        if (!isMissingTableError(error)) {
+            console.error(`[Memory] Could not verify table ${tableName}:`, error.message);
+        }
+    }
+
+    if (!warnedMissingMemoryTable) {
+        console.warn(`[Memory] No supported memory table was found. Tried: ${MEMORY_TABLE_CANDIDATES.join(', ')}`);
+        warnedMissingMemoryTable = true;
+    }
+
+    return null;
+}
+
+
 // ========================================================================
 // CORE MEMORY OPERATIONS
 // ========================================================================
@@ -19,8 +58,11 @@ const MAX_MEMORIES_PER_USER = 20;
  */
 export async function getMemories(supabase, userId) {
     try {
+        const memoryTable = await getMemoryTableName(supabase);
+        if (!memoryTable) return [];
+
         const { data, error } = await supabase
-            .from('bot_memories')
+            .from(memoryTable)
             .select('id, fact, category')
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
@@ -46,8 +88,11 @@ export async function getMemories(supabase, userId) {
  */
 export async function saveMemory(supabase, userId, fact, category = 'general') {
     try {
+        const memoryTable = await getMemoryTableName(supabase);
+        if (!memoryTable) return;
+
         const { error } = await supabase
-            .from('bot_memories')
+            .from(memoryTable)
             .insert({ user_id: userId, fact, category });
 
         if (error) {
@@ -57,7 +102,7 @@ export async function saveMemory(supabase, userId, fact, category = 'general') {
 
         // Prune if over limit — delete oldest entries
         const { data: all } = await supabase
-            .from('bot_memories')
+            .from(memoryTable)
             .select('id')
             .eq('user_id', userId)
             .order('created_at', { ascending: true });
@@ -65,7 +110,7 @@ export async function saveMemory(supabase, userId, fact, category = 'general') {
         if (all && all.length > MAX_MEMORIES_PER_USER) {
             const toDelete = all.slice(0, all.length - MAX_MEMORIES_PER_USER);
             await supabase
-                .from('bot_memories')
+                .from(memoryTable)
                 .delete()
                 .in('id', toDelete.map(r => r.id));
             console.log(`[Memory] Pruned ${toDelete.length} old facts for ${userId}`);
@@ -154,8 +199,11 @@ export async function extractAndSaveMemories(supabase, userId, username, convers
 
         // Handle Reletions
         if (toDeleteIds.length > 0) {
+            const memoryTable = await getMemoryTableName(supabase);
+            if (!memoryTable) return;
+
             const { error: delError } = await supabase
-                .from('bot_memories')
+                .from(memoryTable)
                 .delete()
                 .eq('user_id', userId)
                 .in('id', toDeleteIds);
