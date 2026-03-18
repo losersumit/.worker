@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { groqChatCompletion } from '../clients/groq.js';
+import { getMemoryTableName } from './memory.js';
 import '../utils/loadEnv.js';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY);
@@ -34,7 +35,7 @@ export async function runMemoryCleanup() {
 
         // 1. Delete old raw messages
         const { error: msgErr } = await supabase
-            .from('messages')
+            .from('rag_messages')
             .delete()
             .lt('created_at', cutoffString);
 
@@ -42,7 +43,7 @@ export async function runMemoryCleanup() {
 
         // 2. Delete old chunks (keep summaries forever)
         const { error: chunkErr } = await supabase
-            .from('chunks')
+            .from('rag_chunks')
             .delete()
             .lt('end_time', cutoffString);
 
@@ -52,8 +53,14 @@ export async function runMemoryCleanup() {
         console.log('[MEMORY_CLEANUP] AI RAG cleanup completed. Starting user memory consolidation...');
 
         // 1. Get all memories, grouped by user
+        const memoryTable = await getMemoryTableName(supabase);
+        if (!memoryTable) {
+            console.warn('[Memory Cleanup] Skipping user memory consolidation because no supported memory table is available.');
+            return;
+        }
+
         const { data: allMemories, error } = await supabase
-            .from('bot_memories')
+            .from(memoryTable)
             .select('*')
             .order('created_at', { ascending: false });
 
@@ -106,7 +113,7 @@ export async function runMemoryCleanup() {
 
                         if (idsToDelete.length > 0) {
                             await supabase
-                                .from('bot_memories')
+                                .from(memoryTable)
                                 .delete()
                                 .in('id', idsToDelete);
 
