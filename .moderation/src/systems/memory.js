@@ -7,6 +7,72 @@ import { groqChatCompletion } from '../clients/groq.js';
 
 const MAX_MEMORIES_PER_USER = 20;
 
+function normalizeStoredMemories(value) {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return value
+        .map((entry, index) => {
+            if (typeof entry === 'string') {
+                return {
+                    id: index + 1,
+                    fact: entry,
+                    category: 'general',
+                    created_at: null
+                };
+            }
+
+            if (entry && typeof entry.fact === 'string') {
+                return {
+                    id: Number.isInteger(entry.id) ? entry.id : index + 1,
+                    fact: entry.fact,
+                    category: typeof entry.category === 'string' ? entry.category : 'general',
+                    created_at: entry.created_at || null
+                };
+            }
+
+            return null;
+        })
+        .filter(Boolean);
+}
+
+async function getBotStateRecord(supabase, userId) {
+    const { data, error } = await supabase
+        .from('bot_state')
+        .select('id, user_id, conversation_history, rate_limit_timestamps')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (error) {
+        throw error;
+    }
+
+    return data;
+}
+
+async function saveBotStateMemories(supabase, userId, memories, existingState = null) {
+    const payload = {
+        user_id: userId,
+        conversation_history: memories,
+        rate_limit_timestamps: existingState?.rate_limit_timestamps || [],
+        updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase
+        .from('bot_state')
+        .upsert(payload, { onConflict: 'user_id' });
+
+    if (error) {
+        throw error;
+    }
+}
+
+function nextMemoryId(memories) {
+    const maxId = memories.reduce((highest, memory) => Math.max(highest, Number.isInteger(memory.id) ? memory.id : 0), 0);
+    return maxId + 1;
+}
+
 // ========================================================================
 // CORE MEMORY OPERATIONS
 // ========================================================================
@@ -15,22 +81,12 @@ const MAX_MEMORIES_PER_USER = 20;
  * Fetch all stored facts/memories about a specific user.
  * @param {SupabaseClient} supabase
  * @param {string} userId - Discord user ID
- * @returns {Promise<Array<{fact: string, category: string}>>}
+ * @returns {Promise<Array<{id: number, fact: string, category: string, created_at: string | null}>>}
  */
 export async function getMemories(supabase, userId) {
     try {
-        const { data, error } = await supabase
-            .from('bot_memories')
-            .select('id, fact, category')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(MAX_MEMORIES_PER_USER);
-
-        if (error) {
-            console.error('[Memory] Fetch error:', error.message);
-            return [];
-        }
-        return data || [];
+        const state = await getBotStateRecord(supabase, userId);
+        return normalizeStoredMemories(state?.conversation_history).slice(-MAX_MEMORIES_PER_USER).reverse();
     } catch (err) {
         console.error('[Memory] Fetch exception:', err.message);
         return [];
@@ -46,29 +102,20 @@ export async function getMemories(supabase, userId) {
  */
 export async function saveMemory(supabase, userId, fact, category = 'general') {
     try {
-        const { error } = await supabase
-            .from('bot_memories')
-            .insert({ user_id: userId, fact, category });
+        const state = await getBotStateRecord(supabase, userId);
+        const memories = normalizeStoredMemories(state?.conversation_history);
+        memories.push({
+            id: nextMemoryId(memories),
+            fact,
+            category,
+            created_at: new Date().toISOString()
+        });
 
-        if (error) {
-            console.error('[Memory] Save error:', error.message);
-            return;
-        }
+        const trimmedMemories = memories.slice(-MAX_MEMORIES_PER_USER);
+        await saveBotStateMemories(supabase, userId, trimmedMemories, state);
 
-        // Prune if over limit — delete oldest entries
-        const { data: all } = await supabase
-            .from('bot_memories')
-            .select('id')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: true });
-
-        if (all && all.length > MAX_MEMORIES_PER_USER) {
-            const toDelete = all.slice(0, all.length - MAX_MEMORIES_PER_USER);
-            await supabase
-                .from('bot_memories')
-                .delete()
-                .in('id', toDelete.map(r => r.id));
-            console.log(`[Memory] Pruned ${toDelete.length} old facts for ${userId}`);
+        if (memories.length > MAX_MEMORIES_PER_USER) {
+            console.log(`[Memory] Pruned ${memories.length - trimmedMemories.length} old facts for ${userId}`);
         }
     } catch (err) {
         console.error('[Memory] Save exception:', err.message);
@@ -110,16 +157,13 @@ Rules:
  */
 export async function extractAndSaveMemories(supabase, userId, username, conversationHistory) {
     try {
-        // Need at least 2 messages (1 user + 1 assistant) to have a meaningful conversation
         if (!conversationHistory || conversationHistory.length < 2) return;
 
-        // Fetch existing memories to provide to the LLM
         const existing = await getMemories(supabase, userId);
         const existingContext = existing.length > 0
             ? 'CURRENT MEMORIES:\n' + existing.map(m => `[ID: ${m.id}] ${m.fact}`).join('\n')
             : 'CURRENT MEMORIES: None.';
 
-        // Build conversation text
         const convoText = conversationHistory
             .map(m => {
                 const speaker = m.name || (m.role === 'assistant' ? 'Worker' : username);
@@ -135,7 +179,7 @@ export async function extractAndSaveMemories(supabase, userId, username, convers
             ],
             max_tokens: 250,
             temperature: 0.1,
-            response_format: { type: "json_object" }
+            response_format: { type: 'json_object' }
         });
 
         const raw = result?.choices?.[0]?.message?.content?.trim();
@@ -152,24 +196,17 @@ export async function extractAndSaveMemories(supabase, userId, username, convers
         const toAdd = Array.isArray(parsed.add) ? parsed.add : [];
         const toDeleteIds = Array.isArray(parsed.delete) ? parsed.delete.filter(id => Number.isInteger(id)) : [];
 
-        // Handle Reletions
         if (toDeleteIds.length > 0) {
-            const { error: delError } = await supabase
-                .from('bot_memories')
-                .delete()
-                .eq('user_id', userId)
-                .in('id', toDeleteIds);
+            const state = await getBotStateRecord(supabase, userId);
+            const existingMemories = normalizeStoredMemories(state?.conversation_history);
+            const filteredMemories = existingMemories.filter(memory => !toDeleteIds.includes(memory.id));
 
-            if (!delError) {
-                console.log(`[Memory] 🗑️ Deleted obsolete facts for ${username}: [${toDeleteIds.join(', ')}]`);
-            } else {
-                console.error('[Memory] Delete error:', delError.message);
-            }
+            await saveBotStateMemories(supabase, userId, filteredMemories, state);
+            console.log(`[Memory] 🗑️ Deleted obsolete facts for ${username}: [${toDeleteIds.join(', ')}]`);
         }
 
         if (toAdd.length === 0) return;
 
-        // Fetch refreshed memories (in case some were just deleted) to check for duplicates before adding
         const refreshedExisting = await getMemories(supabase, userId);
         const existingLower = refreshedExisting.map(m => m.fact.toLowerCase());
 
@@ -195,9 +232,8 @@ export async function extractAndSaveMemories(supabase, userId, username, convers
 // RECENT SERVER EVENTS (Tier 1 awareness)
 // ========================================================================
 
-// Cache to avoid querying every single chat message
 let eventsCache = { data: [], fetchedAt: 0 };
-const EVENTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const EVENTS_CACHE_TTL = 5 * 60 * 1000;
 
 /**
  * Get recent notable economy events from the last 24 hours.
@@ -208,7 +244,6 @@ const EVENTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
  */
 export async function getRecentServerEvents(supabase, client) {
     try {
-        // Return cache if fresh
         if (Date.now() - eventsCache.fetchedAt < EVENTS_CACHE_TTL) {
             return eventsCache.data;
         }
@@ -225,7 +260,7 @@ export async function getRecentServerEvents(supabase, client) {
             `)
             .gte('created_at', since)
             .in('transaction_type', ['gamble_win', 'gamble_loss', 'steal_success', 'donate', 'gift'])
-            .gt('amount', 10000) // Only notable events (>€10k)
+            .gt('amount', 10000)
             .order('created_at', { ascending: false })
             .limit(10);
 

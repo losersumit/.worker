@@ -34,7 +34,7 @@ export async function runMemoryCleanup() {
 
         // 1. Delete old raw messages
         const { error: msgErr } = await supabase
-            .from('messages')
+            .from('rag_messages')
             .delete()
             .lt('created_at', cutoffString);
 
@@ -42,7 +42,7 @@ export async function runMemoryCleanup() {
 
         // 2. Delete old chunks (keep summaries forever)
         const { error: chunkErr } = await supabase
-            .from('chunks')
+            .from('rag_chunks')
             .delete()
             .lt('end_time', cutoffString);
 
@@ -51,21 +51,25 @@ export async function runMemoryCleanup() {
 
         console.log('[MEMORY_CLEANUP] AI RAG cleanup completed. Starting user memory consolidation...');
 
-        // 1. Get all memories, grouped by user
-        const { data: allMemories, error } = await supabase
-            .from('bot_memories')
-            .select('*')
-            .order('created_at', { ascending: false });
+        // 1. Get all stored user memory payloads from bot_state.
+        const { data: allStates, error } = await supabase
+            .from('bot_state')
+            .select('user_id, conversation_history');
 
-        if (error || !allMemories) {
-            console.error('[Memory Cleanup] Error fetching memories:', error?.message);
+        if (error) {
+            console.error('[Memory Cleanup] Error fetching bot_state rows:', error?.message);
             return;
         }
 
         const userMemories = {};
-        for (const m of allMemories) {
-            if (!userMemories[m.user_id]) userMemories[m.user_id] = [];
-            userMemories[m.user_id].push(m);
+        for (const state of allStates || []) {
+            const memories = Array.isArray(state.conversation_history)
+                ? state.conversation_history.filter(memory => memory && typeof memory.fact === 'string')
+                : [];
+
+            if (memories.length > 0) {
+                userMemories[state.user_id] = memories;
+            }
         }
 
         // 2. Evaluate users who have accumulated a decent amount of facts
@@ -99,19 +103,24 @@ export async function runMemoryCleanup() {
                     }
 
                     if (Array.isArray(toDeleteTexts) && toDeleteTexts.length > 0) {
-                        // Find the matching UUIDs for these exact fact strings
-                        const idsToDelete = memories
-                            .filter(m => toDeleteTexts.includes(m.fact))
-                            .map(m => m.id);
+                        const filteredMemories = memories.filter(m => !toDeleteTexts.includes(m.fact));
+                        const deletedCount = memories.length - filteredMemories.length;
 
-                        if (idsToDelete.length > 0) {
-                            await supabase
-                                .from('bot_memories')
-                                .delete()
-                                .in('id', idsToDelete);
+                        if (deletedCount > 0) {
+                            const { error: updateError } = await supabase
+                                .from('bot_state')
+                                .update({
+                                    conversation_history: filteredMemories,
+                                    updated_at: new Date().toISOString()
+                                })
+                                .eq('user_id', userId);
 
-                            totalDeleted += idsToDelete.length;
-                            console.log(`[Memory Cleanup] Pruned ${idsToDelete.length} obsolete facts for user ${userId}.`);
+                            if (updateError) {
+                                console.error(`[Memory Cleanup] Failed to persist pruned memories for user ${userId}:`, updateError.message);
+                            } else {
+                                totalDeleted += deletedCount;
+                                console.log(`[Memory Cleanup] Pruned ${deletedCount} obsolete facts for user ${userId}.`);
+                            }
                         }
                     }
 
