@@ -115,6 +115,10 @@ export default {
       // Re-validate amount in case it was 0 or invalid after fetch
       if (isNaN(amount) || amount <= 0) return message.reply('Enter a valid amount.');
 
+      if (amount > 10000) {
+        return message.reply(`How dumb can you be to bet €${amount.toLocaleString()} on single coinflip? Go to roulette table. <#1483322715048906852>`);
+      }
+
 
       // 1. PVP LOGIC
       if (!isCompany) {
