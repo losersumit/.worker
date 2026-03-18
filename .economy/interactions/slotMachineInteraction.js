@@ -1,5 +1,4 @@
-﻿import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } from 'discord.js';
-import path from 'path';
+﻿import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import {
     BET, MIN_GUILD_INCOME, SPIN_EMOJI,
     randomColor, spinReel, evaluateResult, getEmoji, sleep, processPayout
@@ -26,20 +25,43 @@ function parseStateFromEmbed(embed) {
 }
 
 function getHistoryLinesFromEmbed(embed) {
-    const historyField = embed.fields.find((field) => typeof field.name === 'string' && field.name.includes('Game History'));
-    if (!historyField || !historyField.value || historyField.value === '*No spins yet.*') {
+    const historyFields = [];
+    let collectingHistory = false;
+
+    for (const field of embed.fields) {
+        if (typeof field.name !== 'string') {
+            continue;
+        }
+
+        if (field.name.includes('Game History')) {
+            collectingHistory = true;
+            historyFields.push(field);
+            continue;
+        }
+
+        if (collectingHistory && field.name === '\u200b') {
+            historyFields.push(field);
+            continue;
+        }
+
+        if (collectingHistory) {
+            break;
+        }
+    }
+
+    const historyValue = historyFields
+        .map((field) => field.value)
+        .filter(Boolean)
+        .join('\n');
+
+    if (!historyValue || historyValue === '*No spins yet.*') {
         return [];
     }
 
-    return historyField.value
+    return historyValue
         .split('\n')
         .map((line) => line.trim())
         .filter(Boolean);
-}
-
-function getSlotAttachment() {
-    const slotImage = path.join(process.cwd(), 'slot_machine.png');
-    return new AttachmentBuilder(slotImage, { name: 'slot_machine.png' });
 }
 
 function createDefaultSlotEmbed(machineId) {
@@ -47,7 +69,6 @@ function createDefaultSlotEmbed(machineId) {
         .setColor(0xFFD700)
         .setTitle(`${EMOJI_SLOT} Slot Machine #${machineId}`)
         .setDescription('*Machine currently occupied by:* **None**')
-        .setThumbnail('attachment://slot_machine.png')
         .setFooter({ text: `Bet: €${BET} | Free to play` })
         .setTimestamp(new Date());
 }
@@ -57,6 +78,89 @@ function createDefaultSlotRow(machineId) {
         new ButtonBuilder().setCustomId(`slot_machine_spin_${machineId}`).setLabel('Spin').setStyle(ButtonStyle.Primary).setEmoji(EMOJI_SLOT),
         new ButtonBuilder().setCustomId(`slot_machine_leave_${machineId}`).setLabel('Leave').setStyle(ButtonStyle.Secondary).setDisabled(true)
     );
+}
+
+
+function calculateSessionStats(historyLines) {
+    let totalWon = 0;
+    let totalLost = 0;
+    let paidSpins = 0;
+
+    for (const line of historyLines) {
+        if (!line.startsWith(EMOJI_FREE)) {
+            paidSpins += 1;
+        }
+
+        const winMatch = line.match(/\+€([\d,]+)/);
+        if (winMatch) {
+            totalWon += Number(winMatch[1].replace(/,/g, ''));
+        }
+
+        if (line.includes(`-${'€'}${BET}`)) {
+            totalLost += BET;
+        }
+    }
+
+    return {
+        paidSpins,
+        totalWon,
+        totalLost,
+        net: totalWon - totalLost
+    };
+}
+
+function buildHistoryFields(historyLines) {
+    if (historyLines.length === 0) {
+        return [{
+            name: `${EMOJI_HISTORY} Game History`,
+            value: '*No spins yet.*',
+            inline: false
+        }];
+    }
+
+    const chunks = [];
+    let currentChunk = '';
+
+    for (const line of historyLines) {
+        const candidate = currentChunk ? `${currentChunk}\n${line}` : line;
+        if (candidate.length > 1024) {
+            if (currentChunk) {
+                chunks.push(currentChunk);
+            }
+            currentChunk = line;
+        } else {
+            currentChunk = candidate;
+        }
+    }
+
+    if (currentChunk) {
+        chunks.push(currentChunk);
+    }
+
+    const maxHistoryFields = 24;
+    const visibleChunks = chunks.slice(-maxHistoryFields);
+
+    return visibleChunks.map((chunk, index) => ({
+        name: index === 0
+            ? `${EMOJI_HISTORY} Game History (${historyLines.length} spins)`
+            : '\u200b',
+        value: chunk,
+        inline: false
+    }));
+}
+
+function addHistoryAndSessionFields(embed, historyLines) {
+    const historyFields = buildHistoryFields(historyLines);
+    const stats = calculateSessionStats(historyLines);
+    const remainingFieldSlots = 24;
+    const safeHistoryFields = historyFields.slice(-remainingFieldSlots);
+
+    embed.addFields(...safeHistoryFields);
+    embed.addFields({
+        name: `${EMOJI_BONUS} This Session`,
+        value: `Spins: **${stats.paidSpins}**\nWon: **€${stats.totalWon.toLocaleString()}**\nLost: **€${stats.totalLost.toLocaleString()}**\nNet: **€${stats.net >= 0 ? '+' : ''}${stats.net.toLocaleString()}** ${stats.net >= 0 ? '🟢' : '🔴'}`,
+        inline: false
+    });
 }
 
 function createActiveSlotRow(machineId, disabled = false) {
@@ -77,11 +181,9 @@ function createActiveSlotRow(machineId, disabled = false) {
 
 async function resetMachineMessage(message, machineId) {
     machineResetTimers.delete(message.id);
-    const attachment = getSlotAttachment();
     await message.edit({
         embeds: [createDefaultSlotEmbed(machineId)],
-        components: [createDefaultSlotRow(machineId)],
-        files: [attachment]
+        components: [createDefaultSlotRow(machineId)]
     });
 }
 
@@ -129,29 +231,23 @@ async function runPermanentSpinAnimation(interaction, message, machineId, curren
             .setColor(color)
             .setTitle(title)
             .setDescription(`*Machine currently occupied by:* <@${currentOccupier}>\n\n>>> ## ${spinText}\n*Spinning the reels...*`)
-            .setThumbnail('attachment://slot_machine.png')
             .setFooter({ text: isFree ? 'Bonus Round - No bet deducted | Status: In use' : `Bet: €${BET} | Status: In use` })
             .setTimestamp(new Date());
 
-        embed.addFields({
-            name: `${EMOJI_HISTORY} Game History`,
-            value: historyLines.length > 0 ? historyLines.slice(-10).join('\n') : '*No spins yet.*',
-            inline: false
-        });
+        addHistoryAndSessionFields(embed, historyLines);
 
         return embed;
     };
 
     const rowDisabled = createActiveSlotRow(machineId, true);
-    const attachment = getSlotAttachment();
 
-    await interaction.editReply({ embeds: [buildPhaseEmbed(`${SPIN_EMOJI}  |  ${SPIN_EMOJI}  |  ${SPIN_EMOJI}`)], components: [rowDisabled], files: [attachment] });
+    await interaction.editReply({ embeds: [buildPhaseEmbed(`${SPIN_EMOJI}  |  ${SPIN_EMOJI}  |  ${SPIN_EMOJI}`)], components: [rowDisabled] });
     await sleep(2000);
 
-    await interaction.editReply({ embeds: [buildPhaseEmbed(`${getEmoji(r1)}  |  ${SPIN_EMOJI}  |  ${SPIN_EMOJI}`)], components: [rowDisabled], files: [attachment] });
+    await interaction.editReply({ embeds: [buildPhaseEmbed(`${getEmoji(r1)}  |  ${SPIN_EMOJI}  |  ${SPIN_EMOJI}`)], components: [rowDisabled] });
     await sleep(2000);
 
-    await interaction.editReply({ embeds: [buildPhaseEmbed(`${getEmoji(r1)}  |  ${getEmoji(r2)}  |  ${SPIN_EMOJI}`)], components: [rowDisabled], files: [attachment] });
+    await interaction.editReply({ embeds: [buildPhaseEmbed(`${getEmoji(r1)}  |  ${getEmoji(r2)}  |  ${SPIN_EMOJI}`)], components: [rowDisabled] });
     await sleep(2000);
 
     const result = evaluateResult(r1, r2, r3);
@@ -190,14 +286,13 @@ async function runPermanentSpinAnimation(interaction, message, machineId, curren
         .setColor(color)
         .setTitle(title)
         .setDescription(`*Machine currently occupied by:* <@${currentOccupier}>\n\n>>> ## ${getEmoji(r1)}  |  ${getEmoji(r2)}  |  ${getEmoji(r3)}\n${resultLine}`)
-        .setThumbnail('attachment://slot_machine.png')
         .setFooter({ text: isFree ? 'Bonus Round - No bet deducted | Status: In use' : `Bet: €${BET} | Status: In use` })
         .setTimestamp(new Date());
 
     const updatedHistoryLines = [...historyLines, historyLine];
-    finalEmbed.addFields({ name: `${EMOJI_HISTORY} Game History`, value: updatedHistoryLines.slice(-10).join('\n'), inline: false });
+    addHistoryAndSessionFields(finalEmbed, updatedHistoryLines);
 
-    return { result, finalEmbed, updatedHistoryLines, rowActive: createActiveSlotRow(machineId, false), attachment };
+    return { result, finalEmbed, updatedHistoryLines, rowActive: createActiveSlotRow(machineId, false) };
 }
 
 async function runPermanentBonusRound(interaction, message, machineId, playerId, currentOccupier, historyLines) {
@@ -208,7 +303,7 @@ async function runPermanentBonusRound(interaction, message, machineId, playerId,
         await sleep(1500);
         const title = `${EMOJI_FREE} Slot Machine #${machineId} (Free Spin ${i}/5)`;
 
-        const { result, finalEmbed, updatedHistoryLines, attachment } = await runPermanentSpinAnimation(
+        const { result, finalEmbed, updatedHistoryLines } = await runPermanentSpinAnimation(
             interaction,
             message,
             machineId,
@@ -230,8 +325,7 @@ async function runPermanentBonusRound(interaction, message, machineId, playerId,
 
         await interaction.editReply({
             embeds: [finalEmbed],
-            components: [createActiveSlotRow(machineId, true)],
-            files: [attachment]
+            components: [createActiveSlotRow(machineId, true)]
         });
 
         await processPayout(client, message, playerId, result, true);
@@ -248,16 +342,14 @@ async function runPermanentBonusRound(interaction, message, machineId, playerId,
                 ? `**${EMOJI_FREE} Bonus Round Complete!**\nYou won **€${totalBonusWin.toLocaleString()}** from 5 free spins!\n\nPress **Spin** to play again or **Leave** to free the machine.`
                 : `**${EMOJI_FREE} Bonus Round Complete!**\nNo wins from the bonus round.\n\nPress **Spin** to play again or **Leave** to free the machine.`)
         )
-        .setThumbnail('attachment://slot_machine.png')
         .setFooter({ text: `Bet: €${BET} | Status: In use` })
         .setTimestamp(new Date());
 
-    summaryEmbed.addFields({ name: `${EMOJI_HISTORY} Game History`, value: historyLines.slice(-10).join('\n'), inline: false });
+    addHistoryAndSessionFields(summaryEmbed, historyLines);
 
     await interaction.editReply({
         embeds: [summaryEmbed],
-        components: [createActiveSlotRow(machineId, false)],
-        files: [getSlotAttachment()]
+        components: [createActiveSlotRow(machineId, false)]
     });
 
     scheduleMachineReset(message, machineId, currentOccupier);
@@ -377,7 +469,7 @@ export async function handleSlotMachineInteraction(interaction, client) {
         }
     }
 
-    const { result, finalEmbed, updatedHistoryLines, rowActive, attachment } = await runPermanentSpinAnimation(
+    const { result, finalEmbed, updatedHistoryLines, rowActive } = await runPermanentSpinAnimation(
         interaction,
         message,
         machineId,
@@ -388,7 +480,7 @@ export async function handleSlotMachineInteraction(interaction, client) {
         null
     );
 
-    await interaction.editReply({ embeds: [finalEmbed], components: [rowActive], files: [attachment] });
+    await interaction.editReply({ embeds: [finalEmbed], components: [rowActive] });
     scheduleMachineReset(message, machineId, interaction.user.id);
 
     await processPayout(client, message, player.id, result, false);

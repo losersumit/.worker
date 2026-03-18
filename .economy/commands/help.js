@@ -28,8 +28,7 @@ export default {
           value:
             '`Coinflip`     — `?cf help`   | `?cf stats`\n' +
             '`Russian R.` — `?rr help`   | `?rr stats`\n' +
-            '`Roulette`   — `?rl help`   | `?rl stats`\n' +
-            '`Slot Mach.` — `?slot help` | `?slot stats`',
+            '`Roulette`   — `?rl help`   | `?rl stats`',
           inline: false
         },
         {

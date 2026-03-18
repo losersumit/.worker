@@ -407,8 +407,9 @@ async function runBatchSpins(client, message, embedMsg, playerId, history, spinC
 
 export default {
     name: 'slot',
-    description: 'Play the Slot Machine!',
+    description: 'Legacy slot command (disabled in favor of permanent slot machines).',
     async execute(message, args, client) {
+        return message.reply('`?slot` is no longer available. Please use the permanently posted slot machines in the slots channel instead.');
 
         // ── Help Subcommand ──
         if (args[0] === 'help') {
