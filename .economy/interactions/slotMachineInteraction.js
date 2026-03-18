@@ -4,6 +4,7 @@ import {
     randomColor, spinReel, evaluateResult, getEmoji, sleep, processPayout
 } from '../commands/slot.js';
 
+const EMOJI_SEVEN = '<:Seven:1482721411779924029>';
 const EMOJI_SLOT = '\u{1F3B0}';
 const EMOJI_FREE = '\u{1F381}';
 const EMOJI_HISTORY = '\u{1F4DC}';
@@ -68,8 +69,19 @@ function createDefaultSlotEmbed(machineId) {
     return new EmbedBuilder()
         .setColor(0xFFD700)
         .setTitle(`${EMOJI_SLOT} Slot Machine #${machineId}`)
-        .setDescription('*Machine currently occupied by:* **None**')
-        .setFooter({ text: `Bet: €${BET} | Free to play` })
+        .setDescription(
+`*Machine currently occupied by:* **None**
+
+${EMOJI_SEVEN} | ${EMOJI_SEVEN} | ${EMOJI_SEVEN}
+
+✨ **This Session**
+Spins: 0  
+Won: €0  
+Lost: €0  
+Net: €0
+
+Bet: €${BET} | Status: Free | ` 
+        )
         .setTimestamp(new Date());
 }
 
@@ -242,13 +254,13 @@ async function runPermanentSpinAnimation(interaction, message, machineId, curren
     const rowDisabled = createActiveSlotRow(machineId, true);
 
     await interaction.editReply({ embeds: [buildPhaseEmbed(`${SPIN_EMOJI}  |  ${SPIN_EMOJI}  |  ${SPIN_EMOJI}`)], components: [rowDisabled] });
-    await sleep(2000);
+    await sleep(1000);
 
     await interaction.editReply({ embeds: [buildPhaseEmbed(`${getEmoji(r1)}  |  ${SPIN_EMOJI}  |  ${SPIN_EMOJI}`)], components: [rowDisabled] });
-    await sleep(2000);
+    await sleep(1000);
 
     await interaction.editReply({ embeds: [buildPhaseEmbed(`${getEmoji(r1)}  |  ${getEmoji(r2)}  |  ${SPIN_EMOJI}`)], components: [rowDisabled] });
-    await sleep(2000);
+    await sleep(1000);
 
     const result = evaluateResult(r1, r2, r3);
     const reelStr = `${getEmoji(r1)} | ${getEmoji(r2)} | ${getEmoji(r3)}`;
@@ -486,7 +498,7 @@ export async function handleSlotMachineInteraction(interaction, client) {
     await processPayout(client, message, player.id, result, false);
 
     if (result.type === 'bonus') {
-        await sleep(2000);
+        await sleep(1000);
         await runPermanentBonusRound(interaction, message, machineId, player.id, interaction.user.id, updatedHistoryLines);
     }
 }

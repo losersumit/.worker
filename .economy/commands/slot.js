@@ -207,7 +207,7 @@ async function runSpinAnimation(embedMsg, history, isFree = false, title = '🎰
         .setFooter({ text: isFree ? 'Bonus Round — No bet deducted' : `Bet: €${BET} per spin` });
     addHistoryToEmbed(e1, history);
     await embedMsg.edit({ embeds: [e1], components: [] });
-    await sleep(2000);
+    await sleep(1000);
 
     // Phase 2: Reveal reel 1
     const e2 = new EmbedBuilder().setColor(color).setTitle(title)
@@ -215,7 +215,7 @@ async function runSpinAnimation(embedMsg, history, isFree = false, title = '🎰
         .setFooter({ text: isFree ? 'Bonus Round — No bet deducted' : `Bet: €${BET} per spin` });
     addHistoryToEmbed(e2, history);
     await embedMsg.edit({ embeds: [e2] });
-    await sleep(2000);
+    await sleep(1000);
 
     // Phase 3: Reveal reel 2
     const e3 = new EmbedBuilder().setColor(color).setTitle(title)
@@ -223,7 +223,7 @@ async function runSpinAnimation(embedMsg, history, isFree = false, title = '🎰
         .setFooter({ text: isFree ? 'Bonus Round — No bet deducted' : `Bet: €${BET} per spin` });
     addHistoryToEmbed(e3, history);
     await embedMsg.edit({ embeds: [e3] });
-    await sleep(2000);
+    await sleep(1000);
 
     // Phase 4: Evaluate
     const result = evaluateResult(r1, r2, r3);
@@ -332,7 +332,7 @@ async function executeSingleSpin(client, message, embedMsg, playerId, history, s
 
     // Handle bonus
     if (result.type === 'bonus') {
-        await sleep(2000);
+        await sleep(1000);
         const summaryEmbed = await runBonusRound(client, message, embedMsg, playerId, history);
         await embedMsg.edit({ embeds: [summaryEmbed], components: [] });
     }
