@@ -1,4 +1,4 @@
-﻿import { Client, GatewayIntentBits, AttachmentBuilder } from 'discord.js';
+﻿import { Client, GatewayIntentBits } from 'discord.js';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -25,16 +25,12 @@ export async function postPermanentSlots(client) {
             messages.filter((m) => m.author.id === client.user.id && m.embeds[0] && m.embeds[0].title?.includes('Slot Machine #')).values()
         ).sort((a, b) => a.embeds[0].title.localeCompare(b.embeds[0].title));
 
-        const slotImage = path.join(process.cwd(), 'slot_machine.png');
-        const attachment = new AttachmentBuilder(slotImage, { name: 'slot_machine.png' });
-
         if (oldMachines.length === 5) {
             console.log('[SLOTS] Found 5 existing slot machines. Updating them in-place...');
             for (let i = 0; i < 5; i++) {
                 await oldMachines[i].edit({
                     embeds: [createDefaultSlotEmbed(i + 1)],
-                    components: [createDefaultSlotRow(i + 1)],
-                    files: [attachment]
+                    components: [createDefaultSlotRow(i + 1)]
                 });
             }
         } else {
@@ -45,8 +41,7 @@ export async function postPermanentSlots(client) {
             for (let i = 1; i <= 5; i++) {
                 await channel.send({
                     embeds: [createDefaultSlotEmbed(i)],
-                    components: [createDefaultSlotRow(i)],
-                    files: [attachment]
+                    components: [createDefaultSlotRow(i)]
                 });
             }
         }
