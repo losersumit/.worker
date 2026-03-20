@@ -4,6 +4,7 @@ import { commands } from '../commands/index.js';
 import { initStorage, saveCountingState, getServerStatistics } from '../systems/storage.js';
 import { setupStatusRotation } from '../utils/statusRotation.js';
 import { createModLogsChannel } from '../utils/moderationUtils.js';
+import { recoverCountingState } from '../features/counting.js';
 
 export default {
     name: Events.ClientReady,
@@ -110,46 +111,28 @@ export default {
             try {
                 const channel = await client.channels.fetch(countingChannelId);
                 if (channel && channel.isTextBased()) {
-                    const messages = await channel.messages.fetch({ limit: 1 });
-                    const lastMessage = messages.first();
+                    const recoveredState = await recoverCountingState(channel);
 
-                    if (lastMessage) {
-                        let newCount = 0;
-                        let lastUser = null;
+                    if (recoveredState) {
+                        await saveCountingState({
+                            currentCount: recoveredState.currentCount,
+                            lastUserId: recoveredState.lastUserId
+                        });
 
-                        // Case 1: Bot saying "Starting again from 1"
-                        if (lastMessage.author.bot && lastMessage.content.includes("Starting again from 1")) {
-                            newCount = 0;
-                            lastUser = null;
-                            console.log(`Counting Persistence: Found reset message. Starting from 0.`);
+                        if (recoveredState.reason === 'reset') {
+                            console.log('Counting Persistence: Found reset message. Starting from 0.');
+                        } else {
+                            console.log(
+                                `Counting Persistence: Recovered count ${recoveredState.currentCount} from ` +
+                                `'${recoveredState.sourceMessage.content}' by ${recoveredState.sourceMessage.author?.tag || 'unknown user'}`
+                            );
                         }
-                        // Case 2: User number
-                        else {
-                            const number = parseInt(lastMessage.content);
-                            if (!isNaN(number)) {
-                                newCount = number;
-                                lastUser = lastMessage.author.id;
-                                console.log(`Counting Persistence: Found valid number ${newCount} from ${lastMessage.author.tag}`);
-                            } else {
-                                // Could be a bot message or conversation. 
-                                // If it's the bot, and not a reset, maybe we shouldn't change anything?
-                                // But if we restart, file might say 0.
-                                // Let's rely on what's visually there.
-                                console.log(`Counting Persistence: Last message '${lastMessage.content}' is not a number. Keep internal state or reset? Keeping current file state.`);
-                                // If we return here, we keep whatever loadCountingState() loaded from file (which might be stale but better than 0).
-                            }
-                        }
-
-                        // Only update if we found something meaningful
-                        if (newCount > 0 || (lastMessage.author.bot && lastMessage.content.includes("Starting again from 1"))) {
-                            // We must manually update the state
-                            await saveCountingState({ currentCount: newCount, lastUserId: lastUser });
-                        }
-
+                    } else {
+                        console.log('Counting Persistence: No valid counting message found during restart scan. Keeping stored state.');
                     }
                 }
             } catch (err) {
-                console.error("Error initializing counting channel:", err);
+                console.error('Error initializing counting channel:', err);
             }
         }
     },

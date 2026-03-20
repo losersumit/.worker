@@ -7,9 +7,8 @@ import { processLevelScreenshot } from '../systems/levelSystem.js';
 export async function handleLevelScanning(message) {
     const jobLogChannelId = process.env.JOB_LOG_CHANNEL_ID;
     if (jobLogChannelId && message.channel.id === jobLogChannelId) {
-        if (message.attachments.size > 0) {
-            // Process in background (don't await to avoid blocking other bot functions)
-            processLevelScreenshot(message).catch(err => console.error(`Error processing level screenshot: ${err}`));
-        }
+        // Process in background so RP->AP reactivation happens on every job log,
+        // while screenshot-based level scanning still runs when an image is attached.
+        processLevelScreenshot(message).catch(err => console.error(`Error processing level screenshot: ${err}`));
     }
 }

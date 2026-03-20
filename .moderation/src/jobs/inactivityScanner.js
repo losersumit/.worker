@@ -25,6 +25,82 @@ const O_ROLE_ID = process.env.O_ROLE_ID || '1475314870802055421';
 
 const INACTIVITY_DAYS = 7;
 
+async function fetchRegistryMembers(client, supabase) {
+    const guild = await client.guilds.fetch(TARGET_GUILD_ID);
+    if (!guild) {
+        throw new Error('Guild not found.');
+    }
+
+    const { data: globalEnlisted } = await supabase
+        .from('enlisted_drivers')
+        .select('discord_id, unit_number');
+
+    if (!globalEnlisted || globalEnlisted.length === 0) {
+        return { guild, apMembers: [], rpMembers: [] };
+    }
+
+    const apMembers = [];
+    const rpMembers = [];
+
+    for (const driver of globalEnlisted) {
+        try {
+            const member = await guild.members.fetch({ user: driver.discord_id, force: true }).catch(() => null);
+            if (!member) continue;
+            if (!member.roles.cache.has(ENLISTED_TAG_ROLE_ID)) continue;
+
+            const { data: player } = await supabase
+                .from('players')
+                .select('registration_number')
+                .eq('discord_id', driver.discord_id)
+                .maybeSingle();
+
+            const regNumber = player?.registration_number || driver.unit_number || '???';
+            const bucket = member.roles.cache.has(RP_ROLE_ID) ? rpMembers : apMembers;
+            bucket.push({ member, regNumber });
+        } catch (err) {
+            console.error(`[INACTIVITY] Error collecting registry member ${driver.discord_id}:`, err.message);
+        }
+    }
+
+    sortRegistryMembers(apMembers);
+    sortRegistryMembers(rpMembers);
+
+    return { guild, apMembers, rpMembers };
+}
+
+function getRankWeight(member) {
+    if (member.roles.cache.has(SMO_ROLE_ID)) return 4;
+    if (member.roles.cache.has(FO_ROLE_ID)) return 3;
+    if (member.roles.cache.has(O_ROLE_ID)) return 2;
+    return 1;
+}
+
+function sortRegistryMembers(members) {
+    members.sort((a, b) => {
+        const weightA = getRankWeight(a.member);
+        const weightB = getRankWeight(b.member);
+        if (weightA !== weightB) return weightB - weightA;
+        return a.regNumber.localeCompare(b.regNumber, undefined, { numeric: true });
+    });
+}
+
+export async function rebuildPersonnelEmbeds(client, supabase) {
+    const { apMembers, rpMembers } = await fetchRegistryMembers(client, supabase);
+
+    console.log(`[INACTIVITY] Rebuilding embeds. AP: ${apMembers.length}, RP: ${rpMembers.length}`);
+    await rebuildRegistryEmbed(
+        process.env.ENLISTED_CHANNEL_WEBHOOK_URL,
+        process.env.AP_EMBED_MESSAGE_ID,
+        apMembers
+    );
+
+    await rebuildRegistryEmbed(
+        process.env.ENLISTED_CHANNEL_WEBHOOK_URL,
+        process.env.RP_EMBED_MESSAGE_ID,
+        rpMembers
+    );
+}
+
 /**
  * @param {import('discord.js').Client} client
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
@@ -150,27 +226,9 @@ export async function runInactivityScan(client, supabase) {
             }
         }
 
-        // --- SORTING LOGIC ---
-        // SMO (1475314856184778835) > FO (1475314865878077603) > O (1475314870802055421) > Member
-        const getRankWeight = (member) => {
-            if (member.roles.cache.has(SMO_ROLE_ID)) return 4;
-            if (member.roles.cache.has(FO_ROLE_ID)) return 3;
-            if (member.roles.cache.has(O_ROLE_ID)) return 2;
-            return 1;
-        };
-
-        const sortFn = (a, b) => {
-            const weightA = getRankWeight(a.member);
-            const weightB = getRankWeight(b.member);
-            if (weightA !== weightB) return weightB - weightA; // Descending rank
-            // If same rank, sort numerically by regNumber (if possible) or alphabetically
-            return a.regNumber.localeCompare(b.regNumber, undefined, { numeric: true });
-        };
-
-        apMembers.sort(sortFn);
-        rpMembers.sort(sortFn);
-
         // --- REBUILD EMBEDS ---
+        sortRegistryMembers(apMembers);
+        sortRegistryMembers(rpMembers);
         console.log(`[INACTIVITY] Rebuilding embeds. AP: ${apMembers.length}, RP: ${rpMembers.length}`);
         await rebuildRegistryEmbed(
             process.env.ENLISTED_CHANNEL_WEBHOOK_URL,
