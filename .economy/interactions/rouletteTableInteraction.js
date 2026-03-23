@@ -83,9 +83,9 @@ async function getPlayerRecord(supabase, discordId) {
 }
 
 async function getPlayerBalance(supabase, playerId) {
-    const { data, error } = await supabase.from('player_stats').select('total_income').eq('player_id', playerId).single();
+    const { data, error } = await supabase.from('player_stats').select('wallet').eq('player_id', playerId).single();
     if (error) return 0;
-    return data?.total_income || 0;
+    return data?.wallet || 0;
 }
 
 async function getGuildIncome(supabase, guildId) {

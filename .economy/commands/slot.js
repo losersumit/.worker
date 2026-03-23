@@ -317,9 +317,9 @@ async function runBonusRound(client, message, embedMsg, playerId, history) {
 async function executeSingleSpin(client, message, embedMsg, playerId, history, spinCount, isBatch = false) {
     // Re-check balance
     const { data: freshStats } = await client.supabase
-        .from('player_stats').select('total_income').eq('player_id', playerId).single();
+        .from('player_stats').select('wallet').eq('player_id', playerId).single();
 
-    if (freshStats.total_income < BET) {
+    if (freshStats.wallet < BET) {
         return { stopped: true, reason: 'broke' };
     }
 
@@ -541,9 +541,9 @@ export default {
             if (!player) return message.reply('You are not registered in the economy system.');
 
             const { data: stats } = await client.supabase
-                .from('player_stats').select('total_income').eq('player_id', player.id).single();
-            if (stats.total_income < BET) {
-                return message.reply(`You need at least **€${BET}** to play. Your balance: **€${Math.floor(stats.total_income).toLocaleString()}**`);
+                .from('player_stats').select('wallet').eq('player_id', player.id).single();
+            if (stats.wallet < BET) {
+                return message.reply(`You need at least **€${BET}** to play. Your balance: **€${Math.floor(stats.wallet).toLocaleString()}**`);
             }
 
             // Check guild income
@@ -632,11 +632,11 @@ export default {
 
                     // Re-check balance
                     const { data: freshStats } = await client.supabase
-                        .from('player_stats').select('total_income').eq('player_id', player.id).single();
-                    if (freshStats.total_income < BET) {
+                        .from('player_stats').select('wallet').eq('player_id', player.id).single();
+                    if (freshStats.wallet < BET) {
                         const brokeEmbed = new EmbedBuilder().setColor(0xFF0000)
                             .setTitle('🎰 Slot Machine')
-                            .setDescription(`\n❌ Insufficient balance! You need **€${BET}** to spin.\n\nYour balance: **€${Math.floor(freshStats.total_income).toLocaleString()}**`)
+                            .setDescription(`\n❌ Insufficient balance! You need **€${BET}** to spin.\n\nYour balance: **€${Math.floor(freshStats.wallet).toLocaleString()}**`)
                             .setFooter({ text: `Bet: €${BET} per spin` });
                         addHistoryToEmbed(brokeEmbed, history);
                         await embedMsg.edit({ embeds: [brokeEmbed], components: [buildEndButtons(batchSize)] });

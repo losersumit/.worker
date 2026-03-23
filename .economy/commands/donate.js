@@ -46,12 +46,12 @@ export default {
       // Check balance
       // Check balance
       if (isAll) {
-        amount = stats.total_income;
+        amount = stats.wallet;
         if (amount <= 0) return message.reply('You have no money to donate!');
       }
 
-      if (stats.total_income < amount) {
-        return message.reply(`Insufficient balance! You need €${amount}, but you only have €${stats.total_income}.`);
+      if (stats.wallet < amount) {
+        return message.reply(`Insufficient balance! You need €${amount}, but you only have €${stats.wallet}.`);
       }
 
       // Execute transactions sequentially to prevent partial failure

@@ -45,7 +45,7 @@ export default {
       // Validating IDs usually fast, but we can do parallel
 
       const [senderStatsResult, receiverResult] = await Promise.all([
-        client.supabase.from('player_stats').select('total_income').eq('player_id', sender.id).single(),
+        client.supabase.from('player_stats').select('wallet').eq('player_id', sender.id).single(),
         client.supabase.from('players').select('id').eq('discord_id', targetUser.id).single()
       ]);
 
@@ -53,11 +53,11 @@ export default {
       if (!senderStats) return message.reply('Could not fetch your balance.');
 
       if (isAll) {
-        amount = senderStats.total_income;
+        amount = senderStats.wallet;
         if (amount <= 0) return message.reply('You have no money to transfer!');
       }
 
-      if (senderStats.total_income < amount) return message.reply(`Insufficient balance! You need €${amount}, but you only have €${senderStats.total_income}.`);
+      if (senderStats.wallet < amount) return message.reply(`Insufficient balance! You need €${amount}, but you only have €${senderStats.wallet}.`);
 
       const receiver = receiverResult.data;
       if (!receiver) return message.reply(`${targetUser.username} is not registered.`);

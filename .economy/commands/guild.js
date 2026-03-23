@@ -1,6 +1,6 @@
 export default {
     name: 'guild',
-    description: 'Shows guild income and the top 5 richest members by bank balance',
+    description: 'Shows guild income and the top 5 richest members',
     async execute(message, args, client) {
         await message.channel.sendTyping();
 
@@ -22,8 +22,7 @@ export default {
             const { data: allPlayers, error: topError } = await client.supabase
                 .from('player_stats')
                 .select(`
-          total_income,
-          bank_balance,
+          wallet,
           players!inner (
             discord_id,
             guild_id
@@ -36,14 +35,10 @@ export default {
                 return message.reply('Failed to fetch leaderboard data.');
             }
 
-            // Compute total wealth and sort top 5
+            // Sort by wallet, top 5
             const sorted = (allPlayers || [])
-                .map(p => ({
-                    ...p,
-                    totalWealth: (p.total_income || 0) + (p.bank_balance || 0)
-                }))
-                .filter(p => p.totalWealth > 0)
-                .sort((a, b) => b.totalWealth - a.totalWealth)
+                .filter(p => (p.wallet || 0) > 0)
+                .sort((a, b) => (b.wallet || 0) - (a.wallet || 0))
                 .slice(0, 5);
 
             // 3. Build the leaderboard string
@@ -54,14 +49,12 @@ export default {
                 const lines = await Promise.all(
                     sorted.map(async (entry, i) => {
                         const discordId = entry.players.discord_id;
-                        const wallet = (entry.total_income || 0).toLocaleString();
-                        const bank = (entry.bank_balance || 0).toLocaleString();
-                        const total = entry.totalWealth.toLocaleString();
+                        const walletVal = (entry.wallet || 0).toLocaleString();
                         try {
                             const user = await client.users.fetch(discordId);
-                            return `${medals[i]} **${user.username}** — €${total}\n　　💰 €${wallet} ∙ 🏦 €${bank}`;
+                            return `${medals[i]} **${user.username}** — €${walletVal}`;
                         } catch {
-                            return `${medals[i]} <@${discordId}> — €${total}\n　　💰 €${wallet} ∙ 🏦 €${bank}`;
+                            return `${medals[i]} <@${discordId}> — €${walletVal}`;
                         }
                     })
                 );
@@ -89,12 +82,12 @@ export default {
                         inline: false,
                     },
                     {
-                        name: '🏆 Top 5 Richest (Total Wealth)',
+                        name: '🏆 Top 5 Richest',
                         value: leaderboard,
                         inline: false,
                     },
                 ],
-                footer: { text: 'Rankings based on wallet + bank balance' },
+                footer: { text: 'Rankings based on wallet balance' },
                 timestamp: new Date(),
             };
 

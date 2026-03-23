@@ -22,11 +22,8 @@ export default {
       }
 
       // 2. Parallel Fetch: Stats, Economy Data
-      // This reduces sequential round-trips
       const [statsResult, economyData] = await Promise.all([
-        // Fetch Stats
         client.supabase.from('player_stats').select('*').eq('player_id', player.id).single(),
-        // Fetch Economy Data
         getPlayerEconomyData(client.supabase, player.id)
       ]);
 
@@ -56,11 +53,8 @@ export default {
           }),
         },
         fields: [
-          { name: '💰 Wallet', value: `€${stats.total_income?.toLocaleString() || 0}`, inline: true },
-          { name: '🏦 Bank', value: `€${(stats.bank_balance || 0).toLocaleString()}`, inline: true },
+          { name: '💰 Wallet', value: `€${(stats.wallet || 0).toLocaleString()}`, inline: true },
           { name: '💸 Donated', value: `€${economyData.total_donated?.toLocaleString() || 0}`, inline: true },
-          // Transfers removed as per request
-
           { name: '🎲 Won', value: `€${economyData.total_gambling_won?.toLocaleString() || 0}`, inline: true },
           { name: '📉 Lost', value: `€${economyData.total_gambling_lost?.toLocaleString() || 0}`, inline: true },
           { name: '🏛️ Tax Paid', value: `€${economyData.total_tax_paid?.toLocaleString() || 0}`, inline: true },

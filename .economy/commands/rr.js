@@ -98,19 +98,19 @@ export default {
             const { data: challenger } = await client.supabase.from('players').select('id').eq('discord_id', message.author.id).single();
             if (!challenger) return message.reply('You are not registered in the economy system.');
 
-            const { data: cStats } = await client.supabase.from('player_stats').select('total_income').eq('player_id', challenger.id).single();
+            const { data: cStats } = await client.supabase.from('player_stats').select('wallet').eq('player_id', challenger.id).single();
 
             // Bet Logic
             let amount = 0;
             if (args[0].toLowerCase() === 'all') {
-                amount = cStats.total_income;
+                amount = cStats.wallet;
                 if (amount <= 0) return message.reply('You have no money to bet!');
             } else {
                 amount = Math.floor(parseFloat(args[0]));
             }
 
             if (isNaN(amount) || amount <= 0) return message.reply('Enter a valid amount.');
-            if (cStats.total_income < amount) return message.reply('You have insufficient balance.');
+            if (cStats.wallet < amount) return message.reply('You have insufficient balance.');
 
             const COMPANY_ID = process.env.COMPANY_ID || '1453737415318573280';
             const rawTarget = args[1].toLowerCase();
@@ -157,8 +157,8 @@ export default {
                 if (!tData) return message.reply('Target player is not registered.');
                 targetData = tData;
 
-                const { data: tStats } = await client.supabase.from('player_stats').select('total_income').eq('player_id', targetData.id).single();
-                if (tStats.total_income < amount) return message.reply('Target has insufficient balance.');
+                const { data: tStats } = await client.supabase.from('player_stats').select('wallet').eq('player_id', targetData.id).single();
+                if (tStats.wallet < amount) return message.reply('Target has insufficient balance.');
 
                 players.push(targetUser);
                 targetId = targetUser.id;

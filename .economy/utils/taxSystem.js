@@ -1,5 +1,5 @@
 /**
- * Daily tax system - deducts 10% from all players and transfers to guild
+ * Daily tax system - deducts 1% from all player wallets and transfers to guild
  * Runs once per day at 12:00 AM server time
  */
 
@@ -7,21 +7,20 @@ import { trackTransaction } from './economyTracker.js';
 
 async function applyDailyTax(client) {
   try {
-    console.log('🏦 Applying daily 10% tax to players...');
+    console.log('🏦 Applying daily 1% tax to player wallets...');
 
-    // Get all players with income
     const TARGET_GUILD_ID = process.env.GUILD_ID;
 
     const { data: players, error: playersError } = await client.supabase
       .from('player_stats')
       .select(`
     player_id,
-    bank_balance,
+    wallet,
     players!inner (
       guild_id
     )
   `)
-      .gte('bank_balance', 5000)
+      .gte('wallet', 5000)
       .eq('players.guild_id', TARGET_GUILD_ID);
 
     if (playersError) {
@@ -32,13 +31,12 @@ async function applyDailyTax(client) {
     let totalTaxCollected = 0;
 
     for (const player of players) {
-      // Tax only bank_balance — wallet (total_income) is untaxed
-      const tax = Math.floor(player.bank_balance * 0.01);
-      const newBankBalance = Math.floor(player.bank_balance - tax);
+      const tax = Math.floor(player.wallet * 0.01);
+      const newWallet = Math.floor(player.wallet - tax);
 
       await client.supabase
         .from('player_stats')
-        .update({ bank_balance: newBankBalance })
+        .update({ wallet: newWallet })
         .eq('player_id', player.player_id);
 
       // Track tax payment in economy history/data

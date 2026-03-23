@@ -14,6 +14,7 @@ import { syncDisplayNames } from './.moderation/src/jobs/syncDisplayNames.js';
 import { runMemoryCleanup } from './.moderation/src/systems/memoryCleanup.js';
 import { scheduleRagHourlySummaries } from './.moderation/src/features/ragChat.js';
 import { runInactivityScan } from './.moderation/src/jobs/inactivityScanner.js';
+import { refreshProfilePictures } from './.moderation/src/jobs/refreshProfilePictures.js';
 import schedule from 'node-schedule';
 
 // AI Integration
@@ -145,6 +146,15 @@ client.once('ready', async () => {
 
     // Hourly RAG summaries for channel context retrieval
     scheduleRagHourlySummaries(client);
+
+    // Schedule profile picture refresh at 12:30 AM
+    schedule.scheduleJob('30 0 * * *', async () => {
+        console.log(`⏰ [AVATAR-REFRESH] Running daily profile picture refresh - ${new Date().toISOString()}`);
+        await refreshProfilePictures(supabase, client);
+    });
+
+    // Run profile picture refresh immediately on startup
+    refreshProfilePictures(supabase, client).catch(err => console.error('[AVATAR-REFRESH] Startup run failed:', err));
 });
 
 // Load events

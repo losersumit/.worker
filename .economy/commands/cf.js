@@ -105,10 +105,10 @@ export default {
       const { data: challenger } = await client.supabase.from('players').select('id').eq('discord_id', message.author.id).single();
       if (!challenger) return message.reply('You are not registered in the economy system.');
 
-      const { data: cStats } = await client.supabase.from('player_stats').select('total_income').eq('player_id', challenger.id).single();
+      const { data: cStats } = await client.supabase.from('player_stats').select('wallet').eq('player_id', challenger.id).single();
 
       if (isAllIn) {
-        amount = cStats.total_income;
+        amount = cStats.wallet;
         if (amount <= 0) return message.reply('You have no money to bet!');
       }
 
@@ -127,10 +127,10 @@ export default {
 
         if (!target) return message.reply('Target player is not registered.');
 
-        const { data: tStats } = await client.supabase.from('player_stats').select('total_income').eq('player_id', target.id).single();
+        const { data: tStats } = await client.supabase.from('player_stats').select('wallet').eq('player_id', target.id).single();
 
-        if (cStats.total_income < amount) return message.reply('You have insufficient balance.');
-        if (tStats.total_income < amount) return message.reply('Target has insufficient balance.');
+        if (cStats.wallet < amount) return message.reply('You have insufficient balance.');
+        if (tStats.wallet < amount) return message.reply('Target has insufficient balance.');
 
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId('accept').setLabel('Accept').setStyle(ButtonStyle.Success),
@@ -171,7 +171,7 @@ export default {
       } else {
         // 2. COMPANY (PVE) LOGIC
 
-        if (cStats.total_income < amount) return message.reply('You have insufficient balance.');
+        if (cStats.wallet < amount) return message.reply('You have insufficient balance.');
 
         // Check Company Balance
         const { data: guild } = await client.supabase.from('approved_guilds').select('guild_income').eq('guild_id', message.guildId).single();
@@ -217,9 +217,9 @@ export default {
             const won = choice === flip;
 
             // Re-fetch challenger stats to prevent exploit
-            const { data: finalC } = await client.supabase.from('player_stats').select('total_income').eq('player_id', challenger.id).single();
+            const { data: finalC } = await client.supabase.from('player_stats').select('wallet').eq('player_id', challenger.id).single();
 
-            if (finalC.total_income < amount) {
+            if (finalC.wallet < amount) {
               return choiceInt.followUp("❌ Request failed: insufficient balance at transaction time.");
             }
 
@@ -298,14 +298,14 @@ async function handleFlip(client, interaction, author, targetUser, amount, chall
       const winnings = amount - fee;
 
       // Re-fetch current balances for validation
-      const { data: finalC } = await client.supabase.from('player_stats').select('total_income').eq('player_id', challenger.id).single();
-      const { data: finalT } = await client.supabase.from('player_stats').select('total_income').eq('player_id', target.id).single();
+      const { data: finalC } = await client.supabase.from('player_stats').select('wallet').eq('player_id', challenger.id).single();
+      const { data: finalT } = await client.supabase.from('player_stats').select('wallet').eq('player_id', target.id).single();
 
       // Balance re-check — prevent going negative
-      if (finalC.total_income < amount) {
+      if (finalC.wallet < amount) {
         return choiceInt.followUp('❌ Challenger no longer has enough balance for this bet.');
       }
-      if (finalT.total_income < amount) {
+      if (finalT.wallet < amount) {
         return choiceInt.followUp('❌ Target no longer has enough balance for this bet.');
       }
 
