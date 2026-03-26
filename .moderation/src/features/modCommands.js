@@ -1,4 +1,5 @@
 import { EmbedBuilder, PermissionsBitField } from 'discord.js';
+import { getUserWarnings, resetWarnings } from '../systems/storage.js';
 
 const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
 const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID;
@@ -412,6 +413,87 @@ async function handlePurge(message, args, client) {
     }
 }
 
+// Helper function to format dates
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return `<t:${Math.floor(date.getTime() / 1000)}:R>`;
+}
+
+// Helper function to format action types
+function formatActionType(actionType) {
+    switch (actionType) {
+        case 'timeout_1h': return 'Timeout (1 hour)';
+        case 'timeout_24h': return 'Timeout (24 hours)';
+        case 'kick': return 'Kick';
+        case 'ban': return 'Ban';
+        default: return actionType;
+    }
+}
+
+async function handleWrns(message, args, client) {
+    const targetArg = args[0];
+    if (!targetArg) return message.reply('❌ Usage: `!wrns <@user|ID|username>`');
+
+    const target = await resolveTarget(message, targetArg);
+    if (!target) return message.reply('❌ Could not find that user.');
+
+    const warnings = await getUserWarnings(target.id);
+
+    if (!warnings || warnings.count === 0) {
+        return message.reply(`✅ **${target.user.tag}** has no warnings.`);
+    }
+
+    const embed = new EmbedBuilder()
+        .setColor(0xE67E22)
+        .setTitle(`Warning History for ${target.user.tag}`)
+        .setThumbnail(target.displayAvatarURL())
+        .addFields(
+            { name: 'Total Warnings', value: `${warnings.count}`, inline: true },
+            { name: 'Last Warning', value: warnings.lastWarning ? formatDate(warnings.lastWarning) : 'N/A', inline: true }
+        )
+        .setFooter({ text: 'NMC Moderation System' })
+        .setTimestamp();
+
+    if (warnings.warnings && warnings.warnings.length > 0) {
+        const recentWarnings = warnings.warnings.slice(0, 10);
+        let warningsText = '';
+        recentWarnings.forEach((warning, index) => {
+            warningsText += `**${index + 1}.** ${formatDate(warning.timestamp)}\n`;
+            warningsText += `⟶ Reason: ${warning.reason}\n`;
+            warningsText += `⟶ Severity: ${warning.severity}\n\n`;
+        });
+        embed.addFields({ name: 'Recent Warnings', value: warningsText });
+    }
+
+    if (warnings.actionsTaken && warnings.actionsTaken.length > 0) {
+        let actionsText = '';
+        warnings.actionsTaken.forEach((action, index) => {
+            actionsText += `**${index + 1}.** ${formatActionType(action.type)} - ${formatDate(action.timestamp)}\n`;
+        });
+        embed.addFields({ name: 'Actions Taken', value: actionsText });
+    }
+
+    await message.reply({ embeds: [embed] });
+}
+
+async function handleClrWrns(message, args, client) {
+    const targetArg = args[0];
+    if (!targetArg) return message.reply('❌ Usage: `!clrwrns <@user|ID|username>`');
+
+    const target = await resolveTarget(message, targetArg);
+    if (!target) return message.reply('❌ Could not find that user.');
+
+    const warnings = await getUserWarnings(target.id);
+
+    if (!warnings || warnings.count === 0) {
+        return message.reply(`✅ **${target.user.tag}** has no warnings to clear.`);
+    }
+
+    await resetWarnings(target.id, { logging: { consoleLog: true } });
+    await message.reply(`✅ Cleared all warnings for **${target.user.tag}**.`);
+    await logModAction(client, message.guild, 'unmute', message.author, target, 'Warnings cleared');
+}
+
 async function handleModHelp(message, args, client) {
     const embed = new EmbedBuilder()
         .setColor(0x2F3136)
@@ -429,16 +511,19 @@ async function handleModHelp(message, args, client) {
                     '`!lock <#channel|ID|link>`\nLock a channel (disable send for visitors & enlisted).\n' +
                     '`!unlock <#channel|ID|link>`\nUnlock a previously locked channel.\n' +
                     '`!purge <1-100>`\nBulk delete messages in the current channel.\n' +
+                    '`!wrns <@user|ID|username>`\nView warnings for a user.\n' +
+                    '`!clrwrns <@user|ID|username>`\nClear all warnings for a user.\n' +
                     '`!modhelp`\nShow this help page.',
                 inline: false
             },
             {
                 name: '🔧 Slash Commands (`/`)',
                 value:
-                    '`/warnings user:@Player`\nView warnings for a user.\n' +
-                    '`/clearwarnings user:@Player`\nClear all warnings for a user.\n' +
-                    '`/enlist`\nManage enlistment.\n' +
-                    '`/purge count:N`\nBulk delete messages.',
+                    '`/adddriver`\nAdd an NMC Officer or Driver to the website.\n' +
+                    '`/addmedia`\nAdd a photo or video to the NMC website media gallery.\n' +
+                    '`/addpartner`\nAdd a partner server to the NMC website.\n' +
+                    '`/enlist`\nEnlist a player with a number and optional officer role.\n' +
+                    '`/setwh`\nGet or Create a Webhook.',
                 inline: false
             },
             {
@@ -490,6 +575,8 @@ const MOD_COMMANDS = {
     unlock: handleUnlock,
     purge: handlePurge,
     modhelp: handleModHelp,
+    wrns: handleWrns,
+    clrwrns: handleClrWrns,
 };
 
 /**
@@ -518,6 +605,8 @@ export async function handleModCommand(message, client) {
             kick: '`!kick <@user|ID|username> [reason]`',
             lock: '`!lock <#channel|ID|link>`',
             unlock: '`!unlock <#channel|ID|link>`',
+            wrns: '`!wrns <@user|ID|username>`',
+            clrwrns: '`!clrwrns <@user|ID|username>`',
         };
         await message.reply(`Usage: ${usages[commandName]}`);
         return true;

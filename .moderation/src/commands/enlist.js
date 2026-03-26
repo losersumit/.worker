@@ -37,14 +37,15 @@ export default {
 
         try {
             // 1. Check Roles
-            const allowedRolesEnv = process.env.ENLISTEMENT_ALLOWED_ROLES || '';
-            const allowedRoles = allowedRolesEnv.split(',').map(r => r.trim()).filter(Boolean);
+            const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
+            const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID;
 
-            const hasPermission = allowedRoles.some(roleId => interaction.member.roles.cache.has(roleId)) ||
-                interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+            const isCommander = COMMANDER_ROLE_ID && interaction.member.roles.cache.has(COMMANDER_ROLE_ID);
+            const isPartner = PARTNER_ROLE_ID && interaction.member.roles.cache.has(PARTNER_ROLE_ID);
+            const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
 
-            if (!hasPermission) {
-                return interaction.editReply({ content: '❌ You do not have permission to use this command.' });
+            if (!isCommander && !isPartner && !isAdmin) {
+                return interaction.editReply({ content: '❌ You do not have permission to use this command. Only Commanders and Partners can use this.' });
             }
 
             const targetUser = interaction.options.getUser('user');

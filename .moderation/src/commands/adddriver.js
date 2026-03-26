@@ -29,13 +29,15 @@ export default {
     async execute(interaction) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-        // Role check – must have one of ENLISTEMENT_ALLOWED_ROLES or be an Administrator
-        const allowedRoles = (process.env.ENLISTEMENT_ALLOWED_ROLES || '')
-            .split(',').map(r => r.trim()).filter(Boolean);
-        const hasPermission = allowedRoles.some(id => interaction.member.roles.cache.has(id))
-            || interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-        if (!hasPermission) {
-            return interaction.editReply('❌ You do not have permission to use this command.');
+        const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
+        const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID;
+
+        const isCommander = COMMANDER_ROLE_ID && interaction.member.roles.cache.has(COMMANDER_ROLE_ID);
+        const isPartner = PARTNER_ROLE_ID && interaction.member.roles.cache.has(PARTNER_ROLE_ID);
+        const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+
+        if (!isCommander && !isPartner && !isAdmin) {
+            return interaction.editReply({ content: '❌ You do not have permission to use this command. Only Commanders and Partners can use this.' });
         }
 
         const member = interaction.options.getMember('member');

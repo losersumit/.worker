@@ -16,6 +16,17 @@ export default {
 
         const targetChannel = interaction.options.getChannel('channel');
 
+        const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
+        const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID;
+
+        const isCommander = COMMANDER_ROLE_ID && interaction.member.roles.cache.has(COMMANDER_ROLE_ID);
+        const isPartner = PARTNER_ROLE_ID && interaction.member.roles.cache.has(PARTNER_ROLE_ID);
+        const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+
+        if (!isCommander && !isPartner && !isAdmin) {
+            return interaction.editReply({ content: '❌ You do not have permission to use this command. Only Commanders and Partners can use this.' });
+        }
+
         try {
             // 1. Fetch Existing Webhooks in the target channel
             const webhooks = await targetChannel.fetchWebhooks();
