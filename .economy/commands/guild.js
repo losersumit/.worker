@@ -51,8 +51,8 @@ export default {
                         const discordId = entry.players.discord_id;
                         const walletVal = (entry.wallet || 0).toLocaleString();
                         try {
-                            const user = await client.users.fetch(discordId);
-                            return `${medals[i]} **${user.username}** — €${walletVal}`;
+                            const member = await discordGuild.members.fetch(discordId);
+                            return `${medals[i]} **${member.displayName}** — €${walletVal}`;
                         } catch {
                             return `${medals[i]} <@${discordId}> — €${walletVal}`;
                         }

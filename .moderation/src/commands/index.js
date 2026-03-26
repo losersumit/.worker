@@ -11,7 +11,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } from 'discord.js';
 import { getUserWarnings, resetWarnings, getServerStatistics } from '../systems/storage.js'; // Updated import
 import enlist from "./enlist.js";
-import modhelp from "./modhelp.js";
 import setwh from "./setwh.js";
 import addpartner from "./addpartner.js";
 import adddriver from "./adddriver.js";
@@ -113,84 +112,7 @@ export const commands = [
         }
     },
 
-    {
-        data: new SlashCommandBuilder()
-            .setName('modstats')
-            .setDescription('View moderation statistics')
-            .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
-
-        async execute(interaction, config) {
-            const stats = await getServerStatistics(interaction.guild.id);
-
-            const embed = new EmbedBuilder()
-                .setColor(config.appearance.colors.info)
-                .setTitle('Moderation Statistics')
-                .addFields(
-                    { name: 'Total Users with Warnings', value: `${stats.activeUsers}`, inline: true },
-                    { name: 'Total Warnings Issued', value: `${stats.totalWarnings}`, inline: true },
-                    {
-                        name: 'Actions Taken', value:
-                            `Timeouts (1h): ${stats.actionsTaken.timeout1h}\n` +
-                            `Timeouts (24h): ${stats.actionsTaken.timeout24h}\n` +
-                            `Kicks: ${stats.actionsTaken.kick}\n` +
-                            `Bans: ${stats.actionsTaken.ban}`
-                    }
-                )
-                .setFooter({ text: 'AI Moderation System' })
-                .setTimestamp();
-
-            return interaction.reply({
-                embeds: [embed],
-                flags: MessageFlags.Ephemeral
-            });
-        }
-    },
-
-    {
-        data: new SlashCommandBuilder()
-            .setName('purge')
-            .setDescription('Delete a specified number of messages')
-            .addIntegerOption(option =>
-                option.setName('count')
-                    .setDescription('Number of messages to delete (1-100)')
-                    .setRequired(true)
-                    .setMinValue(1)
-                    .setMaxValue(100)
-            )
-            .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
-
-        async execute(interaction, config) {
-            // Permission check using ENLISTEMENT_ALLOWED_ROLES
-            const allowedRolesEnv = process.env.ENLISTEMENT_ALLOWED_ROLES || '';
-            const allowedRoles = allowedRolesEnv.split(',').map(r => r.trim()).filter(Boolean);
-
-            const hasPermission = allowedRoles.some(roleId => interaction.member.roles.cache.has(roleId)) ||
-                interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-
-            if (!hasPermission) {
-                return interaction.reply({ content: '❌ You do not have permission to use this command.', flags: MessageFlags.Ephemeral });
-            }
-
-            const count = interaction.options.getInteger('count');
-
-            try {
-                await interaction.channel.bulkDelete(count, true); // true = filterOld (older than 14 days)
-                return interaction.reply({
-                    content: `🧹 Successfully purged ${count} messages.`,
-                    flags: MessageFlags.Ephemeral
-                });
-            } catch (err) {
-                console.error('Purge error:', err);
-                return interaction.reply({
-                    content: '❌ Failed to delete messages. They might be older than 14 days.',
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-        }
-    },
-
     enlist,
-    modhelp,
     setwh,
     addpartner,
     adddriver,

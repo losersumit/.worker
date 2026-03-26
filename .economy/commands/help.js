@@ -4,31 +4,32 @@ export default {
   name: 'help',
   description: 'Shows all available economy commands',
   async execute(message, args, client) {
-    await message.channel.sendTyping(); // instant feedback
+    await message.channel.sendTyping();
 
     const embed = new EmbedBuilder()
       .setColor(0x0099ff)
-      .setTitle('🤖 TOE Economy Bot Commands')
+      .setTitle('🤖 NMC Economy Bot Commands')
       .setDescription('Here are the available commands to manage your wealth and play games.')
       .addFields(
         {
           name: '💵 Economy',
           value:
             '`?me`\nCheck your balance and stats.\n' +
-            '`?dp <amount|all>`\nDeposit money into your [Taxed 10 percent daily if you got 50k+].\n' +
-            '`?wd <amount|all>`\nWithdraw money from your bank [Can be stolen].\n' +
+            '`?me @user`\nCheck another player\'s balance.\n' +
             '`?transfer <amount|all> <@user>`\nSend money to another player.\n' +
-            '`?snatch <@user>`\nAttempt to steal from another player.\n' +
+            '`?donate <amount|all>`\nDonate money to NMC treasury.\n' +
             '`?my skins`\nView your owned skins.\n' +
-            '`?guild`\nView guild treasury & top 5 richest.',
+            '`?guild`\nView guild treasury & top 5 richest.\n' +
+            '`?stats`\nView your statistics for all games.',
           inline: false
         },
         {
           name: '🎲 Games',
           value:
-            '`Coinflip`     — `?cf help`   | `?cf stats`\n' +
-            '`Russian R.` — `?rr help`   | `?rr stats`\n' +
-            '`Roulette`   — `?rl help`   | `?rl stats`',
+            '`?cf <amount|all> <@user|nmc>`\nCoinflip — `?cf help` for rules\n' +
+            '`?rr <amount|all> <@user|nmc>`\nRussian Roulette — `?rr help` for rules\n' +
+            '`Roulette` — Permanent tables in roulette channel\n' +
+            '`Slots` — Permanent machines in slots channel',
           inline: false
         },
         {
@@ -39,10 +40,9 @@ export default {
           inline: false
         }
       )
-      .setFooter({ text: 'TOE Economy • Gamble Responsibly' })
+      .setFooter({ text: 'NMC Economy • Gamble Responsibly' })
       .setTimestamp();
 
     await message.reply({ embeds: [embed] });
   },
 };
-

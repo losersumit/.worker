@@ -41,10 +41,19 @@ export default {
         }
       }
 
+      // Resolve server nickname
+      let displayName = targetUser.username;
+      try {
+        const targetMember = targetUser.id === message.author.id
+          ? message.member
+          : await message.guild.members.fetch(targetUser.id);
+        displayName = targetMember?.displayName || targetUser.username;
+      } catch {}
+
       // Build embed
       const embed = {
         color: 0x00ff00,
-        title: `${targetUser.username}'s Wallet`,
+        title: `${displayName}'s Wallet`,
         thumbnail: {
           url: targetUser.displayAvatarURL({
             extension: 'png',

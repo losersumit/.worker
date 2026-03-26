@@ -46,7 +46,7 @@ export default {
 
                 const embed = new EmbedBuilder()
                     .setColor(0x9B59B6) // Purple
-                    .setTitle(`${message.author.username}'s Skins`)
+                    .setTitle(`${message.member?.displayName || message.author.username}'s Skins`)
                     .setDescription(skinList)
                     .setFooter({ text: 'Select a skin below to have it sent to your DMs.' })
                     .setTimestamp();

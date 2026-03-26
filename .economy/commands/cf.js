@@ -5,71 +5,11 @@ export default {
   name: 'cf',
   description: 'Challenge another player or the Company (NMC) to a coin flip',
   async execute(message, args, client) {
-    if (args[0] === 'help') {
-      const embed = new EmbedBuilder()
-        .setColor(0xFFFF00)
-        .setTitle('Coinflip Rules')
-        .addFields(
-          { name: '🪙 How to Play', value: '`?cf <amount|all> <@user|nmc>`\n`?cf stats` — See your history', inline: true },
-          { name: '💰 Payouts', value: '**PVP**: Winner takes bet (10% fee)\n**PVE**: Standard 1:1', inline: true },
-          { name: '📜 Mechanics', value: '• 50/50 Chance.\n• Heads or Tails.\n• Instant payout.', inline: false }
-        )
-        .setFooter({ text: 'Flip it to win it.' });
-      return message.reply({ embeds: [embed] });
-    }
 
-    if (args[0] === 'stats') {
-      await message.channel.sendTyping();
-      try {
-        const { data: player } = await client.supabase.from('players').select('id').eq('discord_id', message.author.id).single();
-        if (!player) return message.reply('You are not registered in the economy system.');
 
-        const { data: history } = await client.supabase
-          .from('player_economy_history')
-          .select('transaction_type, amount, details')
-          .eq('player_id', player.id)
-          .ilike('details', '%flip%');
-
-        let totalWon = 0;
-        let totalLost = 0;
-        let wins = 0;
-        let losses = 0;
-
-        for (const h of history || []) {
-          if (h.transaction_type === 'gamble_win') {
-            totalWon += parseFloat(h.amount);
-            wins++;
-          } else if (h.transaction_type === 'gamble_loss') {
-            totalLost += parseFloat(h.amount);
-            losses++;
-          }
-        }
-
-        const totalPlayed = wins + losses;
-        const winPercent = totalPlayed > 0 ? ((wins / totalPlayed) * 100).toFixed(1) : 0;
-        
-        const embed = new EmbedBuilder()
-          .setColor(0xFFFF00)
-          .setTitle(`🪙 Coinflip Stats: ${message.author.username}`)
-          .addFields(
-            { name: 'Games Played', value: `**${totalPlayed}**`, inline: true },
-            { name: 'Win Rate', value: `**${winPercent}%**`, inline: true },
-            { name: '\x20', value: '\x20', inline: true }, // spacer
-            { name: 'Total Won', value: `**€${totalWon.toLocaleString()}**`, inline: true },
-            { name: 'Total Lost', value: `**€${totalLost.toLocaleString()}**`, inline: true },
-            { name: 'Net Profit', value: `**€${(totalWon - totalLost).toLocaleString()}**`, inline: true }
-          )
-          .setThumbnail(message.author.displayAvatarURL({ dynamic: true }));
-
-        return message.reply({ embeds: [embed] });
-      } catch (err) {
-        console.error('Error fetching cf stats:', err);
-        return message.reply('Failed to load stats.');
-      }
-    }
 
     await message.channel.sendTyping(); // instant feedback
-    if (args.length < 2) return message.reply('Usage: ?cf <amount|all> <@user | nmc> or ?cf stats');
+    if (args.length < 2) return message.reply('Usage: ?cf <amount|all> <@user | nmc>');
 
     let amount = Math.floor(parseFloat(args[0]));
     const isAllIn = args[0].toLowerCase() === 'all';

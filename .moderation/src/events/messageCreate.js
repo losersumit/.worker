@@ -7,6 +7,7 @@ import { handleCounting } from '../features/counting.js';
 import { handleRagChat } from '../features/ragChat.js';
 import { logMessageModeration, takeModAction, getActionDescription } from '../utils/moderationUtils.js';
 import { recentActivity } from '../utils/activityState.js';
+import { handleModCommand } from '../features/modCommands.js';
 
 export default {
     name: Events.MessageCreate,
@@ -14,9 +15,16 @@ export default {
         // Ignore messages from bots (including itself)
         if (message.author.bot) return;
 
+        // Hook for prefix moderation commands (prefix '!')
+        if (message.content.startsWith('!')) {
+            const handled = await handleModCommand(message, message.client);
+            if (handled) return;
+        }
+
         // Hook for legacy economy commands (prefix '?')
         if (message.content.startsWith('?')) {
-            if (process.env.CHANNEL_ID && message.channelId !== process.env.CHANNEL_ID) {
+            const financeChannelId = process.env.FINANCE_CHANNEL_ID;
+            if (financeChannelId && message.channelId !== financeChannelId) {
                 return;
             }
 

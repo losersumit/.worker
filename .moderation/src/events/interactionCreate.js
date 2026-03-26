@@ -1,4 +1,4 @@
-﻿import { Events } from 'discord.js';
+import { Events } from 'discord.js';
 import config from '../config.js';
 import { supabase } from '../clients/supabase.js';
 import { trackTransaction } from '../utils/economyUtils.js';
@@ -130,7 +130,7 @@ async function handleBuySkin(interaction, client) {
         console.log('[BuySkin] Fetching stats...');
         const { data: stats, error: statsError } = await supabase
             .from('player_stats')
-            .select('total_income')
+            .select('wallet')
             .eq('player_id', player.id)
             .single();
 
@@ -138,7 +138,7 @@ async function handleBuySkin(interaction, client) {
             console.error('[BuySkin] Stats Fetch Error:', statsError);
             return interaction.editReply('âŒ Could not fetch your balance.');
         }
-        console.log(`[BuySkin] Balance: ${stats.total_income}`);
+        console.log(`[BuySkin] Balance: ${stats.wallet}`);
 
         console.log(`[BuySkin] Fetching skin details for code: ${skinCode}`);
         const { data: skin, error: skinError } = await supabase
@@ -183,21 +183,21 @@ async function handleBuySkin(interaction, client) {
         if (existingSkin) {
             console.log(`[BuySkin] Already owned: ${existingSkin.skin_code}`);
             if (existingSkin.skin_code === skinCode) {
-                return interaction.editReply(`âŒ You already own the **${skin.name}** skin!`);
+                return interaction.editReply(`❌ You already own the **${skin.name}** skin!`);
             }
-            return interaction.editReply(`âŒ You already own the **${existingSkin.skin_code}** set! Use \`?send ${skinCode}\` (in economy bot) or ask admin to get this skin.`);
+            return interaction.editReply(`❌ You already own the **${existingSkin.skin_code}** set! Use \`?send ${skinCode}\` (in economy bot) or ask admin to get this skin.`);
         }
 
-        if (stats.total_income < skin.price) {
-            console.log(`[BuySkin] Insufficient funds. Needs ${skin.price}, has ${stats.total_income}`);
-            return interaction.editReply(`âŒ Insufficient balance! You need â‚¬${skin.price}, but you only have â‚¬${stats.total_income}.`);
+        if (stats.wallet < skin.price) {
+            console.log(`[BuySkin] Insufficient funds. Needs ${skin.price}, has ${stats.wallet}`);
+            return interaction.editReply(`❌ Insufficient balance! You need €${skin.price}, but you only have €${stats.wallet}.`);
         }
 
         console.log('[BuySkin] Deducting funds...');
-        const newBalance = stats.total_income - skin.price;
+        const newBalance = stats.wallet - skin.price;
         const { error: updateError } = await supabase
             .from('player_stats')
-            .update({ total_income: newBalance })
+            .update({ wallet: newBalance })
             .eq('player_id', player.id);
 
         if (updateError) {

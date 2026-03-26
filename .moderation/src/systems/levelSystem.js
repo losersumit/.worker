@@ -111,7 +111,7 @@ async function reactivateReservedMember(message, member, enlistedRoleId, rpRoleI
     const isEnlisted = enlistedRoleId && member.roles.cache.has(enlistedRoleId);
     const isRP = rpRoleId && member.roles.cache.has(rpRoleId);
 
-    if (!isRP || isEnlisted) {
+    if (!isRP) {
         return false;
     }
 
@@ -168,7 +168,7 @@ export async function processLevelScreenshot(message) {
     // Only process job logs for Active/Enlisted or Reserved Personnel members
     if (!isEnlisted && !isRP) return;
 
-    if (isRP && !isEnlisted) {
+    if (isRP) {
         try {
             await reactivateReservedMember(message, member, enlistedRoleId, rpRoleId);
             member = await message.guild.members.fetch(message.author.id).catch(() => member);
