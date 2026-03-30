@@ -25,11 +25,7 @@ export default {
         },
         {
           name: '🎲 Games',
-          value:
-            '`?cf <amount|all> <@user|nmc>`\nCoinflip — `?cf help` for rules\n' +
-            '`?rr <amount|all> <@user|nmc>`\nRussian Roulette — `?rr help` for rules\n' +
-            '`Roulette` — Permanent tables in roulette channel\n' +
-            '`Slots` — Permanent machines in slots channel',
+          value: '`?gamehelp`\nView information and rules for all available games.',
           inline: false
         },
         {

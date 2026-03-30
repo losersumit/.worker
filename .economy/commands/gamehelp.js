@@ -1,4 +1,5 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { SYMBOLS } from './slot.js';
 
 const PAGES = [
   // Page 0 — Table of contents
@@ -43,8 +44,25 @@ const PAGES = [
     .setTitle('🎰 Slots')
     .addFields(
       { name: '💡 How to Play', value: 'Head to the **slots channel** and use the permanent slot machines.\nPress **Spin** and enter your bet amount.', inline: false },
-      { name: '💰 Payouts', value: '**3 matching symbols** = Jackpot (varies by symbol)\n**2 matching** = Small win\n**No match** = Lose bet', inline: true },
-      { name: '📜 Mechanics', value: '• Bet any amount\n• 20% tax on winnings\n• Automated via button interactions', inline: true }
+      { name: '🏆 Triple Payouts', value: 
+          `${SYMBOLS['777'].emoji} **777** — €100,000\n` +
+          `${SYMBOLS['Seven'].emoji} **Seven** — €50,000\n` +
+          `${SYMBOLS['Wild'].emoji} **Wild** — €35,000\n` +
+          `${SYMBOLS['Dollar'].emoji} **Dollar** — €25,000\n` +
+          `${SYMBOLS['Crown'].emoji} **Crown** — €15,000\n` +
+          `${SYMBOLS['Bar'].emoji} **Bar** — €10,000\n` +
+          `${SYMBOLS['Watermelon'].emoji} **Watermelon** — €7,000`, 
+        inline: true 
+      },
+      { name: '✅ More Triples', value: 
+          `${SYMBOLS['Apple'].emoji} **Apple** — €5,000\n` +
+          `${SYMBOLS['Cherry'].emoji} **Cherry** — €3,500\n` +
+          `${SYMBOLS['Lemon'].emoji} **Lemon** — €2,500\n` +
+          `${SYMBOLS['Cards'].emoji} **Cards** — €2,000\n\n` +
+          `*Double payouts also available for 2 matching symbols!*`, 
+        inline: true 
+      },
+      { name: '📜 Mechanics', value: '• Bet any amount\n• 20% tax on winnings\n• Automated via button interactions', inline: false }
     )
     .setFooter({ text: 'Page 4 / 5 • NMC Economy' }),
 

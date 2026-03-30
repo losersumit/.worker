@@ -287,7 +287,7 @@ async function handleLoss(client, message, players, loserIndex, amount, challeng
         if (!winner.bot) {
             updatePromises.push((async () => {
                 await client.supabase.rpc('adjust_balance', { p_player_id: winnerId, p_amount: winnings });
-                await trackTransaction(client.supabase, winnerId, 'gamble_win', winnings, `Won Russian Roulette vs ${loser.username || 'NMC'}`);
+                await trackTransaction(client, winnerId, 'gamble_win', winnings, `Won Russian Roulette vs ${loser.username || 'NMC'}`);
             })());
         } else {
             // Company Wins — atomic guild_income update
@@ -300,7 +300,7 @@ async function handleLoss(client, message, players, loserIndex, amount, challeng
         if (!loser.bot) {
             updatePromises.push((async () => {
                 await client.supabase.rpc('adjust_balance', { p_player_id: loserId, p_amount: -amount });
-                await trackTransaction(client.supabase, loserId, 'gamble_loss', amount, `Lost Russian Roulette vs ${winner.username || 'NMC'}`);
+                await trackTransaction(client, loserId, 'gamble_loss', amount, `Lost Russian Roulette vs ${winner.username || 'NMC'}`);
             })());
         } else {
             // Company Loses — atomic guild_income update

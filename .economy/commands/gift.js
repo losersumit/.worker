@@ -81,7 +81,7 @@ export default {
             }
 
             // Log transaction
-            await trackTransaction(client.supabase, player.id, 'gift', amount, `Gift from Company by ${message.author.tag}`);
+            await trackTransaction(client, player.id, 'gift', amount, `Gift from Company by ${message.author.tag}`);
 
             // 5. Success Message
             const embed = {

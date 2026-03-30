@@ -173,13 +173,13 @@ export default {
               await client.supabase.rpc('adjust_balance', { p_player_id: challenger.id, p_amount: winnings });
               await client.supabase.rpc('adjust_guild_income', { p_guild_id: message.guildId, p_amount: -winnings });
 
-              await trackTransaction(client.supabase, challenger.id, 'gamble_win', winnings, `Won flip vs Company`);
+              await trackTransaction(client, challenger.id, 'gamble_win', winnings, `Won flip vs Company`);
 
             } else {
               await client.supabase.rpc('adjust_balance', { p_player_id: challenger.id, p_amount: -amount });
               await client.supabase.rpc('adjust_guild_income', { p_guild_id: message.guildId, p_amount: amount });
 
-              await trackTransaction(client.supabase, challenger.id, 'gamble_loss', amount, `Lost flip vs Company`);
+              await trackTransaction(client, challenger.id, 'gamble_loss', amount, `Lost flip vs Company`);
             }
 
             const winnerText = won ? `${message.author} wins **€${winnings.toLocaleString()}**!` : `NMC wins! You lost **€${amount.toLocaleString()}**.`;
@@ -252,13 +252,13 @@ async function handleFlip(client, interaction, author, targetUser, amount, chall
       if (won) {
         await client.supabase.rpc('adjust_balance', { p_player_id: target.id, p_amount: winnings });
         await client.supabase.rpc('adjust_balance', { p_player_id: challenger.id, p_amount: -amount });
-        await trackTransaction(client.supabase, target.id, 'gamble_win', winnings, `Won flip vs ${author.tag}`);
-        await trackTransaction(client.supabase, challenger.id, 'gamble_loss', amount, `Lost flip vs ${targetUser.tag}`);
+        await trackTransaction(client, target.id, 'gamble_win', winnings, `Won flip vs ${author.tag}`);
+        await trackTransaction(client, challenger.id, 'gamble_loss', amount, `Lost flip vs ${targetUser.tag}`);
       } else {
         await client.supabase.rpc('adjust_balance', { p_player_id: challenger.id, p_amount: winnings });
         await client.supabase.rpc('adjust_balance', { p_player_id: target.id, p_amount: -amount });
-        await trackTransaction(client.supabase, challenger.id, 'gamble_win', winnings, `Won flip vs ${targetUser.tag}`);
-        await trackTransaction(client.supabase, target.id, 'gamble_loss', amount, `Lost flip vs ${author.tag}`);
+        await trackTransaction(client, challenger.id, 'gamble_win', winnings, `Won flip vs ${targetUser.tag}`);
+        await trackTransaction(client, target.id, 'gamble_loss', amount, `Lost flip vs ${author.tag}`);
       }
 
       // Guild Fee Logic for PVP (atomic)

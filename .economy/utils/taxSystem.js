@@ -40,7 +40,7 @@ async function applyDailyTax(client) {
         .eq('player_id', player.player_id);
 
       // Track tax payment in economy history/data
-      await trackTransaction(client.supabase, player.player_id, 'tax', tax, 'Daily Tax');
+      await trackTransaction(client, player.player_id, 'tax', tax, 'Daily Tax');
 
       totalTaxCollected += tax;
     }

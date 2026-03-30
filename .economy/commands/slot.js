@@ -262,16 +262,16 @@ async function processPayout(client, message, playerId, result, isFree) {
                 const net = w - BET;
                 await client.supabase.rpc('adjust_balance', { p_player_id: playerId, p_amount: net });
                 await client.supabase.rpc('adjust_guild_income', { p_guild_id: message.guildId, p_amount: -net });
-                await trackTransaction(client.supabase, playerId, 'gamble_win', w, `Slot win: ${result.type} ${result.matchSymbol}`);
+                await trackTransaction(client, playerId, 'gamble_win', w, `Slot win: ${result.type} ${result.matchSymbol}`);
             } else {
                 await client.supabase.rpc('adjust_balance', { p_player_id: playerId, p_amount: w });
                 await client.supabase.rpc('adjust_guild_income', { p_guild_id: message.guildId, p_amount: -w });
-                await trackTransaction(client.supabase, playerId, 'gamble_win', w, `Slot free spin: ${result.type} ${result.matchSymbol}`);
+                await trackTransaction(client, playerId, 'gamble_win', w, `Slot free spin: ${result.type} ${result.matchSymbol}`);
             }
         } else if (!isFree) {
             await client.supabase.rpc('adjust_balance', { p_player_id: playerId, p_amount: -BET });
             await client.supabase.rpc('adjust_guild_income', { p_guild_id: message.guildId, p_amount: BET });
-            await trackTransaction(client.supabase, playerId, 'gamble_loss', BET, 'Slot loss');
+            await trackTransaction(client, playerId, 'gamble_loss', BET, 'Slot loss');
         }
     } catch (err) {
         console.error('[SLOT] Payout error:', err);

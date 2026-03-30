@@ -697,15 +697,15 @@ async function executeTableSpin(client, message, state, tableId) {
                 updatePromises.push(addCompany(client.supabase, guildId, p.amount)); // house keeps original bet
                 if (tax > 0) {
                     updatePromises.push(addCompany(client.supabase, guildId, tax));
-                    updatePromises.push(trackTransaction(client.supabase, p.player_id, 'tax', tax, 'Roulette Winnings Tax'));
+                    updatePromises.push(trackTransaction(client, p.player_id, 'tax', tax, 'Roulette Winnings Tax'));
                 }
-                updatePromises.push(trackTransaction(client.supabase, p.player_id, 'gamble_win', netProfit - tax, `Won Roulette — ${resultNum} ${resultColor}`));
+                updatePromises.push(trackTransaction(client, p.player_id, 'gamble_win', netProfit - tax, `Won Roulette — ${resultNum} ${resultColor}`));
 
                 roundHistoryLines.push(`${p.username} | ${resultEmoji} ${resultNum} ${resultColor.toUpperCase()} | ✅ +€${(netProfit - tax).toLocaleString()} [-€${tax.toLocaleString()} tax]`);
             } else {
                 // Player loses — house keeps the bet
                 updatePromises.push(addCompany(client.supabase, guildId, p.amount));
-                updatePromises.push(trackTransaction(client.supabase, p.player_id, 'gamble_loss', p.amount, `Lost Roulette — ${resultNum} ${resultColor}`));
+                updatePromises.push(trackTransaction(client, p.player_id, 'gamble_loss', p.amount, `Lost Roulette — ${resultNum} ${resultColor}`));
 
                 roundHistoryLines.push(`${p.username} | ${resultEmoji} ${resultNum} ${resultColor.toUpperCase()} | ❌ -€${p.amount.toLocaleString()}`);
             }

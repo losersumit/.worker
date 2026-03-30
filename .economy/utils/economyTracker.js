@@ -7,7 +7,8 @@
  * Track a transaction for a player
  * Updates running totals in player_economy_data and logs to player_economy_history
  */
-async function trackTransaction(supabase, playerId, transactionType, amount, details = null) {
+async function trackTransaction(client, playerId, transactionType, amount, details = null) {
+  const supabase = client.supabase;
   try {
     // Get current player economy data or create new row
     // Get current player economy data
@@ -91,6 +92,32 @@ async function trackTransaction(supabase, playerId, transactionType, amount, det
     if (historyError) {
       console.error(`Error inserting history for player ${playerId}:`, historyError);
       return false;
+    }
+
+    if (process.env.ECONOMY_LOGS_CHANNEL_ID) {
+      try {
+        const logChannel = await client.channels.fetch(process.env.ECONOMY_LOGS_CHANNEL_ID).catch(() => null);
+        if (logChannel) {
+          const { data: pData } = await supabase.from('players').select('discord_id, display_name').eq('id', playerId).single();
+          const pName = pData ? (pData.display_name || `<@${pData.discord_id}>`) : playerId;
+          
+          await logChannel.send({
+            embeds: [{
+              color: 0x3498db,
+              title: '💸 Economy Transaction',
+              fields: [
+                { name: 'Player', value: String(pName), inline: true },
+                { name: 'Type', value: String(transactionType), inline: true },
+                { name: 'Amount', value: `€${amount.toLocaleString()}`, inline: true },
+                { name: 'Details', value: details ? String(details) : 'None', inline: false }
+              ],
+              timestamp: new Date().toISOString()
+            }]
+          });
+        }
+      } catch (e) {
+        console.error('Error sending economy log to channel:', e);
+      }
     }
 
     return true;

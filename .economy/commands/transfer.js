@@ -70,7 +70,7 @@ export default {
       await client.supabase.rpc('adjust_balance', { p_player_id: receiver.id, p_amount: amount });
 
       // 3. Track transaction
-      await trackTransaction(client.supabase, sender.id, 'transfer', amount, `Transferred to ${targetUser.tag}`);
+      await trackTransaction(client, sender.id, 'transfer', amount, `Transferred to ${targetUser.tag}`);
 
 
       const embed = new EmbedBuilder()
