@@ -1,0 +1,112 @@
+user attachment image
+if last 25 messages are sent as dialogue into AI prompt then why is the bot misssing context for the message just above him, only difference is it is asked by another user, does this mean it only sends last 25 messages for the user and bot and when new user hops in convo it sends different dialogue for them ??
+Copy
+Yep — what you’re describing is very likely context selection logic, not “the model being dumb.”
+
+In multi-user chats (like Discord), bots usually do not send the raw last 25 channel messages exactly as-is every time. They often do one of these:
+
+Thread by user/session
+Bot keeps separate memory per user (or per DM/thread), so when User B speaks, it may not include all of User A’s recent turns.
+
+Filter messages before prompting
+Many systems only include:
+
+messages that mention/reply to the bot,
+
+the requesting user’s recent messages,
+
+bot’s own last replies,
+
+and maybe a few nearby messages.
+
+Turn-based truncation
+“25 messages” may really mean 25 selected turns, after filtering, token limits, role tagging, safety filters, etc.
+
+Reply-chain dependence
+If User B’s message isn’t linked via reply/quote/mention, the bot may not know what “it” refers to, even if humans can see it right above.
+
+So to your direct question: yes, very possibly the system is building a different prompt per speaker/request, not one shared “last 25 channel messages” blob.
+
+That would explain why it missed context from the message just above (especially if that message was from another user and not explicitly linked).
+
+If you want, I can give you a robust prompt-construction pattern for Discord bots so this stops happening (channel window + reply chain + per-user memory + conflict resolution).
+
+what do you mean by very likely, check the code you idiot 
+the files must be in ragchat.js
+Copy
+You’re right to call it out — I checked the code, and your suspicion is basically correct.
+
+What the code is actually doing
+It is not sending a shared “last 25 channel messages” window.
+
+Conversation memory is keyed by channel + author:
+
+key = ${message.channel.id}:${message.author.id}
+
+That means each user gets their own mini-history, not one combined cross-user dialogue.
+
+That per-user history is what gets inserted as:
+
+RECENT DIALOGUE WITH CURRENT USER in the prompt
+
+Context from others comes via DB retrieval (rag_summaries + rag_chunks), not raw immediate chat lines.
+
+So yes: if a different user replies, the bot may not have that prior user’s immediate turn in history, and retrieval may miss it.
+
+Why it misses the message “right above”
+Two concrete reasons in this code:
+
+Per-user chat memory split
+New speaker = different key/history bucket.
+
+Stored context is chunked/summarized, not instant full window
+
+Chunks flush only when buffer hits min size/idle threshold (CHUNK_MIN=5, idle 2 min).
+
+Hourly summaries are generated on interval, not per message.
+
+So immediate one-line references can be missing even if humans see them directly above.
+
+Extra important behavior
+The bot only answers when explicitly pinged or replied to (mentioned || repliedToBot), and then it passes only that message text as the question—no hard “include parent + last N channel messages” step.
+
+Commands I used to verify
+rg --files -g 'AGENTS.md'
+
+rg --files | rg 'ragchat\.js$'
+
+rg -n "ragchat|RAG|last 25|25 messages|context" index.js .economy -S
+
+sed -n '1,320p' .moderation/src/features/ragChat.js
+
+sed -n '320,680p' .moderation/src/features/ragChat.js
+
+nl -ba .moderation/src/features/ragChat.js | sed -n '1,260p'
+
+nl -ba .moderation/src/features/ragChat.js | sed -n '260,520p'
+
+If you want, I can patch this so every prompt includes:
+
+replied-to message text,
+
+previous bot reply,
+
+and last ~10 channel lines (cross-user)
+before per-user memory, which will fix this exact issue.
+
+storing messges and having a mini memory is didffernt thing.. 
+tell me of the bot sends last 10 to 15 messages as AI prompt or not?
+Copy
+Short answer: No — this bot does not send the last 10–15 raw channel messages as the AI prompt.
+
+What it sends is:
+
+Current question text (the user’s current message).
+
+Per-user mini history (channel+user key), max 16 turns, not shared channel history.
+
+Retrieved context from DB (rag_chunks, rag_summaries, FAQ), similarity-ranked and truncated — not “last N messages.”
+
+Then it builds one prompt from those blocks.
+
+So if your exact question is “does it send last 10–15 chat messages directly?” → No.

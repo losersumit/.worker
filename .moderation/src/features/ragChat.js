@@ -257,7 +257,7 @@ function formatVerifiedIdentity(verified) {
     ].join('\n');
 }
 
-function buildPrompt(question, context, username, verifiedIdentity, history) {
+function buildPrompt(question, context, username, verifiedIdentity, history, rawChannelHistory) {
     const contextBlock = context.length
         ? context.map((c, idx) => `[${idx + 1}] (${c.type}) ${c.text}`).join('\n\n')
         : 'No relevant context found in DB.';
@@ -273,6 +273,9 @@ CURRENT USER: ${username}
 
 VERIFIED IDENTITY (trusted authority source):
 ${formatVerifiedIdentity(verifiedIdentity)}
+
+RECENT RAW CHANNEL HISTORY (Last 15 messages):
+${rawChannelHistory || 'No recent channel messages.'}
 
 RETRIEVED CHANNEL CONTEXT (Past 24 hours of chat):
 ${contextBlock}
@@ -316,6 +319,20 @@ async function askWithContext(message, client, question) {
         await message.channel.sendTyping();
     } catch { }
 
+    let rawChannelHistory = 'No recent channel messages.';
+    try {
+        const lastMsgs = await message.channel.messages.fetch({ limit: 15 });
+        // Discord returns messages newest first; reverse to chronological order
+        const msgsArray = Array.from(lastMsgs.values()).reverse();
+        rawChannelHistory = msgsArray.map(m => {
+            const name = m.member?.displayName || m.author.globalName || m.author.username;
+            const text = sanitizeText(m.content) || '[attachment/embed]';
+            return `${name}: ${text}`;
+        }).join('\n');
+    } catch (err) {
+        console.error('[RAG] Error fetching channel limit 15:', err.message);
+    }
+
     const [context, verifiedIdentity] = await Promise.all([
         retrieveContext(client.supabase, question, message.channel.id),
         getVerifiedIdentity(client.supabase, message.guild?.id, message.author.id),
@@ -324,7 +341,7 @@ async function askWithContext(message, client, question) {
     const username = message.member?.displayName || message.author.globalName || message.author.username;
     const { key, history, userName } = pushConversationTurn(message, question);
 
-    const prompt = buildPrompt(question, context, username, verifiedIdentity, history);
+    const prompt = buildPrompt(question, context, username, verifiedIdentity, history, rawChannelHistory);
 
     const image = getImageAttachment(message);
     let modelToUse = CHAT_MODEL;
