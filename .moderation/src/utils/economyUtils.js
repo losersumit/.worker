@@ -11,8 +11,9 @@
  * @param {string} transactionType
  * @param {number} amount
  * @param {string} details
+ * @param {import('discord.js').Client} [discordClient] - Optional Discord client for channel logging
  */
-export async function trackTransaction(supabase, playerId, transactionType, amount, details = null) {
+export async function trackTransaction(supabase, playerId, transactionType, amount, details = null, discordClient = null) {
     try {
         // Get current player economy data
         const { data: currentData, error: selectError } = await supabase
@@ -46,7 +47,7 @@ export async function trackTransaction(supabase, playerId, transactionType, amou
                 updateData.total_transferred = (currentData?.total_transferred || 0) + amount;
                 break;
             case 'gift':
-                // Gifts are logged to history but do not affect running totals like trasferred/donated
+                // Gifts are logged to history but do not affect running totals like transferred/donated
                 break;
             case 'buy':
                 // Purchases are logged to history.
@@ -87,6 +88,37 @@ export async function trackTransaction(supabase, playerId, transactionType, amou
         if (historyError) {
             console.error(`Error inserting history for player ${playerId}:`, historyError);
             return false;
+        }
+
+        // Only log skin buy transactions to #economy-logs channel
+        if (transactionType === 'buy' && process.env.ECONOMY_LOGS_CHANNEL_ID && discordClient) {
+            try {
+                const logChannel = await discordClient.channels.fetch(process.env.ECONOMY_LOGS_CHANNEL_ID).catch(() => null);
+                if (logChannel) {
+                    const { data: pData } = await supabase
+                        .from('players')
+                        .select('discord_id, display_name')
+                        .eq('id', playerId)
+                        .single();
+                    const pMention = pData?.discord_id ? `<@${pData.discord_id}>` : String(playerId);
+                    const pName = pData?.display_name || pMention;
+
+                    await logChannel.send({
+                        embeds: [{
+                            color: 0x9B59B6,
+                            title: '🛒 Skin Purchase',
+                            fields: [
+                                { name: 'Player', value: `${pName} (${pMention})`, inline: true },
+                                { name: 'Amount', value: `€${amount.toLocaleString()}`, inline: true },
+                                { name: 'Details', value: details ? String(details) : 'None', inline: false }
+                            ],
+                            timestamp: new Date().toISOString()
+                        }]
+                    });
+                }
+            } catch (e) {
+                console.error('[EconomyUtils] Error sending skin buy log to channel:', e);
+            }
         }
 
         return true;

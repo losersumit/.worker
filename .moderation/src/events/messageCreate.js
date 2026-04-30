@@ -35,9 +35,13 @@ export default {
 
             if (command) {
                 // Block Reserved Personnel from all economy commands except ?help and ?me
+                // NOTE: Retired Personnel (RTD) have full economy access — skin-buy block is at the button layer.
                 const RP_ROLE_ID = process.env.RP_ROLE_ID || '1482059608536387795';
+                const RTD_ROLE_ID = process.env.RTD_ROLE_ID || '1499413282279129139';
                 const ALLOWED_FOR_RP = ['help', 'me'];
+                const isRTD = message.member?.roles?.cache?.has(RTD_ROLE_ID);
                 if (
+                    !isRTD &&
                     !ALLOWED_FOR_RP.includes(commandName) &&
                     message.member?.roles?.cache?.has(RP_ROLE_ID)
                 ) {

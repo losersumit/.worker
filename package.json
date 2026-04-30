@@ -18,7 +18,8 @@
     "dotenv": "^16.6.1",
     "express": "^5.2.1",
     "groq-sdk": "^0.37.0",
-    "node-schedule": "^2.1.1"
+    "node-schedule": "^2.1.1",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

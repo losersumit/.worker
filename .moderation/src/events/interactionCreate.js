@@ -114,6 +114,12 @@ async function handleBuySkin(interaction, client) {
             return interaction.editReply('âŒ You are not Enlisted Driver, ask Commander to enlist you.');
         }
 
+        // Retired Personnel cannot buy skins
+        const RTD_ROLE_ID = process.env.RTD_ROLE_ID || '1499413282279129139';
+        if (interaction.member.roles.cache.has(RTD_ROLE_ID)) {
+            return interaction.editReply('❌ **Retired Personnel** cannot purchase skins.');
+        }
+
         console.log('[BuySkin] Fetching player from DB...');
         const { data: player, error: playerError } = await supabase
             .from('players')
@@ -228,7 +234,7 @@ async function handleBuySkin(interaction, client) {
         }
 
         console.log('[BuySkin] Tracking transaction...');
-        await trackTransaction(supabase, player.id, 'buy', skin.price, `Bought skin: ${skin.name} (${skinCode})`);
+        await trackTransaction(supabase, player.id, 'buy', skin.price, `Bought skin: ${skin.name} (${skinCode})`, client);
 
         console.log('[BuySkin] Delivering content via DM...');
         try {

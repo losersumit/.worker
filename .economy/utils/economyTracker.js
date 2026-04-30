@@ -94,20 +94,21 @@ async function trackTransaction(client, playerId, transactionType, amount, detai
       return false;
     }
 
-    if (process.env.ECONOMY_LOGS_CHANNEL_ID) {
+    // Only log skin buy transactions to #economy-logs
+    if (transactionType === 'buy' && process.env.ECONOMY_LOGS_CHANNEL_ID) {
       try {
         const logChannel = await client.channels.fetch(process.env.ECONOMY_LOGS_CHANNEL_ID).catch(() => null);
         if (logChannel) {
           const { data: pData } = await supabase.from('players').select('discord_id, display_name').eq('id', playerId).single();
-          const pName = pData ? (pData.display_name || `<@${pData.discord_id}>`) : playerId;
-          
+          const pMention = pData?.discord_id ? `<@${pData.discord_id}>` : String(playerId);
+          const pName = pData?.display_name || pMention;
+
           await logChannel.send({
             embeds: [{
-              color: 0x3498db,
-              title: '💸 Economy Transaction',
+              color: 0x9B59B6,
+              title: '🛒 Skin Purchase',
               fields: [
-                { name: 'Player', value: String(pName), inline: true },
-                { name: 'Type', value: String(transactionType), inline: true },
+                { name: 'Player', value: `${pName} (${pMention})`, inline: true },
                 { name: 'Amount', value: `€${amount.toLocaleString()}`, inline: true },
                 { name: 'Details', value: details ? String(details) : 'None', inline: false }
               ],
