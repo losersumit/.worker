@@ -2,9 +2,10 @@ import { Events } from 'discord.js';
 import { supabase } from '../clients/supabase.js';
 
 const ENLISTED_ROLE_ID = process.env.ENLISTED_ROLE_ID || '1482386008376086598';
-const AP_ROLE_ID = process.env.AP_ROLE_ID || '1463184412937289973';
-const RP_ROLE_ID = process.env.RP_ROLE_ID || '1482059608536387795';
-const TARGET_GUILD_ID = process.env.GUILD_ID || '1448027116074434593';
+const AP_ROLE_ID       = process.env.AP_ROLE_ID       || '1463184412937289973';
+const RP_ROLE_ID       = process.env.RP_ROLE_ID       || '1482059608536387795';
+const RTD_ROLE_ID      = process.env.RTD_ROLE_ID      || '1499413282279129139';
+const TARGET_GUILD_ID  = process.env.GUILD_ID         || '1448027116074434593';
 
 export default {
     name: Events.GuildMemberUpdate,
@@ -37,9 +38,10 @@ export default {
 
         // Logic for returning the correct status based on roles
         const determineStatus = () => {
-            if (hasAP) return 'AP';
-            if (hasRP) return 'RP';
-            return null; // fallback
+            if (hasAP)  return 'AP';
+            if (hasRP)  return 'RP';
+            if (newMember.roles.cache.has(RTD_ROLE_ID)) return 'RTD';
+            return null;
         };
 
         // 1. ADDED ENLISTED ROLE -> Add to enlisted_drivers
@@ -71,14 +73,31 @@ export default {
             }
         }
 
-        // 2. REMOVED ENLISTED ROLE -> Remove from enlisted_drivers
+        // 2. REMOVED ENLISTED ROLE
         else if (hadEnlisted && !hasEnlisted) {
-            console.log(`[ENLISTED] ${newMember.user.tag} lost enlisted role, removing from table...`);
-            try {
-                await supabase.from('enlisted_drivers').delete().eq('discord_id', newMember.user.id);
-                console.log(`[ENLISTED] ✅ Removed ${newMember.user.tag} from enlisted_drivers`);
-            } catch (err) {
-                console.error('[ENLISTED] ❌ Failed to delete:', err);
+            // If the member now has the RTD role, they were retired by the scanner.
+            // Keep their row in enlisted_drivers with status='RTD' so the RTD embed
+            // can be rebuilt correctly on future restarts.
+            if (newMember.roles.cache.has(RTD_ROLE_ID)) {
+                console.log(`[ENLISTED] ${newMember.user.tag} lost enlisted role but has RTD role — updating status to RTD (keeping row).`);
+                try {
+                    await supabase
+                        .from('enlisted_drivers')
+                        .update({ status: 'RTD', display_name: newNick })
+                        .eq('discord_id', newMember.user.id);
+                    console.log(`[ENLISTED] ✅ Status set to RTD for ${newMember.user.tag}`);
+                } catch (err) {
+                    console.error('[ENLISTED] ❌ Failed to update RTD status:', err);
+                }
+            } else {
+                // Genuinely left / was removed — delete the row
+                console.log(`[ENLISTED] ${newMember.user.tag} lost enlisted role, removing from table...`);
+                try {
+                    await supabase.from('enlisted_drivers').delete().eq('discord_id', newMember.user.id);
+                    console.log(`[ENLISTED] ✅ Removed ${newMember.user.tag} from enlisted_drivers`);
+                } catch (err) {
+                    console.error('[ENLISTED] ❌ Failed to delete:', err);
+                }
             }
         }
 

@@ -341,19 +341,44 @@ export async function runInactivityScan(client, supabase) {
         const rtdMembers = [];
         const retiredInPhase2 = new Set(); // Track IDs retired this run so RP embed can be corrected
 
-        // Also collect existing RTD members so we can keep the embed complete.
-        const { data: allEnlisted } = await supabase
-            .from('enlisted_drivers')
-            .select('discord_id, unit_number, status');
+        // ── Collect existing RTD members via Discord role (source of truth) ──
+        // Do NOT rely solely on DB status='RTD' — rows can be lost if the enlisted
+        // role removal fires guildMemberUpdate before the RTD status is written.
+        // Instead, fetch all guild members who currently have the RTD role, and
+        // re-sync any missing DB rows on the fly.
+        console.log('[INACTIVITY] Collecting existing RTD members from Discord role...');
+        try {
+            const allGuildMembers = await guild.members.fetch();
+            for (const [, member] of allGuildMembers) {
+                if (!member.roles.cache.has(RTD_ROLE_ID)) continue;
 
-        // Collect current RTD members already in the DB for embed display
-        for (const driver of (allEnlisted || [])) {
-            if (driver.status !== 'RTD') continue;
-            try {
-                const member = await guild.members.fetch({ user: driver.discord_id, force: true }).catch(() => null);
-                if (!member) continue;
+                // Re-sync DB row if missing (self-healing)
+                const { data: existing } = await supabase
+                    .from('enlisted_drivers')
+                    .select('discord_id, status')
+                    .eq('discord_id', member.id)
+                    .maybeSingle();
+
+                if (!existing) {
+                    // Row was lost — re-insert with RTD status
+                    console.log(`[INACTIVITY] Re-syncing missing RTD row for ${member.user.username}`);
+                    await supabase.from('enlisted_drivers').upsert({
+                        discord_id:   member.id,
+                        display_name: member.displayName || member.user.username,
+                        status:       'RTD'
+                    }, { onConflict: 'discord_id' });
+                } else if (existing.status !== 'RTD') {
+                    // Row exists but status is wrong — correct it
+                    await supabase.from('enlisted_drivers')
+                        .update({ status: 'RTD' })
+                        .eq('discord_id', member.id);
+                }
+
                 rtdMembers.push({ member });
-            } catch { /* silent */ }
+            }
+            console.log(`[INACTIVITY] Found ${rtdMembers.length} existing RTD member(s) via Discord role.`);
+        } catch (err) {
+            console.error('[INACTIVITY] Error collecting RTD members from Discord:', err.message);
         }
 
         // Now scan RP members for retirement eligibility
