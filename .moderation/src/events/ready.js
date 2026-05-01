@@ -5,6 +5,7 @@ import { initStorage, saveCountingState, getServerStatistics } from '../systems/
 import { setupStatusRotation } from '../utils/statusRotation.js';
 import { createModLogsChannel } from '../utils/moderationUtils.js';
 import { recoverCountingState } from '../features/counting.js';
+import { startEmailPoller } from '../jobs/emailPoller.js';
 
 export default {
     name: Events.ClientReady,
@@ -135,5 +136,8 @@ export default {
                 console.error('Error initializing counting channel:', err);
             }
         }
+
+        // ===== Email Poller (Gmail → Bond's Cabin) =====
+        startEmailPoller(client);
     },
 };
