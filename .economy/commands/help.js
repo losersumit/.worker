@@ -14,6 +14,7 @@ export default {
         {
           name: '💵 Economy',
           value:
+            '`?daily`\nClaim your daily bonus. Streak builds up to **10× = €20,000/day**.\n' +
             '`?me`\nCheck your balance and stats.\n' +
             '`?me @user`\nCheck another player\'s balance.\n' +
             '`?transfer <amount|all> <@user>`\nSend money to another player.\n' +

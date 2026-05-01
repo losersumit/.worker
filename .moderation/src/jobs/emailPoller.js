@@ -15,7 +15,7 @@ const DISCORD_MAX_BYTES = 24 * 1024 * 1024; // 24 MB safety margin
 
 const GMAIL_EMAIL    = process.env.GMAIL_EMAIL;
 const GMAIL_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-const CABIN_ID       = process.env.BONDS_CABIN_CHANNEL_ID;
+const CABIN_ID       = process.env.MAIL_CHANNEL_ID;
 
 let polling = false;
 

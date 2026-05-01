@@ -1,5 +1,7 @@
-import { Events } from 'discord.js';
+import { Events, EmbedBuilder } from 'discord.js';
 import { supabase } from '../clients/supabase.js';
+
+const RTD_ANNOUNCE_CHANNEL_ID = process.env.RTD_ANNOUNCE_CHANNEL_ID;
 
 const ENLISTED_ROLE_ID = process.env.ENLISTED_ROLE_ID || '1482386008376086598';
 const AP_ROLE_ID       = process.env.AP_ROLE_ID       || '1463184412937289973';
@@ -88,6 +90,34 @@ export default {
                     console.log(`[ENLISTED] ✅ Status set to RTD for ${newMember.user.tag}`);
                 } catch (err) {
                     console.error('[ENLISTED] ❌ Failed to update RTD status:', err);
+                }
+
+                // ── Post retirement announcement embed ──────────
+                if (RTD_ANNOUNCE_CHANNEL_ID) {
+                    try {
+                        const channel = await newMember.client.channels.fetch(RTD_ANNOUNCE_CHANNEL_ID).catch(() => null);
+                        if (channel) {
+                            const avatarUrl = newMember.user.displayAvatarURL({ extension: 'png', size: 256 });
+                            const embed = new EmbedBuilder()
+                                .setColor(0x5865f2)
+                                .setTitle('🎖️ Driver Retired from Active Duty')
+                                .setDescription(
+                                    `**${newNick}** has been honorably retired from active service.\n` +
+                                    `Thank you for your dedication and service to **NMC**. 🫡`
+                                )
+                                .setThumbnail(avatarUrl)
+                                .addFields(
+                                    { name: '👤 Driver',   value: newNick,                 inline: true },
+                                    { name: '📋 Status',   value: 'Retired (RTD)',          inline: true },
+                                )
+                                .setFooter({ text: 'National Mobility Command • Retired Personnel' })
+                                .setTimestamp();
+                            await channel.send({ embeds: [embed] });
+                            console.log(`[ENLISTED] ✅ RTD retirement embed posted for ${newMember.user.tag}`);
+                        }
+                    } catch (err) {
+                        console.error('[ENLISTED] ❌ Failed to post RTD embed:', err);
+                    }
                 }
             } else {
                 // Genuinely left / was removed — delete the row

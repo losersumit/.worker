@@ -15,6 +15,8 @@ import { runMemoryCleanup } from './.moderation/src/systems/memoryCleanup.js';
 import { scheduleRagHourlySummaries } from './.moderation/src/features/ragChat.js';
 import { runInactivityScan } from './.moderation/src/jobs/inactivityScanner.js';
 import { refreshProfilePictures } from './.moderation/src/jobs/refreshProfilePictures.js';
+import { runWeeklyAwards } from './.moderation/src/jobs/weeklyAwards.js';
+import { startMilestoneChecker } from './.moderation/src/jobs/milestoneChecker.js';
 import schedule from 'node-schedule';
 
 // AI Integration
@@ -155,6 +157,15 @@ client.once('ready', async () => {
 
     // Run profile picture refresh immediately on startup
     refreshProfilePictures(supabase, client).catch(err => console.error('[AVATAR-REFRESH] Startup run failed:', err));
+
+    // ── Weekly Awards (JOTW + DOTW) every Sunday 9 PM London time ──
+    schedule.scheduleJob({ rule: '0 21 * * 0', tz: 'Europe/London' }, async () => {
+        console.log(`⏰ [AWARDS] Running weekly awards - ${new Date().toISOString()}`);
+        await runWeeklyAwards(client, supabase).catch(err => console.error('[AWARDS] Error:', err));
+    });
+
+    // ── Milestone Checker — event-driven via Supabase Realtime ──
+    startMilestoneChecker(client, supabase);
 });
 
 // Load events
