@@ -166,6 +166,25 @@ client.once('ready', async () => {
 
     // ── Milestone Checker — event-driven via Supabase Realtime ──
     startMilestoneChecker(client, supabase);
+
+    // ── Automatic 6-Hour Restart ( Railway Auto-Restart Trigger ) ──
+    const SIX_HOURS_IN_MS = 6 * 60 * 60 * 1000;
+    setInterval(async () => {
+        console.log(`⏰ [AUTO-RESTART] Scheduled 6-hour automatic restart triggered. Exiting process...`);
+        if (process.env.LOG_CHANNEL_ID) {
+            try {
+                const logChannel = await client.channels.fetch(process.env.LOG_CHANNEL_ID);
+                if (logChannel) {
+                    await logChannel.send('⏰ **[SYSTEM]** Scheduled 6-hour automatic container restart initiated.');
+                }
+            } catch (err) {
+                console.error('[AUTO-RESTART-LOG] Failed to send log message:', err.message);
+            }
+        }
+        setTimeout(() => {
+            process.exit(1);
+        }, 1000);
+    }, SIX_HOURS_IN_MS);
 });
 
 // Load events

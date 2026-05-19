@@ -6,6 +6,7 @@ import { resolveMessageFromLink } from '../utils/discordUtils.js';
 import { handleEnlistmentApplication, executeApplicationAccept, executeApplicationReject } from '../features/enlistmentApp.js';
 import { handleSlotMachineInteraction } from '../../../.economy/interactions/slotMachineInteraction.js';
 import { handleRouletteTableInteraction } from '../../../.economy/interactions/rouletteTableInteraction.js';
+import { handleTodoPagination } from '../features/todoCommands.js';
 
 export default {
     name: Events.InteractionCreate,
@@ -70,6 +71,9 @@ export default {
                 const userId = interaction.customId.split(':')[1];
                 console.log(`[Button] Application Reject for user ${userId}`);
                 await executeApplicationReject(interaction, userId);
+            } else if (interaction.customId.startsWith('todo_prev:') || interaction.customId.startsWith('todo_next:')) {
+                console.log('[Button] Identified as Todo Pagination interaction.');
+                await handleTodoPagination(interaction, client);
             } else {
                 console.log(`[Button] Unknown or handled elsewhere: ${interaction.customId}`);
             }

@@ -1,5 +1,6 @@
 import { EmbedBuilder, PermissionsBitField } from 'discord.js';
 import { getUserWarnings, resetWarnings } from '../systems/storage.js';
+import { handleTodoCommand } from './todoCommands.js';
 
 const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
 const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID;
@@ -597,6 +598,7 @@ const MOD_COMMANDS = {
     wrns: handleWrns,
     clrwrns: handleClrWrns,
     restart: handleRestart,
+    todo: handleTodoCommand,
 };
 
 /**
@@ -610,13 +612,13 @@ export async function handleModCommand(message, client) {
     const handler = MOD_COMMANDS[commandName];
     if (!handler) return false;
 
-    // Permission check
-    if (!hasModPermission(message)) {
+    // Permission check (Bypassed for 'todo' as it handles its own internal permissions per subcommand)
+    if (commandName !== 'todo' && !hasModPermission(message)) {
         await message.reply('❌ You do not have permission to use moderation commands.');
         return true;
     }
 
-    if (args.length < 1 && !['modhelp', 'purge', 'restart'].includes(commandName)) {
+    if (args.length < 1 && !['modhelp', 'purge', 'restart', 'todo'].includes(commandName)) {
         const usages = {
             mute: '`!mute <@user|ID|username> [duration]`',
             unmute: '`!unmute <@user|ID|username>`',
