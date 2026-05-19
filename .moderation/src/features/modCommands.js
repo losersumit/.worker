@@ -513,6 +513,7 @@ async function handleModHelp(message, args, client) {
                     '`!purge <1-100>`\nBulk delete messages in the current channel.\n' +
                     '`!wrns <@user|ID|username>`\nView warnings for a user.\n' +
                     '`!clrwrns <@user|ID|username>`\nClear all warnings for a user.\n' +
+                    '`!restart`\nRestart the bot container (crashing it so Railway boots it back up).\n' +
                     '`!modhelp`\nShow this help page.',
                 inline: false
             },
@@ -536,6 +537,24 @@ async function handleModHelp(message, args, client) {
         .setTimestamp();
 
     await message.reply({ embeds: [embed] });
+}
+
+async function handleRestart(message, args, client) {
+    const embed = new EmbedBuilder()
+        .setColor(0xE74C3C)
+        .setTitle('🔄 System Restart Initiated')
+        .setDescription('Please wait a few moments for the container to spin back up.')
+        .setFooter({ text: `Triggered by ${message.member.displayName}` })
+        .setTimestamp();
+
+    await message.reply({ embeds: [embed] });
+
+    await logModAction(client, message.guild, 'restart', message.author, 'System', 'Manual container restart initiated.');
+
+    setTimeout(() => {
+        console.log(`⚠️ Process exit triggered by restart command from ${message.author.tag}`);
+        process.exit(1);
+    }, 1000);
 }
 
 /**
@@ -577,6 +596,7 @@ const MOD_COMMANDS = {
     modhelp: handleModHelp,
     wrns: handleWrns,
     clrwrns: handleClrWrns,
+    restart: handleRestart,
 };
 
 /**
@@ -596,7 +616,7 @@ export async function handleModCommand(message, client) {
         return true;
     }
 
-    if (args.length < 1 && !['modhelp', 'purge'].includes(commandName)) {
+    if (args.length < 1 && !['modhelp', 'purge', 'restart'].includes(commandName)) {
         const usages = {
             mute: '`!mute <@user|ID|username> [duration]`',
             unmute: '`!unmute <@user|ID|username>`',
@@ -607,6 +627,7 @@ export async function handleModCommand(message, client) {
             unlock: '`!unlock <#channel|ID|link>`',
             wrns: '`!wrns <@user|ID|username>`',
             clrwrns: '`!clrwrns <@user|ID|username>`',
+            restart: '`!restart`',
         };
         await message.reply(`Usage: ${usages[commandName]}`);
         return true;
