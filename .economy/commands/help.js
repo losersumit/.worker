@@ -14,7 +14,7 @@ export default {
         {
           name: '💵 Economy',
           value:
-            '`?daily`\nClaim your daily bonus. Streak builds up to **10× = €20,000/day**.\n' +
+            '`?work`\nDo trucking side quests for random rewards (€1 - €2,000) every 12 hours. 7-day streak gives a €20,000 bonus!\n' +
             '`?me`\nCheck your balance and stats.\n' +
             '`?me @user`\nCheck another player\'s balance.\n' +
             '`?transfer <amount|all> <@user>`\nSend money to another player.\n' +
@@ -32,7 +32,7 @@ export default {
         {
           name: '🏦 Tax & Economy Rules',
           value:
-            '• **Daily Tax (10%)**: Deducted from **Bank Balance** at 12 AM. *Exempt if under €50,000.*\n' +
+            '• **Daily Tax (1%)**: Deducted from **Bank Balance** at 12 AM.\n' +
             '• **Game Tax (20%)**: Deducted from **Gamble Winnings**. ',
           inline: false
         }

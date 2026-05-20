@@ -1,6 +1,8 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { supabase } from '../clients/supabase.js';
 import { resolveAttachmentFromLink } from '../utils/discordUtils.js';
+import { groqChatCompletion } from '../clients/groq.js';
+import config from '../config.js';
 
 const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID || '1448029016844931143';
 const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID || '1455251260763541731';
@@ -53,27 +55,8 @@ export async function generateTodoEmbed(page = 0, client) {
     let descriptionText = '';
     
     for (const todo of todos) {
-        let statusEmoji = '⏳';
-        if (todo.status === 'Working') statusEmoji = '⚙️';
-        else if (todo.status === 'Done') statusEmoji = '✅';
-        else if (todo.status === 'Rejected') statusEmoji = '❌';
-
-        let freshImageUrl = null;
-        if (todo.image_url && todo.image_url.includes('discord.com/channels/')) {
-            const resolved = await resolveAttachmentFromLink(client, todo.image_url);
-            if (resolved) {
-                freshImageUrl = resolved.url;
-            }
-        } else {
-            freshImageUrl = todo.image_url;
-        }
-
-        descriptionText += `🔹 **#${todo.id}** — ${todo.task}\n`;
-        descriptionText += `Status: ${statusEmoji} **${todo.status}** | Initiated by: **${todo.created_by}**`;
-        if (freshImageUrl) {
-            descriptionText += ` | 🖼️ [View Attachment](${freshImageUrl})`;
-        }
-        descriptionText += `\n*Added <t:${Math.floor(new Date(todo.created_at).getTime() / 1000)}:R>*\n\n`;
+        descriptionText += `🔹 **#${todo.id}** — ${todo.title || todo.task}\n`;
+        descriptionText += `*Status: ${todo.status}*\n\n`;
     }
 
     embed.setDescription(descriptionText.trim());
@@ -145,6 +128,7 @@ export async function handleTodoCommand(message, args, client) {
                     value: 
                         '`!todo` / `!todo list` - Show the 5 most recent tasks (paginated).\n' +
                         '`!todo add <text>` - Register a new task. You can optionally upload/attach an image with this message.\n' +
+                        '`!todo view <number>` - View detailed information for a task.\n' +
                         '`!todo help` - Show this menu.'
                 },
                 {
@@ -162,6 +146,14 @@ export async function handleTodoCommand(message, args, client) {
         return;
     }
 
+    if (subCommand === 'view') {
+        const taskNumber = parseInt(args[1]);
+        if (isNaN(taskNumber)) {
+            return message.reply('❌ Usage: `!todo view <task_number>`. Example: `!todo view 5`');
+        }
+        return handleTodoView(message, args, client);
+    }
+
     if (subCommand === 'add') {
         const taskText = args.slice(1).join(' ').trim();
         if (!taskText) {
@@ -175,10 +167,29 @@ export async function handleTodoCommand(message, args, client) {
         const initiatorId = message.author.id;
 
         try {
+            // Generate a very short AI title
+            let titleText = taskText.substring(0, 40);
+            try {
+                const aiPrompt = `Translate the following task into a very short, concise title (maximum 4-5 words) summarizing it. Return ONLY the title, no extra text, no markdown, no quotes.\n\nTask: ${taskText}`;
+                const aiResponse = await groqChatCompletion({
+                    model: config.ai.model,
+                    messages: [{ role: 'user', content: aiPrompt }],
+                    temperature: 0.1,
+                    max_tokens: 30
+                });
+                const generatedTitle = aiResponse?.choices?.[0]?.message?.content?.trim();
+                if (generatedTitle) {
+                    titleText = generatedTitle.replace(/^["']|["']$/g, '');
+                }
+            } catch (aiErr) {
+                console.error('Error generating AI title:', aiErr);
+            }
+
             const { data: todo, error } = await supabase
                 .from('todos')
                 .insert({
                     task: taskText,
+                    title: titleText,
                     created_by: initiatorName,
                     created_by_id: initiatorId,
                     image_url: imageUrl,
@@ -189,34 +200,12 @@ export async function handleTodoCommand(message, args, client) {
 
             if (error) throw error;
 
-            const embed = new EmbedBuilder()
-                .setColor(0x2ECC71)
-                .setTitle('✅ Task Registered')
-                .setDescription(`Task **#${todo.id}** has been registered successfully!`)
-                .addFields(
-                    { name: '📝 Description', value: todo.task },
-                    { name: '👤 Initiated By', value: `${todo.created_by} (<@${todo.created_by_id}>)`, inline: true },
-                    { name: '⏳ Status', value: `\`${todo.status}\``, inline: true }
-                )
-                .setTimestamp();
+            // React with custom emoji or fallback standard checkmark
+            await message.react('1460635571151179868').catch(err => {
+                console.error('Failed to react with custom emoji:', err);
+                return message.react('✅');
+            }).catch(() => {});
 
-            if (todo.image_url) {
-                let freshImageUrl = null;
-                if (todo.image_url.includes('discord.com/channels/')) {
-                    const resolved = await resolveAttachmentFromLink(client, todo.image_url);
-                    if (resolved) {
-                        freshImageUrl = resolved.url;
-                    }
-                } else {
-                    freshImageUrl = todo.image_url;
-                }
-
-                if (freshImageUrl) {
-                    embed.setImage(freshImageUrl);
-                }
-            }
-
-            await message.reply({ embeds: [embed] });
         } catch (err) {
             console.error('Error adding todo:', err);
             await message.reply('❌ Failed to add the task to the todo list.');
@@ -249,7 +238,11 @@ export async function handleTodoCommand(message, args, client) {
                     return message.reply(`❌ Task **#${taskNumber}** not found or already deleted.`);
                 }
 
-                await message.reply(`🗑️ Task **#${taskNumber}** has been permanently deleted.`);
+                // React with custom emoji
+                await message.react('1460635571151179868').catch(err => {
+                    console.error('Failed to react with custom emoji:', err);
+                    return message.react('✅');
+                }).catch(() => {});
             } else {
                 let statusString = 'Not reviewed yet';
                 if (subCommand === 'working') statusString = 'Working';
@@ -267,17 +260,18 @@ export async function handleTodoCommand(message, args, client) {
                     return message.reply(`❌ Task **#${taskNumber}** not found.`);
                 }
 
-                let statusEmoji = '⏳';
-                if (statusString === 'Working') statusEmoji = '⚙️';
-                else if (statusString === 'Done') statusEmoji = '✅';
-                else if (statusString === 'Rejected') statusEmoji = '❌';
+                // React with custom emoji
+                await message.react('1460635571151179868').catch(err => {
+                    console.error('Failed to react with custom emoji:', err);
+                    return message.react('✅');
+                }).catch(() => {});
 
-                const embed = new EmbedBuilder()
-                    .setColor(subCommand === 'done' ? 0x2ECC71 : subCommand === 'reject' ? 0xE74C3C : 0xF1C40F)
-                    .setDescription(`System task **#${taskNumber}** status updated to: ${statusEmoji} **${statusString}**`)
-                    .setTimestamp();
-
-                await message.reply({ embeds: [embed] });
+                // Done pings original user
+                if (subCommand === 'done') {
+                    const targetUserId = updatedTodo.created_by_id;
+                    const taskTitle = updatedTodo.title || updatedTodo.task;
+                    await message.channel.send(`<@${targetUserId}>, your task **#${taskNumber}** ("${taskTitle}") is done!`);
+                }
             }
         } catch (err) {
             console.error(`Error executing todo ${subCommand}:`, err);
@@ -287,4 +281,61 @@ export async function handleTodoCommand(message, args, client) {
     }
 
     await message.reply('❌ Unknown todo subcommand. Use `!todo help` to see available commands.');
+}
+
+export async function handleTodoView(message, args, client) {
+    const BONDS_CABIN_CHANNEL_ID = process.env.BONDS_CABIN_CHANNEL_ID || '1448038019755151391';
+    if (message.channelId !== BONDS_CABIN_CHANNEL_ID) {
+        return message.reply(`❌ The \`!todo\` command can only be used in Bond's Cabin (<#${BONDS_CABIN_CHANNEL_ID}>).`);
+    }
+
+    const taskNumber = parseInt(args[1]);
+    if (isNaN(taskNumber)) {
+        return message.reply('❌ Usage: \`!todo view <task_number>\`. Example: \`!todo view 5\`');
+    }
+
+    try {
+        const { data: todo, error } = await supabase
+            .from('todos')
+            .select('*')
+            .eq('id', taskNumber)
+            .single();
+
+        if (error || !todo) {
+            return message.reply(`❌ Task **#${taskNumber}** not found.`);
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor(todo.status === 'Done' ? 0x2ECC71 : todo.status === 'Rejected' ? 0xE74C3C : todo.status === 'Working' ? 0xF1C40F : 0x5865F2)
+            .setTitle(`📋 Task Details — #${todo.id}`)
+            .addFields(
+                { name: '📌 Title', value: todo.title || 'No Title' },
+                { name: '📝 Description', value: todo.task || 'No Description' },
+                { name: '👤 Initiated By', value: `${todo.created_by} (<@${todo.created_by_id}>)`, inline: true },
+                { name: '⏳ Status', value: `\`${todo.status}\``, inline: true },
+                { name: '📅 Date Added', value: `<t:${Math.floor(new Date(todo.created_at).getTime() / 1000)}:F>`, inline: false }
+            )
+            .setTimestamp();
+
+        if (todo.image_url) {
+            let freshImageUrl = null;
+            if (todo.image_url.includes('discord.com/channels/')) {
+                const resolved = await resolveAttachmentFromLink(client, todo.image_url);
+                if (resolved) {
+                    freshImageUrl = resolved.url;
+                }
+            } else {
+                freshImageUrl = todo.image_url;
+            }
+
+            if (freshImageUrl) {
+                embed.setImage(freshImageUrl);
+            }
+        }
+
+        await message.reply({ embeds: [embed] });
+    } catch (err) {
+        console.error('Error viewing task:', err);
+        await message.reply('❌ Failed to retrieve task details.');
+    }
 }

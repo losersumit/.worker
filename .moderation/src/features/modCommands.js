@@ -541,14 +541,11 @@ async function handleModHelp(message, args, client) {
 }
 
 async function handleRestart(message, args, client) {
-    const embed = new EmbedBuilder()
-        .setColor(0xE74C3C)
-        .setTitle('🔄 System Restart Initiated')
-        .setDescription('Please wait a few moments for the container to spin back up.')
-        .setFooter({ text: `Triggered by ${message.member.displayName}` })
-        .setTimestamp();
-
-    await message.reply({ embeds: [embed] });
+    // React with custom emoji
+    await message.react('1460635571151179868').catch(err => {
+        console.error('Failed to react with custom emoji:', err);
+        return message.react('✅');
+    }).catch(() => {});
 
     await logModAction(client, message.guild, 'restart', message.author, 'System', 'Manual container restart initiated.');
 
