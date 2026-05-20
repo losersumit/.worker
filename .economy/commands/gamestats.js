@@ -1,19 +1,30 @@
 import { EmbedBuilder } from 'discord.js';
 
 export default {
-  name: 'stats',
-  description: 'Shows your statistics for all games',
+  name: 'gamestats',
+  description: 'Shows game statistics for a user',
   async execute(message, args, client) {
     await message.channel.sendTyping();
 
     try {
+      // Find the target user and member
+      let targetMember = message.mentions.members?.first() || message.member;
+      let targetUser = targetMember?.user || message.author;
+
       const { data: player } = await client.supabase
         .from('players')
         .select('id')
-        .eq('discord_id', message.author.id)
-        .single();
+        .eq('discord_id', targetUser.id)
+        .maybeSingle();
 
-      if (!player) return message.reply('You are not registered in the economy system.');
+      const displayName = targetMember?.displayName || targetUser.username;
+
+      if (!player) {
+        const errorMsg = targetUser.id === message.author.id
+          ? '❌ You are not registered in the UVS system yet. Post a job log first!'
+          : `❌ ${displayName} is not registered in the UVS system yet.`;
+        return message.reply(errorMsg);
+      }
 
       // Fetch all economy history at once
       const { data: history } = await client.supabase
@@ -72,12 +83,10 @@ export default {
         rrTimeout = h > 0 ? `${h}h ${m}m` : `${m}m`;
       }
 
-      const displayName = message.member?.displayName || message.author.username;
-
       const embed = new EmbedBuilder()
         .setColor(0x2F3136)
         .setTitle(`📊 Game Statistics: ${displayName}`)
-        .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
+        .setThumbnail(targetUser.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
           {
             name: '🪙 Coinflip',

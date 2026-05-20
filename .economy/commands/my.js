@@ -6,11 +6,21 @@ export default {
     description: 'Check your personal items (skins, etc.)',
     async execute(message, args, client) {
 
-        if (args.length < 1) {
-            return message.reply('Usage: `?my <skins>`');
-        }
+        let subcommand = 'info';
+        let targetArg = null;
 
-        const subcommand = args[0].toLowerCase();
+        if (args.length > 0) {
+            const firstArg = args[0].toLowerCase();
+            if (firstArg === 'skins') {
+                subcommand = 'skins';
+            } else if (firstArg === 'info') {
+                subcommand = 'info';
+                targetArg = args[1] || null;
+            } else {
+                subcommand = 'info';
+                targetArg = args[0];
+            }
+        }
 
         if (subcommand === 'skins') {
             await message.channel.sendTyping();
@@ -189,8 +199,187 @@ export default {
                 console.error(error);
                 message.reply('An error occurred.');
             }
+        } else if (subcommand === 'info') {
+            await message.channel.sendTyping();
+            try {
+                // 1. Resolve Target User & Member (supports mentions and ID inputs)
+                let targetMember = message.member;
+                if (message.mentions.members && message.mentions.members.size > 0) {
+                    targetMember = message.mentions.members.first();
+                } else if (targetArg) {
+                    const possibleId = targetArg.replace(/[<@!>]/g, '');
+                    const fetched = await message.guild.members.fetch(possibleId).catch(() => null);
+                    if (fetched) targetMember = fetched;
+                }
+                const targetUser = targetMember?.user || message.author;
+                const displayName = targetMember?.displayName || targetUser.username;
+
+                // 2. Parallel Fetch: basic profiles & message count
+                const [playerRes, driverRes, identityRes] = await Promise.all([
+                    client.supabase.from('players').select('id, registration_number, created_at, joined_at').eq('discord_id', targetUser.id).maybeSingle(),
+                    client.supabase.from('enlisted_drivers').select('unit_number, status, created_at').eq('discord_id', targetUser.id).maybeSingle(),
+                    client.supabase.from('verified_identities').select('message_count').eq('user_id', targetUser.id).maybeSingle()
+                ]);
+
+                const player = playerRes.data;
+                const driver = driverRes.data;
+
+                let msgCount = identityRes.data?.message_count;
+                if (msgCount === undefined || msgCount === null) {
+                    const messageCountRes = await client.supabase.from('rag_messages').select('*', { count: 'exact', head: true }).eq('user_id', targetUser.id);
+                    msgCount = messageCountRes.count || 0;
+                }
+
+                // 3. Fetch skins count, last job log & level if user is a registered player
+                let skinsCount = 0;
+                let lastJobString = 'Never';
+                let level = 1;
+
+                if (player) {
+                    const [skinsRes, lastJobRes, statsRes] = await Promise.all([
+                        client.supabase.from('player_skins').select('*', { count: 'exact', head: true }).eq('player_id', player.id),
+                        client.supabase.from('runs').select('created_at').eq('player_id', player.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+                        client.supabase.from('player_stats').select('level').eq('player_id', player.id).maybeSingle()
+                    ]);
+
+                    skinsCount = skinsRes.count || 0;
+                    if (lastJobRes.data) {
+                        const runDate = new Date(lastJobRes.data.created_at);
+                        const runTimestamp = Math.floor(runDate.getTime() / 1000);
+                        lastJobString = `<t:${runTimestamp}:F> (<t:${runTimestamp}:R>)`;
+                    }
+                    if (statsRes.data?.level) {
+                        level = statsRes.data.level;
+                    }
+                }
+
+                // 4. Resolve Unit Number (fallback to players registration number)
+                const unitNumber = driver?.unit_number || player?.registration_number || 'N/A';
+
+                // 5. Enlistment and Rank Role IDs
+                const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID || '1448029016844931143';
+                const SMO_ROLE_ID = process.env.SMO_ROLE_ID || '1475314856184778835';
+                const FO_ROLE_ID = process.env.FO_ROLE_ID || '1475314865878077603';
+                const O_ROLE_ID = process.env.O_ROLE_ID || '1475314870802055421';
+                const RTD_ROLE_ID = process.env.RTD_ROLE_ID || '1499413282279129139';
+                const RP_ROLE_ID = process.env.RP_ROLE_ID || '1482059608536387795';
+                const AP_ROLE_ID = process.env.AP_ROLE_ID || '1463184412937289973';
+
+                const hasCommander = targetMember?.roles?.cache?.has(COMMANDER_ROLE_ID);
+                const hasSMO = targetMember?.roles?.cache?.has(SMO_ROLE_ID);
+                const hasFO = targetMember?.roles?.cache?.has(FO_ROLE_ID);
+                const hasO = targetMember?.roles?.cache?.has(O_ROLE_ID);
+                const hasRTD = targetMember?.roles?.cache?.has(RTD_ROLE_ID) || driver?.status === 'RTD';
+
+                const isEnlisted = hasCommander || hasSMO || hasFO || hasO;
+                const isRetired = !isEnlisted && hasRTD;
+                const isVisitor = !isEnlisted && !isRetired;
+
+                // 6. Resolve Status
+                let statusText = 'N/A';
+                if (isEnlisted) {
+                    if (targetMember?.roles?.cache?.has(RP_ROLE_ID) || driver?.status === 'RP') {
+                        statusText = '🟡 Reserved Personnel';
+                    } else {
+                        statusText = '🟢 Active Personnel'; // Default to active if enlisted
+                    }
+                } else if (isRetired) {
+                    statusText = '🔴 Retired Personnel';
+                }
+
+                // 7. Resolve Rank
+                let rankValue = 'Visitor';
+                if (isEnlisted) {
+                    let rankName = 'Driver';
+                    if (hasCommander) rankName = 'Supreme Commander';
+                    else if (hasSMO) rankName = 'Senior Mobility Operator';
+                    else if (hasFO) rankName = 'Field Operator';
+                    else if (hasO) rankName = 'Operator';
+                    rankValue = `${rankName} (Lvl ${level})`;
+                } else if (isRetired) {
+                    rankValue = 'Retired Driver';
+                }
+
+                // 8. Resolve Dates
+                let joinString = 'Unknown';
+                let joinedDate = null;
+
+                if (isVisitor) {
+                    // Visitor: show date joined server
+                    if (targetMember?.joinedAt) {
+                        joinedDate = targetMember.joinedAt;
+                    }
+                } else {
+                    // Enlisted or Retired: show enlistment date
+                    if (driver?.created_at) {
+                        joinedDate = new Date(driver.created_at);
+                    } else if (player?.joined_at) {
+                        joinedDate = new Date(player.joined_at);
+                    } else if (player?.created_at) {
+                        joinedDate = new Date(player.created_at);
+                    } else if (targetMember?.joinedAt) {
+                        joinedDate = targetMember.joinedAt;
+                    }
+                }
+
+                if (joinedDate) {
+                    const joinTimestamp = Math.floor(joinedDate.getTime() / 1000);
+                    joinString = `<t:${joinTimestamp}:F> (<t:${joinTimestamp}:R>)`;
+                }
+
+                // Resolve date retired if retired
+                let retiredString = null;
+                if (isRetired) {
+                    let retiredDate = null;
+                    if (identityRes.data?.date_retired) {
+                        retiredDate = new Date(identityRes.data.date_retired);
+                    } else {
+                        // Default to March 31, 2026
+                        retiredDate = new Date('2026-03-31T00:00:00Z');
+                    }
+                    const retiredTimestamp = Math.floor(retiredDate.getTime() / 1000);
+                    retiredString = `<t:${retiredTimestamp}:F> (<t:${retiredTimestamp}:R>)`;
+                }
+
+                // 9. Construct Embed Fields dynamically
+                const embedFields = [
+                    { name: '🆔 Unit Number', value: `\`${unitNumber}\``, inline: true },
+                    { name: '🎖️ Rank', value: `\`${rankValue}\``, inline: true },
+                    { name: '📊 Status', value: statusText, inline: true }
+                ];
+
+                if (isVisitor) {
+                    embedFields.push({ name: '📅 Date Joined', value: joinString, inline: false });
+                } else {
+                    embedFields.push({ name: '📅 Date Enlisted', value: joinString, inline: false });
+                    if (isRetired && retiredString) {
+                        embedFields.push({ name: '📅 Date Retired', value: retiredString, inline: false });
+                    }
+                }
+
+                embedFields.push(
+                    { name: '🛍️ Skins Bought', value: `\`${skinsCount} skin(s)\``, inline: true },
+                    { name: '💬 Messages Sent', value: `\`${msgCount.toLocaleString()} message(s)\``, inline: true },
+                    { name: '🚛 Last Active Job', value: lastJobString, inline: false }
+                );
+
+                // 10. Construct and Send beautiful Embed
+                const infoEmbed = new EmbedBuilder()
+                    .setColor(0x3498DB) // Premium Blue
+                    .setTitle(`📇 Personnel Information: ${displayName}`)
+                    .setThumbnail(targetUser.displayAvatarURL({ extension: 'png', size: 256, dynamic: true }))
+                    .addFields(embedFields)
+                    .setFooter({ text: `NMC Registry • Requested by ${message.member?.displayName || message.author.username}` })
+                    .setTimestamp();
+
+                await message.reply({ embeds: [infoEmbed] });
+
+            } catch (err) {
+                console.error('Error fetching personnel info:', err);
+                message.reply('❌ An error occurred while retrieving driver profile.');
+            }
         } else {
-            message.reply('Unknown subcommand. Try `?my skins`.');
+            message.reply('Unknown subcommand. Try `?my skins` or `?my info`.');
         }
     },
 };

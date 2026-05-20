@@ -12,6 +12,21 @@ function hasModPermission(member) {
     return member.roles.cache.has(COMMANDER_ROLE_ID) || member.roles.cache.has(PARTNER_ROLE_ID);
 }
 
+function formatStatus(status) {
+    switch (status) {
+        case 'Not reviewed yet':
+            return '⏳ Not reviewed yet';
+        case 'Working':
+            return '⚙️ Working';
+        case 'Done':
+            return '✅ Done';
+        case 'Rejected':
+            return '❌ Rejected';
+        default:
+            return `❓ ${status}`;
+    }
+}
+
 export async function generateTodoEmbed(page = 0, client) {
     const limit = 5;
     const offset = page * limit;
@@ -56,7 +71,7 @@ export async function generateTodoEmbed(page = 0, client) {
     
     for (const todo of todos) {
         descriptionText += `🔹 **#${todo.id}** — ${todo.title || todo.task}\n`;
-        descriptionText += `*Status: ${todo.status}*\n\n`;
+        descriptionText += `*Status: ${formatStatus(todo.status)}*\n\n`;
     }
 
     embed.setDescription(descriptionText.trim());
@@ -312,7 +327,7 @@ export async function handleTodoView(message, args, client) {
                 { name: '📌 Title', value: todo.title || 'No Title' },
                 { name: '📝 Description', value: todo.task || 'No Description' },
                 { name: '👤 Initiated By', value: `${todo.created_by} (<@${todo.created_by_id}>)`, inline: true },
-                { name: '⏳ Status', value: `\`${todo.status}\``, inline: true },
+                { name: 'Status', value: formatStatus(todo.status), inline: true },
                 { name: '📅 Date Added', value: `<t:${Math.floor(new Date(todo.created_at).getTime() / 1000)}:F>`, inline: false }
             )
             .setTimestamp();

@@ -4,6 +4,7 @@ import '../utils/loadEnv.js';
 import config from '../config.js';
 import { supabase } from '../clients/supabase.js';
 import { rebuildPersonnelEmbeds } from '../jobs/inactivityScanner.js';
+import { validateRun } from './anticheat.js';
 
 // Configuration
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -77,28 +78,61 @@ async function callGroqVision(prompt, imageUrl, maxRetries = 10) {
     return null;
 }
 
-// ─── Validation: is this a valid job completion screenshot? ──────────────────
+// ─── Unified extraction and validation: extracts all stats and returns them ──
 
-/**
- * Asks the AI if the image is a valid job completion screen.
- * Returns true if valid, false otherwise.
- */
-async function isValidJobCompletionScreen(imageUrl) {
-    const prompt = `Look at this image carefully.
-Is this a valid in-game job completion / delivery completion screenshot from Euro Truck Simulator 2 or American Truck Simulator?
-A valid screenshot shows a job/delivery results screen with stats like income, distance, XP, or score.
-Return JSON with a single key: {"valid": true} or {"valid": false}.
-If you are unsure, return {"valid": false}.`;
+function parseGameNumber(val) {
+    if (val === undefined || val === null) return 0;
+    let str = String(val).trim();
+    if (str === "" || str === "-") return 0;
+    
+    // Strip all non-digit characters to handle thousands separators, currency signs, minus signs, etc.
+    str = str.replace(/[^\d]/g, "");
+    
+    const num = parseInt(str, 10);
+    return isNaN(num) ? 0 : num;
+}
+
+async function extractStatsFromImage(imageUrl) {
+    const prompt = `
+You are an OCR system for the game Truckers of Europe 3. 
+Analyze the "Job Finished" screen.
+Extract these exact values into JSON. All numerical fields must be returned as strings representing the exact value seen in the screenshot, preserving any dots or commas.
+
+{
+  "valid": true,
+  "distance_km": "string", (e.g. "2350" or "1.234")
+  "time_minutes": "string", (convert "7h 30m" to total minutes as a string, e.g. "450")
+  "damage_penalty": "string", (exact value, e.g. "-" or "1.200")
+  "time_penalty": "string", (exact value, e.g. "2.011")
+  "income": "string", (exact value, e.g. "5.037")
+  "level": "string", (The level shown, e.g. "42")
+  "xp": "string" (current XP, e.g. "80.800")
+}
+
+IMPORTANT: In this game, dots (.) are used as thousands separators, not decimals. Do not try to convert or parse them yourself; just return the exact string seen in the screenshot.
+
+If this is NOT a valid "Job Finished" screen, return:
+{ "valid": false }
+`;
 
     const raw = await callGroqVision(prompt, imageUrl);
-    if (!raw) return false;
+    if (!raw) return null;
 
     try {
         const result = JSON.parse(raw);
-        return result.valid === true;
+        if (result && result.valid) {
+            result.distance_km = parseGameNumber(result.distance_km);
+            result.time_minutes = parseGameNumber(result.time_minutes);
+            result.damage_penalty = parseGameNumber(result.damage_penalty);
+            result.time_penalty = parseGameNumber(result.time_penalty);
+            result.income = parseGameNumber(result.income);
+            result.level = parseGameNumber(result.level);
+            result.xp = parseGameNumber(result.xp);
+        }
+        return result;
     } catch {
-        console.error('[LevelSystem] Failed to parse validity JSON:', raw);
-        return false;
+        console.error('[LevelSystem] Failed to parse stats JSON:', raw);
+        return null;
     }
 }
 
@@ -142,25 +176,7 @@ async function isDuplicateImage(imageHash) {
     return data !== null;
 }
 
-// ─── Level extraction ─────────────────────────────────────────────────────────
 
-async function extractLevelFromImage(imageUrl) {
-    const prompt = `Analyze this image.
-There are two big numbers on either side of a green bar. The number on the left is the current level, and the number on the right is the next level.
-Return JSON with a single key "level" containing the number on the left as an integer.
-If you cannot clearly see the numbers or if there is no level bar, return {"level": null}.`;
-
-    const raw = await callGroqVision(prompt, imageUrl);
-    if (!raw) return null;
-
-    try {
-        const result = JSON.parse(raw);
-        return result.level;
-    } catch {
-        console.error('[LevelSystem] Failed to parse level JSON:', raw);
-        return null;
-    }
-}
 
 // ─── RP → AP reactivation ────────────────────────────────────────────────────
 
@@ -254,9 +270,19 @@ export async function processLevelScreenshot(message) {
 
     // ── Gate 2: AI validation ─────────────────────────────────────────────
     console.log(`[LevelSystem] Validating screenshot from ${message.author.username}...`);
-    const isValid = await isValidJobCompletionScreen(targetImage.url);
-    if (!isValid) {
+    const ocrResult = await extractStatsFromImage(targetImage.url);
+    if (!ocrResult || ocrResult.valid === false) {
         console.log(`[LevelSystem] Screenshot rejected (not a valid job completion) from ${message.author.username}.`);
+        return;
+    }
+
+    // ── Gate 2.5: Anticheat validation ────────────────────────────────────
+    const currentRoleConfig = LEVEL_ROLES.find(r => member.roles.cache.has(r.id));
+    const prevLevel = currentRoleConfig ? currentRoleConfig.min : 0;
+    
+    const validationCheck = validateRun(ocrResult, { level: prevLevel });
+    if (!validationCheck.ok) {
+        console.log(`[LevelSystem] Run rejected by anticheat for ${message.author.username}: ${validationCheck.reason}`);
         return;
     }
 
@@ -280,8 +306,8 @@ export async function processLevelScreenshot(message) {
         }
     }
 
-    // ── Level extraction & role upgrade ──────────────────────────────────
-    const level = await extractLevelFromImage(targetImage.url);
+    // ── Level role upgrade ──────────────────────────────────
+    const level = ocrResult.level;
 
     if (level !== null && typeof level === 'number') {
         const targetRoleConfig = LEVEL_ROLES.find(r => level >= r.min && level < r.max);

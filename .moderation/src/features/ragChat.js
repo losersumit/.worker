@@ -110,6 +110,16 @@ async function upsertVerifiedIdentity(supabase, message) {
         ? member.roles.cache.filter(r => r.name !== '@everyone').map(r => r.name).slice(0, 30)
         : [];
 
+    // Fetch existing message count to increment it all-time going forward
+    const { data: existing } = await supabase
+        .from('verified_identities')
+        .select('message_count')
+        .eq('guild_id', guild.id)
+        .eq('user_id', message.author.id)
+        .maybeSingle();
+
+    const currentCount = existing?.message_count || 0;
+
     const verified = {
         guild_id: guild.id,
         user_id: message.author.id,
@@ -117,6 +127,7 @@ async function upsertVerifiedIdentity(supabase, message) {
         is_owner: guild.ownerId === message.author.id,
         is_admin: Boolean(member.permissions?.has('Administrator')),
         role_names: roleNames,
+        message_count: currentCount + 1,
         updated_at: new Date().toISOString(),
     };
 

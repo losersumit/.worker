@@ -168,18 +168,37 @@ async function handleBuySkin(interaction, client) {
             const rolesStr = typeof skin.roles_allowed === 'string' ? skin.roles_allowed : JSON.stringify(skin.roles_allowed);
             const requiredRoleIds = rolesStr.match(/\d+/g) || [];
 
-            let hasAllRequiredRoles = true;
+            const SMO_ROLE_ID = process.env.SMO_ROLE_ID || '1475314856184778835';
+            const FO_ROLE_ID = process.env.FO_ROLE_ID || '1475314865878077603';
+            const O_ROLE_ID = process.env.O_ROLE_ID || '1475314870802055421';
+
+            const userIsSMO = interaction.member.roles.cache.has(SMO_ROLE_ID);
+            const userIsFO = interaction.member.roles.cache.has(FO_ROLE_ID);
+            const userIsO = interaction.member.roles.cache.has(O_ROLE_ID);
+
+            const userRankWeight = userIsSMO ? 3 : (userIsFO ? 2 : (userIsO ? 1 : 0));
+
+            let hasRequiredRoles = true;
             for (const id of requiredRoleIds) {
-                if (!interaction.member.roles.cache.has(id)) {
-                    hasAllRequiredRoles = false;
-                    console.log(`[BuySkin] Missing required role: ${id}`);
-                    break;
+                if (id === SMO_ROLE_ID || id === FO_ROLE_ID || id === O_ROLE_ID) {
+                    const skinRankWeight = (id === SMO_ROLE_ID) ? 3 : ((id === FO_ROLE_ID) ? 2 : 1);
+                    if (userRankWeight < skinRankWeight) {
+                        hasRequiredRoles = false;
+                        console.log(`[BuySkin] Insufficient rank for role: ${id}`);
+                        break;
+                    }
+                } else {
+                    if (!interaction.member.roles.cache.has(id)) {
+                        hasRequiredRoles = false;
+                        console.log(`[BuySkin] Missing required role: ${id}`);
+                        break;
+                    }
                 }
             }
 
-            if (!hasAllRequiredRoles) {
-                console.log("[BuySkin] User does not have ALL the required roles for the skin.");
-                return interaction.editReply(`âŒ You don't have all the required roles to purchase the **${skin.name}** skin.`);
+            if (!hasRequiredRoles) {
+                console.log("[BuySkin] User does not have sufficient rank or required roles for the skin.");
+                return interaction.editReply(`❌ You don't have the required rank or roles to purchase the **${skin.name}** skin.`);
             }
         }
 

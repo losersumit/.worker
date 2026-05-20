@@ -10,6 +10,13 @@ async function applyDailyTax(client) {
     console.log('🏦 Applying daily 1% tax to player wallets...');
 
     const TARGET_GUILD_ID = process.env.GUILD_ID;
+    const ENLISTED_ROLE_ID = process.env.ENLISTED_ROLE_ID || '1482386008376086598';
+
+    const guildObj = await client.guilds.fetch(TARGET_GUILD_ID).catch(() => null);
+    if (!guildObj) {
+      console.error(`[TAX] Target guild ${TARGET_GUILD_ID} not found or inaccessible.`);
+      return;
+    }
 
     const { data: players, error: playersError } = await client.supabase
       .from('player_stats')
@@ -17,6 +24,7 @@ async function applyDailyTax(client) {
     player_id,
     wallet,
     players!inner (
+      discord_id,
       guild_id
     )
   `)
@@ -31,6 +39,15 @@ async function applyDailyTax(client) {
     let totalTaxCollected = 0;
 
     for (const player of players) {
+      const discordId = player.players?.discord_id;
+      if (!discordId) continue;
+
+      // Check if the player has the Enlisted role in the guild
+      const member = await guildObj.members.fetch(discordId).catch(() => null);
+      if (!member || !member.roles.cache.has(ENLISTED_ROLE_ID)) {
+        continue; // Skip taxing if member does not have the Enlisted role
+      }
+
       const tax = Math.floor(player.wallet * 0.01);
       const newWallet = Math.floor(player.wallet - tax);
 
