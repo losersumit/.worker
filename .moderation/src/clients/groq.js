@@ -9,11 +9,12 @@ export const api_key_three = process.env.GROQ_API_KEY_THREE || '';
 export const api_key_four = process.env.GROQ_API_KEY_FOUR || '';
 export const api_key_five = process.env.GROQ_API_KEY_FIVE || '';
 export const api_key_six = process.env.GROQ_API_KEY_SIX || '';
+export const api_key_seven = process.env.GROQ_API_KEY_SEVEN || '';
 
 const GROQ_ENDPOINT =
     process.env.GROQ_ENDPOINT || 'https://api.groq.com/openai/v1/chat/completions';
 
-const keys = [api_key_one, api_key_two, api_key_three, api_key_four, api_key_five, api_key_six].filter(k => k);
+const keys = [api_key_one, api_key_two, api_key_three, api_key_four, api_key_five, api_key_six, api_key_seven].filter(k => k);
 let activeKeyIndex = 0;
 
 function normalizeErrorMessage(err) {

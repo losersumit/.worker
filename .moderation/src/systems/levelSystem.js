@@ -27,7 +27,10 @@ const keys = [
     process.env.GROQ_API_KEY_ONE,
     process.env.GROQ_API_KEY_TWO,
     process.env.GROQ_API_KEY_THREE,
-    process.env.GROQ_API_KEY_FOUR
+    process.env.GROQ_API_KEY_FOUR,
+    process.env.GROQ_API_KEY_FIVE,
+    process.env.GROQ_API_KEY_SIX,
+    process.env.GROQ_API_KEY_SEVEN
 ].filter(k => k);
 
 if (keys.length === 0) {

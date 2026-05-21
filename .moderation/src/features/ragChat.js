@@ -41,35 +41,59 @@ function getImageAttachment(message) {
 async function reactToImage(message, imageAttachment) {
     if (!imageAttachment?.url) return;
 
-    // Use the dynamic config vision model or fallback to 11b-vision
-    let modelToUse = 'llama-3.2-11b-vision-preview';
-    try {
-        const { default: config } = await import('../config.js');
-        if (config?.ai?.visionModel) modelToUse = config.ai.visionModel;
-    } catch { }
+    // Get the list of server emojis (name:id) for the model to choose from
+    const guildEmojis = message.guild?.emojis?.cache || [];
+    const emojiListStr = guildEmojis.map(e => `${e.name}:${e.id}`).join(', ');
 
-    try {
-        const data = await groqChatCompletion({
-            model: modelToUse,
-            messages: [{
-                role: 'user',
-                content: [
-                    { type: 'text', text: 'Analyze this image and reply with exactly ONE single standard Unicode Emoji that best represents it. Do not send any text, words, or punctuation. ONLY one emoji.' },
-                    { type: 'image_url', image_url: { url: imageAttachment.url } }
-                ]
-            }],
-            temperature: 0.2, // Low temp for more consistent/logical emoji choices
-            max_tokens: 10,
-        });
+    // Build a prompt that asks the model to classify the image and output an emoji name or ID.
+    const prompt = `You are an image classifier for a virtual trucking company. Examine the image and decide:
+- If the image contains a truck and is a high‑quality cinematic shot with good lighting, respond with the word "goated".
+- If the image contains a truck but is a low‑quality or poorly lit shot, respond with the word "meeditation".
+- If the image does NOT contain a truck, choose the most appropriate existing server emoji that best matches the image. Respond with the emoji ID (numeric part) from the list.
+Here is the list of available server emojis (name:id): ${emojiListStr}`;
 
-        const emoji = data?.choices?.[0]?.message?.content?.trim();
-        // Basic validation to ensure it's likely an emoji and not a sentence
-        if (emoji && emoji.length <= 4 && !/[a-zA-Z0-9]/.test(emoji)) {
-            await message.react(emoji);
+    // Call the vision model with the prompt
+    const data = await groqChatCompletion({
+        model: modelToUse,
+        messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageAttachment.url } }] }],
+        temperature: 0.2,
+        max_tokens: 20,
+    });
+
+    const rawResponse = data?.choices?.[0]?.message?.content?.trim() || '';
+    const response = rawResponse.toLowerCase();
+
+    // Determine which emoji to react with
+    let emojiToReact = null;
+    // Direct matches for the two special cases
+    if (response.includes('goated')) {
+        emojiToReact = guildEmojis.find(e => e.name === 'goated');
+    } else if (response.includes('meeditation')) {
+        emojiToReact = guildEmojis.find(e => e.name === 'meeditation');
+    } else {
+        // Assume the model returned an ID; try to find that emoji
+        const idMatch = response.match(/\d{17,}/);
+        if (idMatch) {
+            const id = idMatch[0];
+            emojiToReact = guildEmojis.get(id);
         }
-    } catch (err) {
-        console.error('[RAG] Image reaction failed:', err.message);
     }
+
+    // Fallback: if we couldn't resolve, react with a generic ✅
+    if (!emojiToReact) {
+        console.warn('[RAG] Could not determine appropriate emoji, falling back to ✅');
+        await message.react('✅');
+        return;
+    }
+
+    try {
+        await message.react(emojiToReact);
+    } catch (reactErr) {
+        console.error('[RAG] Failed to react with chosen emoji:', reactErr.message);
+        // fallback to generic ✅
+        await message.react('✅');
+    }
+
 }
 
 function autoReplyAllowed(channelId) {
