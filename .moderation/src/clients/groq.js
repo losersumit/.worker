@@ -8,7 +8,7 @@ export const api_key_two = process.env.GROQ_API_KEY_TWO || process.env.GROQ_API_
 export const api_key_three = process.env.GROQ_API_KEY_THREE || '';
 export const api_key_four = process.env.GROQ_API_KEY_FOUR || '';
 export const api_key_five = process.env.GROQ_API_KEY_FIVE || '';
-export const api_key_six = process.env.GROQ_API_KEY_SIX || '';
+export const api_key_eight = process.env.GROQ_API_KEY_EIGHT || '';
 export const api_key_seven = process.env.GROQ_API_KEY_SEVEN || '';
 
 const GROQ_ENDPOINT =
