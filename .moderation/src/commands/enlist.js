@@ -8,7 +8,7 @@ dotenv.config();
 export default {
     data: new SlashCommandBuilder()
         .setName('enlist')
-        .setDescription('Enlist a player with a number and optional officer role')
+        .setDescription('Enlist a player with a registration number (defaults to Operator [O])')
         .addUserOption(option =>
             option.setName('user')
                 .setDescription('The player to enlist')
@@ -20,16 +20,6 @@ export default {
                 .setRequired(true)
                 .setMinLength(3)
                 .setMaxLength(3)
-        )
-        .addStringOption(option =>
-            option.setName('officer')
-                .setDescription('Select an optional Officer role')
-                .setRequired(false)
-                .addChoices(
-                    { name: 'SMO', value: process.env.SMO_ROLE_ID || '1475314856184778835' },
-                    { name: 'FO', value: process.env.FO_ROLE_ID || '1475314865878077603' },
-                    { name: 'O', value: process.env.O_ROLE_ID || '1475314870802055421' }
-                )
         ),
 
     async execute(interaction) {
@@ -300,7 +290,7 @@ export default {
                 const ENLISTED_ROLE_ID = process.env.AP_ROLE_ID || '1463184412937289973';
                 const ENLISTED_TAG_ROLE_ID = process.env.ENLISTED_ROLE_ID || '1482386008376086598';
                 const UNREGISTERED_ROLE_ID = process.env.TRAINEE_ROLE_ID || '1475196328303792138';
-                const officerRoleId = interaction.options.getString('officer');
+                const officerRoleId = process.env.O_ROLE_ID || '1475314870802055421';
                 const member = await interaction.guild.members.fetch(targetUser.id);
                 if (member) {
                     await member.roles.add(ENLISTED_ROLE_ID);

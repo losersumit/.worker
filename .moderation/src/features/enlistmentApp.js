@@ -5,6 +5,8 @@ const TRAINING_ROLE_ID = process.env.TRAINEE_ROLE_ID || '1475196328303792138';
 const TRAINING_CHANNEL_ID = process.env.TRAINING_CHANNEL_ID || '1475325604873113713';
 const REJECTION_CHANNEL_ID = process.env.REJECTION_CHANNEL_ID || '1448038019755151391';
 const REVIEW_CHANNEL_ID = process.env.REVIEW_CHANNEL_ID || '1462797901305745509';
+const O_ROLE_ID = process.env.O_ROLE_ID || '1475314870802055421';
+const FO_ROLE_ID = process.env.FO_ROLE_ID || '1475314865878077603';
 
 const OFFICER_CRITERIA = {
     operator: {
@@ -129,33 +131,14 @@ async function startApplicationQuestions(user, dmChannel, client, guild) {
         } catch { throw new Error('timeout'); }
     };
 
-    const askOfficerQuestion = async () => {
-        const timeLeft = deadline - Date.now();
-        if (timeLeft <= 0) throw new Error('timeout');
-        const embed = new EmbedBuilder().setColor('#2b2d31').setDescription('**Question 7/7:**\nWhich officer role do you want to work towards?');
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('officer_o').setLabel('Operator').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId('officer_fo').setLabel('Field Operator').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId('officer_smo').setLabel('Senior Mobility Operator').setStyle(ButtonStyle.Primary)
-        );
-        const msg = await dmChannel.send({ embeds: [embed], components: [row] });
-        try {
-            const i = await msg.awaitMessageComponent({ filter: i => i.user.id === user.id, time: timeLeft });
-            await i.update({ components: [] });
-            if (i.customId === 'officer_o') return 'operator';
-            if (i.customId === 'officer_fo') return 'field_operator';
-            return 'smo';
-        } catch { throw new Error('timeout'); }
-    };
-
     try {
-        answers.active = await askButtonQuestion('**Question 1/7:**\nWill you be active?', 'q1_yes', 'q1_no');
-        answers.loyal = await askButtonQuestion('**Question 2/7:**\nWill you be loyal and obey the Commander?', 'q2_yes', 'q2_no');
-        answers.intro = await askTextQuestion('**Question 3/7:**\nGive your introduction in brief!');
-        answers.better = await askTextQuestion('**Question 4/7:**\nWhat makes you better than other applicants?');
-        answers.whyNMC = await askTextQuestion('**Question 5/7:**\nWhy did you choose NMC over other VTCs?');
-        answers.authority = await askTextQuestion('**Question 6/7:**\nDo you accept that the Commander has final authority in all company decisions, including member removal?');
-        answers.officerKey = await askOfficerQuestion();
+        answers.active = await askButtonQuestion('**Question 1/6:**\nWill you be active?', 'q1_yes', 'q1_no');
+        answers.loyal = await askButtonQuestion('**Question 2/6:**\nWill you be loyal and obey the Commander?', 'q2_yes', 'q2_no');
+        answers.intro = await askTextQuestion('**Question 3/6:**\nGive your introduction in brief!');
+        answers.better = await askTextQuestion('**Question 4/6:**\nWhat makes you better than other applicants?');
+        answers.whyNMC = await askTextQuestion('**Question 5/6:**\nWhy did you choose NMC over other VTCs?');
+        answers.authority = await askTextQuestion('**Question 6/6:**\nDo you accept that the Commander has final authority in all company decisions, including member removal?');
+        answers.officerKey = 'operator';
 
         await dmChannel.send('✅ Application submitted! Waiting for someone to review it.');
 
@@ -255,7 +238,7 @@ export async function executeApplicationAccept(interaction, userId, officerKey) 
     const guild = interaction.guild;
     const client = interaction.client;
 
-    const officer = OFFICER_CRITERIA[officerKey] || OFFICER_CRITERIA.operator;
+    const officer = OFFICER_CRITERIA.operator;
 
     // Assign training role
     try {
@@ -335,4 +318,65 @@ export async function executeApplicationReject(interaction, userId) {
         new ButtonBuilder().setCustomId('rejected').setLabel('❌ Rejected').setStyle(ButtonStyle.Danger).setDisabled(true)
     );
     await interaction.message.edit({ components: [disabledRow] }).catch(() => { });
+}
+
+/**
+ * Called when the promote_me button is clicked.
+ */
+export async function handlePromotionRequest(interaction) {
+    if (!interaction.deferred && !interaction.replied) {
+        await interaction.deferReply({ ephemeral: true });
+    }
+
+    const member = interaction.member;
+    const user = interaction.user;
+
+    if (member.roles.cache.has(TRAINING_ROLE_ID)) {
+        return interaction.editReply('❌ You are already in a training/trial period.');
+    }
+
+    let targetOfficerKey = null;
+    if (member.roles.cache.has(FO_ROLE_ID)) {
+        targetOfficerKey = 'smo';
+    } else if (member.roles.cache.has(O_ROLE_ID)) {
+        targetOfficerKey = 'field_operator';
+    } else {
+        return interaction.editReply('❌ You must be an Operator [O] or Field Operator [FO] to request a promotion.');
+    }
+
+    const officer = OFFICER_CRITERIA[targetOfficerKey];
+
+    // Give trainee role
+    try {
+        await member.roles.add(TRAINING_ROLE_ID);
+    } catch (err) {
+        console.error('[Promotion Request] Failed to assign training role:', err.message);
+        return interaction.editReply('❌ Failed to assign Trainee role. Please contact an Administrator.');
+    }
+
+    // Post training embed in training channel and ping
+    try {
+        const client = interaction.client;
+        const trainingChannel = await client.channels.fetch(TRAINING_CHANNEL_ID).catch(() => null);
+        if (trainingChannel) {
+            const trainingEmbed = new EmbedBuilder()
+                .setTitle('🚛 Promotion Trial Started!')
+                .setColor('#f5c518')
+                .setDescription(
+                    `Welcome to your promotion trial! <@${user.id}> has entered their training period for promotion.\n\n` +
+                    `**Target rank: ${officer.label}**\n\n` +
+                    `Here are the eligibility requirements:\n\n` +
+                    officer.criteria +
+                    `\n\n**Post proof here and ping the commander!**`
+                )
+                .setTimestamp()
+                .setFooter({ text: 'National Mobility Command • NMC' });
+
+            await trainingChannel.send({ content: `<@${user.id}>`, embeds: [trainingEmbed] });
+        }
+    } catch (err) {
+        console.error('[Promotion Request] Failed to send training message:', err.message);
+    }
+
+    return interaction.editReply('✅ Promotion trial started! Trainee role assigned and training requirements posted in the training channel.');
 }

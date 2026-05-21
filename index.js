@@ -168,6 +168,12 @@ client.once('ready', async () => {
     // ── Milestone Checker — event-driven via Supabase Realtime ──
     startMilestoneChecker(client, supabase);
 
+    // ── UVS Bot Status & Runs Listener ──
+    import('./.moderation/src/systems/uvsStatusMonitor.js').then(({ setupUvsRunsListener, updateUvsEmbed }) => {
+        setupUvsRunsListener(client, supabase);
+        updateUvsEmbed(client); // Initial setup of the embed
+    }).catch(err => console.error('Failed to load uvsStatusMonitor:', err));
+
     // ── Automatic 6-Hour Restart ( Railway Auto-Restart Trigger ) ──
     const SIX_HOURS_IN_MS = 6 * 60 * 60 * 1000;
     setInterval(async () => {

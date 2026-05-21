@@ -3,7 +3,7 @@ import config from '../config.js';
 import { supabase } from '../clients/supabase.js';
 import { trackTransaction } from '../utils/economyUtils.js';
 import { resolveMessageFromLink } from '../utils/discordUtils.js';
-import { handleEnlistmentApplication, executeApplicationAccept, executeApplicationReject } from '../features/enlistmentApp.js';
+import { handleEnlistmentApplication, executeApplicationAccept, executeApplicationReject, handlePromotionRequest } from '../features/enlistmentApp.js';
 import { handleSlotMachineInteraction } from '../../../.economy/interactions/slotMachineInteraction.js';
 import { handleRouletteTableInteraction } from '../../../.economy/interactions/rouletteTableInteraction.js';
 import { handleTodoPagination } from '../features/todoCommands.js';
@@ -61,6 +61,9 @@ export default {
             } else if (interaction.customId === 'open_application') {
                 console.log('[Button] Identified as Enlistment Application.');
                 await handleEnlistmentApplication(interaction);
+            } else if (interaction.customId === 'promote_me') {
+                console.log('[Button] Identified as Promotion Request.');
+                await handlePromotionRequest(interaction);
             } else if (interaction.customId.startsWith('app_accept:')) {
                 const parts = interaction.customId.split(':');
                 const userId = parts[1];
