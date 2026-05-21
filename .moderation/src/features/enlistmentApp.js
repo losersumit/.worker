@@ -1,5 +1,6 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } from 'discord.js';
 import { groqChatCompletion } from '../clients/groq.js';
+import config from '../config.js';
 
 const TRAINING_ROLE_ID = process.env.TRAINEE_ROLE_ID || '1475196328303792138';
 const TRAINING_CHANNEL_ID = process.env.TRAINING_CHANNEL_ID || '1475325604873113713';
@@ -167,7 +168,7 @@ Respond ONLY in this JSON format:
 
         try {
             const data = await groqChatCompletion({
-                model: process.env.CHAT_MODEL || 'llama-3.3-70b-versatile',
+                model: config.ai.model,
                 messages: [{ role: 'user', content: aiPrompt }],
                 temperature: 0.3,
                 max_tokens: 100,

@@ -132,7 +132,7 @@ export async function moderateImage(imageUrl) {
       Only flag content that is clearly inappropriate.
     `;
 
-        console.log(`[Moderation] Sending image request to Groq with model: ${config.ai.visionModel || "llama-3.2-11b-vision-preview"}`);
+        console.log(`[Moderation] Sending image request to Groq with model: ${config.ai.visionModel || config.ai.fallbackVisionModel}`);
 
         const completion = await groqChatCompletion({
             messages: [
@@ -144,7 +144,7 @@ export async function moderateImage(imageUrl) {
                     ]
                 }
             ],
-            model: config.ai.visionModel || "llama-3.2-11b-vision-preview",
+            model: config.ai.visionModel || config.ai.fallbackVisionModel,
             temperature: config.ai.temperature,
             max_tokens: config.ai.maxTokens,
             top_p: config.ai.topP,

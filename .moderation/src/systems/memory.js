@@ -4,6 +4,7 @@
  */
 
 import { groqChatCompletion } from '../clients/groq.js';
+import config from '../config.js';
 
 const MAX_MEMORIES_PER_USER = 20;
 
@@ -173,7 +174,7 @@ export async function extractAndSaveMemories(supabase, userId, username, convers
             .join('\n');
 
         const result = await groqChatCompletion({
-            model: 'llama-3.3-70b-versatile',
+            model: config.ai.model,
             messages: [
                 { role: 'system', content: EXTRACTION_PROMPT },
                 { role: 'user', content: `${existingContext}\n\nCONVERSATION:\n${convoText}` }

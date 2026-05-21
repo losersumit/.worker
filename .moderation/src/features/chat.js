@@ -3,6 +3,7 @@ import { groqChatCompletion } from '../clients/groq.js';
 import { findFaqAnswer } from '../systems/faq.js';
 import { getMemories, getRecentServerEvents, formatMemoryContext, extractAndSaveMemories } from '../systems/memory.js';
 import { getChannelBuffer } from './ambient.js';
+import config from '../config.js';
 
 // ===== NMC-style mention chat + FAQ =====
 const histories = new Map();
@@ -21,8 +22,7 @@ setInterval(() => {
     }
 }, 300000); // Check every 5 minutes
 
-const CHAT_MODEL =
-    process.env.CHAT_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+const CHAT_MODEL = config.ai.model;
 const CHAT_TEMPERATURE = Number(process.env.CHAT_TEMPERATURE || 0.7);
 const CHAT_MAX_TOKENS = Number(process.env.CHAT_MAX_TOKENS || 512);
 
@@ -242,9 +242,7 @@ export async function handleChat(message, client) {
             ]
         });
 
-        // Import config to get the vision model
-        const { default: config } = await import('../config.js');
-        modelToUse = config.ai.visionModel || "llama-3.2-11b-vision-preview";
+        modelToUse = config.ai.visionModel || config.ai.fallbackVisionModel;
         console.log(`[Chat] Using Vision Model: ${modelToUse} for image.`);
     } else {
         // Standard text format

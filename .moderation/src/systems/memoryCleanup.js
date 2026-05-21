@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { groqChatCompletion } from '../clients/groq.js';
 import { getMemoryTableName } from './memory.js';
+import config from '../config.js';
 import '../utils/loadEnv.js';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY);
@@ -84,7 +85,7 @@ export async function runMemoryCleanup() {
 
                 try {
                     const result = await groqChatCompletion({
-                        model: 'llama-3.3-70b-versatile',
+                        model: config.ai.model,
                         messages: [
                             { role: 'system', content: CLEANUP_PROMPT },
                             { role: 'user', content: `Current facts for user:\n${factListText}\n\nList the exact facts to delete as a JSON array.` }

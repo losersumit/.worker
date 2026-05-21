@@ -1,8 +1,9 @@
 import '../utils/loadEnv.js';
 import { groqChatCompletion } from '../clients/groq.js';
 import { findFaqAnswer, embed } from '../systems/faq.js';
+import config from '../config.js';
 
-const CHAT_MODEL = process.env.CHAT_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+const CHAT_MODEL = config.ai.model;
 const CHAT_TEMPERATURE = Number(process.env.CHAT_TEMPERATURE || 0.6);
 const CHAT_MAX_TOKENS = Number(process.env.CHAT_MAX_TOKENS || 512);
 const AUTO_REPLY_COOLDOWN_MS = Number(process.env.RAG_AUTO_REPLY_COOLDOWN_MS || 25000);
@@ -41,23 +42,30 @@ function getImageAttachment(message) {
 async function reactToImage(message, imageAttachment) {
     if (!imageAttachment?.url) return;
 
+    // Use the vision model configured in config.js
+    const modelToUse = config.ai.visionModel || config.ai.fallbackVisionModel;
+
     // Get the list of server emojis (name:id) for the model to choose from
-    const guildEmojis = message.guild?.emojis?.cache || [];
-    const emojiListStr = guildEmojis.map(e => `${e.name}:${e.id}`).join(', ');
+    const guildEmojis = message.guild?.emojis?.cache;
+    const emojiListStr = guildEmojis ? guildEmojis.map(e => `${e.name}:${e.id}`).join(', ') : '';
 
     // Build a prompt that asks the model to classify the image and output an emoji name or ID.
-    const prompt = `You are an image classifier for a virtual trucking company. Examine the image and decide:
-- If the image contains a truck and is a high‑quality cinematic shot with good lighting, respond with the word "goated".
-- If the image contains a truck but is a low‑quality or poorly lit shot, respond with the word "meeditation".
-- If the image does NOT contain a truck, choose the most appropriate existing server emoji that best matches the image. Respond with the emoji ID (numeric part) from the list.
-Here is the list of available server emojis (name:id): ${emojiListStr}`;
+    const prompt = `You are an image classifier for a virtual trucking company NMC. Examine the image and decide:
+- If the image contains a truck and is a high‑quality cinematic shot with good lighting/editing, respond with ONLY the word "goated".
+- If the image contains a truck but is a low‑quality, bad lighting, or standard/ugly shot, respond with ONLY the word "meeditation".
+- If the image does NOT contain a truck, you MUST choose the most appropriate existing server emoji from the list below and respond ONLY with its numeric ID.
+Here is the list of available server emojis (name:id): ${emojiListStr}
+
+Response requirements:
+- Respond with EXACTLY one word ("goated" or "meeditation") or EXACTLY one numeric emoji ID from the list.
+- Do NOT output any other words, punctuation, markdown formatting, or explanations.`;
 
     // Call the vision model with the prompt
     const data = await groqChatCompletion({
         model: modelToUse,
         messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageAttachment.url } }] }],
-        temperature: 0.2,
-        max_tokens: 20,
+        temperature: 0.1,
+        max_tokens: 15,
     });
 
     const rawResponse = data?.choices?.[0]?.message?.content?.trim() || '';
@@ -65,24 +73,32 @@ Here is the list of available server emojis (name:id): ${emojiListStr}`;
 
     // Determine which emoji to react with
     let emojiToReact = null;
-    // Direct matches for the two special cases
-    if (response.includes('goated')) {
-        emojiToReact = guildEmojis.find(e => e.name === 'goated');
-    } else if (response.includes('meeditation')) {
-        emojiToReact = guildEmojis.find(e => e.name === 'meeditation');
-    } else {
-        // Assume the model returned an ID; try to find that emoji
-        const idMatch = response.match(/\d{17,}/);
-        if (idMatch) {
-            const id = idMatch[0];
-            emojiToReact = guildEmojis.get(id);
+    if (guildEmojis) {
+        // Direct matches for the two special cases
+        if (response.includes('goated')) {
+            emojiToReact = guildEmojis.find(e => e.name === 'goated');
+        } else if (response.includes('meeditation')) {
+            emojiToReact = guildEmojis.find(e => e.name === 'meeditation');
+        } else {
+            // Assume the model returned an ID; try to find that emoji
+            const idMatch = response.match(/\d{17,}/);
+            if (idMatch) {
+                const id = idMatch[0];
+                emojiToReact = guildEmojis.get(id);
+            }
+        }
+
+        // Guaranteed fallback if we couldn't resolve: it MUST choose a server emoji
+        if (!emojiToReact) {
+            console.warn(`[RAG] Vision response "${rawResponse}" could not be mapped. Guaranteeing choice...`);
+            emojiToReact = guildEmojis.find(e => e.name === 'goated') || 
+                           guildEmojis.find(e => e.name === 'meeditation') || 
+                           guildEmojis.first();
         }
     }
 
-    // Fallback: if we couldn't resolve, react with a generic ✅
     if (!emojiToReact) {
-        console.warn('[RAG] Could not determine appropriate emoji, falling back to ✅');
-        await message.react('✅');
+        console.warn('[RAG] No server emojis available to react with.');
         return;
     }
 
@@ -90,10 +106,7 @@ Here is the list of available server emojis (name:id): ${emojiListStr}`;
         await message.react(emojiToReact);
     } catch (reactErr) {
         console.error('[RAG] Failed to react with chosen emoji:', reactErr.message);
-        // fallback to generic ✅
-        await message.react('✅');
     }
-
 }
 
 function autoReplyAllowed(channelId) {
@@ -383,8 +396,7 @@ async function askWithContext(message, client, question) {
     let userContent = prompt;
 
     if (image) {
-        const { default: config } = await import('../config.js');
-        modelToUse = config.ai.visionModel || 'llama-3.2-11b-vision-preview';
+        modelToUse = config.ai.visionModel || config.ai.fallbackVisionModel;
         userContent = [
             { type: 'text', text: `${prompt}\n\nAlso analyze the attached image if relevant.` },
             { type: 'image_url', image_url: { url: image.url } }
@@ -498,8 +510,10 @@ export async function handleRagChat(message, client) {
 
     // Rule 1: Always react to images (Auto-Emoji Vision)
     if (image) {
-        // Fire and forget the reaction, no need to await
-        reactToImage(message, image).catch(() => { });
+        // Fire and forget the reaction, logging any unhandled errors
+        reactToImage(message, image).catch(err => {
+            console.error('[RAG] Error in reactToImage:', err);
+        });
     }
 
     // Rule 2: Explicitly talking to the bot (Ping or Reply)
