@@ -31,16 +31,33 @@ export async function generateTodoEmbed(page = 0, client) {
     const limit = 5;
     const offset = page * limit;
 
-    const { data: todos, count, error } = await supabase
+    const { data: allTodos, error } = await supabase
         .from('todos')
-        .select('*', { count: 'exact' })
-        .order('id', { ascending: false })
-        .range(offset, offset + limit - 1);
+        .select('*');
 
     if (error) {
         console.error('Database error in generateTodoEmbed:', error);
         throw error;
     }
+
+    const priorityMap = {
+        'Not reviewed yet': 1,
+        'Working': 2,
+        'Done': 3,
+        'Rejected': 4
+    };
+
+    const sortedTodos = (allTodos || []).sort((a, b) => {
+        const priorityA = priorityMap[a.status] || 5;
+        const priorityB = priorityMap[b.status] || 5;
+        if (priorityA !== priorityB) {
+            return priorityA - priorityB;
+        }
+        return b.id - a.id;
+    });
+
+    const count = sortedTodos.length;
+    const todos = sortedTodos.slice(offset, offset + limit);
 
     const embed = new EmbedBuilder()
         .setColor(0x5865F2)
