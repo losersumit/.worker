@@ -525,6 +525,7 @@ async function handleModHelp(message, args, client) {
                     '`/addmedia`\nAdd a photo or video to the NMC website media gallery.\n' +
                     '`/addpartner`\nAdd a partner server to the NMC website.\n' +
                     '`/enlist`\nEnlist a player with a number and optional officer role.\n' +
+                    '`/sendstylingembed`\nPost a styled embed with a custom color analyzed from the attached image.\n' +
                     '`/setwh`\nGet or Create a Webhook.',
                 inline: false
             },

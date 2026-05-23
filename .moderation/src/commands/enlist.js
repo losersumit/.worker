@@ -1,6 +1,7 @@
 
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, WebhookClient } from 'discord.js';
 import { supabase } from '../clients/supabase.js'; // Updated import
+import { rebuildPersonnelEmbeds } from '../jobs/inactivityScanner.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -284,12 +285,13 @@ export default {
                 embedMsg = "⚠️ Embed update failed.";
             }
 
-            // 7. Assign Enlisted Driver Role, optionally an Officer Role, and remove Unregistered Role
+            // 7. Assign Enlisted Driver Role, optionally an Officer Role, and remove Unregistered / Retired Roles
             let roleMsg = "";
             try {
                 const ENLISTED_ROLE_ID = process.env.AP_ROLE_ID || '1463184412937289973';
                 const ENLISTED_TAG_ROLE_ID = process.env.ENLISTED_ROLE_ID || '1482386008376086598';
                 const UNREGISTERED_ROLE_ID = process.env.TRAINEE_ROLE_ID || '1475196328303792138';
+                const RTD_ROLE_ID = process.env.RTD_ROLE_ID || '1499413282279129139';
                 const officerRoleId = process.env.O_ROLE_ID || '1475314870802055421';
                 const member = await interaction.guild.members.fetch(targetUser.id);
                 if (member) {
@@ -315,6 +317,11 @@ export default {
                         roleMsg += " (Removed Unregistered Role).";
                     }
 
+                    if (member.roles.cache.has(RTD_ROLE_ID)) {
+                        await member.roles.remove(RTD_ROLE_ID);
+                        roleMsg += " (Removed Retired Role).";
+                    }
+
                     if (officerRoleId) {
                         try {
                             await member.roles.add(officerRoleId);
@@ -324,12 +331,20 @@ export default {
                                 [process.env.FO_ROLE_ID || '1475314865878077603']: '[FO]',
                                 [process.env.O_ROLE_ID || '1475314870802055421']: '[O]'
                             };
-                            const initial = initialsMap[officerRoleId];
+                            const initial = initialsMap[officerRoleId] || '[O]';
                             
-                            // Nickname update
+                            // Nickname update: Strip existing prefixes to avoid duplicates/residues (like [Rtd.], [RP], etc.)
                             const currentName = member.nickname || targetUser.displayName || targetUser.username;
-                            if (!currentName.startsWith(initial)) {
-                                await member.setNickname(`${initial} ${currentName}`.substring(0, 32));
+                            const cleanedName = currentName
+                                .replace(/\[RP\]\s*/gi, '')
+                                .replace(/\[Rtd\.\]\s*/gi, '')
+                                .replace(/\[SMO\]\s*/gi, '')
+                                .replace(/\[FO\]\s*/gi, '')
+                                .replace(/\[O\]\s*/gi, '')
+                                .trim();
+                            const newNick = `${initial} ${cleanedName}`.substring(0, 32);
+                            if (currentName !== newNick) {
+                                await member.setNickname(newNick);
                             }
                             
                             roleMsg = `✅ Enlisted & ${initial} roles assigned, nickname updated.`;
@@ -337,6 +352,15 @@ export default {
                             console.error("Officer role/nickname assignment error:", officerErr);
                             roleMsg = "✅ Enlisted assigned. ⚠️ Failed to assign officer role or update nickname.";
                         }
+                    }
+
+                    // Trigger a full, clean rebuild of AP, RP, and RTD embeds to seamlessly transfer the user
+                    try {
+                        await rebuildPersonnelEmbeds(interaction.client, supabase);
+                        embedMsg += " & Fully Rebuilt.";
+                    } catch (rebuildErr) {
+                        console.error("Failed to rebuild embeds in /enlist:", rebuildErr);
+                        embedMsg += " (⚠️ Rebuild failed, but registry updated).";
                     }
                 } else {
                     roleMsg = "⚠️ Member not found in guild.";

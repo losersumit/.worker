@@ -16,6 +16,7 @@ import addpartner from "./addpartner.js";
 import adddriver from "./adddriver.js";
 import addmedia from "./addmedia.js";
 import promote from "./promote.js";
+import sendstylingembed from "./sendstylingembed.js";
 
 
 export const commands = [
@@ -25,7 +26,8 @@ export const commands = [
     addpartner,
     adddriver,
     addmedia,
-    promote
+    promote,
+    sendstylingembed
 ];
 
 // Helper function to format dates

@@ -143,6 +143,27 @@ export async function rebuildPersonnelEmbeds(client, supabase) {
         process.env.RP_EMBED_MESSAGE_ID,
         rpMembers
     );
+
+    // Rebuild RTD embed as well
+    const rtdMembers = [];
+    try {
+        const guild = await client.guilds.fetch(TARGET_GUILD_ID);
+        const allGuildMembers = await guild.members.fetch();
+        for (const [, member] of allGuildMembers) {
+            if (member.roles.cache.has(RTD_ROLE_ID)) {
+                rtdMembers.push({ member });
+            }
+        }
+        sortRtdMembers(rtdMembers);
+        await rebuildRtdEmbed(
+            process.env.ENLISTED_CHANNEL_WEBHOOK_URL,
+            process.env.RTD_EMBED_MESSAGE_ID,
+            rtdMembers
+        );
+        console.log(`[INACTIVITY] RTD embed rebuilt in rebuildPersonnelEmbeds with ${rtdMembers.length} member(s).`);
+    } catch (err) {
+        console.error('[INACTIVITY] Failed to rebuild RTD embed in rebuildPersonnelEmbeds:', err.message);
+    }
 }
 
 async function fetchRegistryMembers(client, supabase) {
