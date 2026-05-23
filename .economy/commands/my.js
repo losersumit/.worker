@@ -116,22 +116,43 @@ export default {
                             return interaction.editReply('❌ You are not an Enlisted Driver, ask Commander to enlist you.');
                         }
 
-                        // Specific Roles Check (from DB array)
+                        // Specific Roles Check (from DB array) — uses rank-weight hierarchy
+                        // so higher ranks (FO, SMO) satisfy lower-rank requirements (O)
                         if (skin.roles_allowed && skin.roles_allowed.length > 0) {
-                            // Extract only the digits to avoid issues with brackets, quotes, or JSON string formats
                             const rolesStr = typeof skin.roles_allowed === 'string' ? skin.roles_allowed : JSON.stringify(skin.roles_allowed);
                             const requiredRoleIds = rolesStr.match(/\d+/g) || [];
 
-                            let hasAllRequiredRoles = true;
+                            const SMO_ROLE_ID = process.env.SMO_ROLE_ID || '1475314856184778835';
+                            const FO_ROLE_ID  = process.env.FO_ROLE_ID  || '1475314865878077603';
+                            const O_ROLE_ID   = process.env.O_ROLE_ID   || '1475314870802055421';
+
+                            const userIsSMO = interaction.member.roles.cache.has(SMO_ROLE_ID);
+                            const userIsFO  = interaction.member.roles.cache.has(FO_ROLE_ID);
+                            const userIsO   = interaction.member.roles.cache.has(O_ROLE_ID);
+
+                            // Higher number = higher rank
+                            const userRankWeight = userIsSMO ? 3 : (userIsFO ? 2 : (userIsO ? 1 : 0));
+
+                            let hasRequiredRoles = true;
                             for (const id of requiredRoleIds) {
-                                if (!interaction.member.roles.cache.has(id)) {
-                                    hasAllRequiredRoles = false;
-                                    break;
+                                if (id === SMO_ROLE_ID || id === FO_ROLE_ID || id === O_ROLE_ID) {
+                                    // Rank-based check: user's rank must be >= the skin's required rank
+                                    const skinRankWeight = (id === SMO_ROLE_ID) ? 3 : ((id === FO_ROLE_ID) ? 2 : 1);
+                                    if (userRankWeight < skinRankWeight) {
+                                        hasRequiredRoles = false;
+                                        break;
+                                    }
+                                } else {
+                                    // Non-rank role: must have it exactly
+                                    if (!interaction.member.roles.cache.has(id)) {
+                                        hasRequiredRoles = false;
+                                        break;
+                                    }
                                 }
                             }
 
-                            if (!hasAllRequiredRoles) {
-                                return interaction.editReply(`❌ You lost or do not have all the required roles to use the **${skin.name}** skin.`);
+                            if (!hasRequiredRoles) {
+                                return interaction.editReply(`❌ You no longer have the required rank or roles to retrieve the **${skin.name}** skin.`);
                             }
                         }
 
