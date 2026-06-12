@@ -138,6 +138,23 @@ async function isReplyToBot(message, client) {
     }
 }
 
+async function getVerifiedIdentity(supabase, guildId, userId) {
+    if (!guildId || !userId) return null;
+    const { data, error } = await supabase
+        .from('verified_identities')
+        .select('guild_id,user_id,username,is_owner,is_admin,role_names,updated_at')
+        .eq('guild_id', guildId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (error) {
+        console.error('[RAG] verified identity fetch failed:', error.message);
+        return null;
+    }
+
+    return data || null;
+}
+
 async function storeRagMessage(supabase, message) {
     const content = sanitizeText(message.content);
     const image = getImageAttachment(message);
