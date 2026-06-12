@@ -5,8 +5,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node runner.js",
+    "dev": "nodemon runner.js"
   },
   "author": "Friday | Cortex Realm",
   "license": "MIT",

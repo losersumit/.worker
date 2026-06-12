@@ -138,58 +138,6 @@ async function isReplyToBot(message, client) {
     }
 }
 
-async function upsertVerifiedIdentity(supabase, message) {
-    const guild = message.guild;
-    const member = message.member;
-    if (!guild || !member) return null;
-
-    const roleNames = member.roles?.cache
-        ? member.roles.cache.filter(r => r.name !== '@everyone').map(r => r.name).slice(0, 30)
-        : [];
-
-    // Fetch existing message count to increment it all-time going forward
-    const { data: existing } = await supabase
-        .from('verified_identities')
-        .select('message_count')
-        .eq('guild_id', guild.id)
-        .eq('user_id', message.author.id)
-        .maybeSingle();
-
-    const currentCount = existing?.message_count || 0;
-
-    const verified = {
-        guild_id: guild.id,
-        user_id: message.author.id,
-        username: member.displayName || message.author.globalName || message.author.username,
-        is_owner: guild.ownerId === message.author.id,
-        is_admin: Boolean(member.permissions?.has('Administrator')),
-        role_names: roleNames,
-        message_count: currentCount + 1,
-        updated_at: new Date().toISOString(),
-    };
-
-    const { error } = await supabase.from('verified_identities').upsert(verified, { onConflict: 'guild_id,user_id' });
-    if (error) console.error('[RAG] verified identity upsert failed:', error.message);
-    return verified;
-}
-
-async function getVerifiedIdentity(supabase, guildId, userId) {
-    if (!guildId || !userId) return null;
-    const { data, error } = await supabase
-        .from('verified_identities')
-        .select('guild_id,user_id,username,is_owner,is_admin,role_names,updated_at')
-        .eq('guild_id', guildId)
-        .eq('user_id', userId)
-        .maybeSingle();
-
-    if (error) {
-        console.error('[RAG] verified identity fetch failed:', error.message);
-        return null;
-    }
-
-    return data || null;
-}
-
 async function storeRagMessage(supabase, message) {
     const content = sanitizeText(message.content);
     const image = getImageAttachment(message);
@@ -197,14 +145,24 @@ async function storeRagMessage(supabase, message) {
     const finalContent = `${content}${imageToken}`.trim();
     if (!finalContent) return null;
 
+    const guild = message.guild;
+    const member = message.member;
+    const roleNames = member?.roles?.cache
+        ? member.roles.cache.filter(r => r.name !== '@everyone').map(r => r.name).slice(0, 30)
+        : [];
+
     const row = {
         message_id: message.id,
         user_id: message.author.id,
-        username: message.member?.displayName || message.author.globalName || message.author.username,
+        username: member?.displayName || message.author.globalName || message.author.username,
         channel_id: message.channel.id,
         channel_name: message.channel?.name || 'DM',
         content: finalContent,
         created_at: message.createdAt.toISOString(),
+        guild_id: guild?.id || null,
+        role_names: roleNames,
+        is_owner: guild ? guild.ownerId === message.author.id : false,
+        is_admin: member ? Boolean(member.permissions?.has('Administrator')) : false,
     };
 
     await supabase.from('rag_messages').upsert(row, { onConflict: 'message_id', ignoreDuplicates: true });
@@ -487,10 +445,6 @@ export async function handleRagChat(message, client) {
     if (ignoredChannels.includes(message.channel.id)) {
         return; // Completely ignore tracking and chatting in this channel
     }
-
-    await upsertVerifiedIdentity(client.supabase, message).catch(err =>
-        console.error('[RAG] identity sync failed:', err.message)
-    );
 
     const stored = await storeRagMessage(client.supabase, message);
     if (stored) {
