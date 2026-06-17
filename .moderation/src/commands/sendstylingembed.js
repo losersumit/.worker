@@ -1,6 +1,7 @@
-import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags, AttachmentBuilder } from 'discord.js';
 import { groqChatCompletion } from '../clients/groq.js';
 import config from '../config.js';
+import axios from 'axios';
 
 export default {
     data: new SlashCommandBuilder()
@@ -105,14 +106,21 @@ export default {
                 return interaction.editReply({ content: `❌ Could not find styling channel (ID: ${STYLING_CHANNEL_ID}). Please verify bot permissions and config.` });
             }
 
+            // Download the image buffer using axios and construct AttachmentBuilder
+            console.log('[SendStylingEmbed] Downloading image for persistent embed attachment...');
+            const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+            const imageBuffer = Buffer.from(imageResponse.data);
+            const fileName = imageAttachment.name || 'image.png';
+            const file = new AttachmentBuilder(imageBuffer, { name: fileName });
+
             const embed = new EmbedBuilder()
                 .setColor(embedColor)
                 .setDescription(captionText)
-                .setImage(imageUrl)
+                .setImage(`attachment://${fileName}`)
                 .setFooter({ text: `Styling Showcase • Posted by ${interaction.member.displayName || interaction.user.username}` })
                 .setTimestamp();
 
-            await stylingChannel.send({ embeds: [embed] });
+            await stylingChannel.send({ embeds: [embed], files: [file] });
 
             return interaction.editReply({ 
                 content: `✅ Successfully posted to <#${STYLING_CHANNEL_ID}>!\n🎨 **Aesthetic Color**: \`#${embedColor.toString(16).toUpperCase()}\` (${aiColorChoiceReason})` 
