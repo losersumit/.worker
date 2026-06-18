@@ -2,14 +2,19 @@ import { EmbedBuilder } from 'discord.js';
 import { groqChatCompletion } from '../../.moderation/src/clients/groq.js';
 import config from '../../.moderation/src/config.js';
 
-const COOLDOWN_MS = 12 * 60 * 60 * 1000;      // 12 hours
-const EXPIRY_MS = 24 * 60 * 60 * 1000;        // 24 hours (12h cooldown + 12h grace window)
+const COOLDOWN_MS = 6 * 60 * 60 * 1000;       // 6 hours
 const BONUS_AMOUNT = 20000;
 const MAX_STREAK = 7;
 
 function flameBar(streak) {
     const filled = Math.min(streak, MAX_STREAK);
     return '🔥'.repeat(filled) + '⬜'.repeat(MAX_STREAK - filled);
+}
+
+function getGmt530DateString(date) {
+    const offsetMs = 5.5 * 60 * 60 * 1000;
+    const localTime = new Date(date.getTime() + offsetMs);
+    return localTime.toISOString().slice(0, 10);
 }
 
 // Trucking side quest premium fallbacks
@@ -49,7 +54,7 @@ export default {
             }
 
             const now = new Date();
-            const todayDateStr = now.toISOString().slice(0, 10);
+            const todayDateStr = getGmt530DateString(now);
 
             // ── 2. Check existing claim ──────────────────────────
             const { data: claim } = await supabase
@@ -81,15 +86,22 @@ export default {
 
             // ── 3. Calculate streak ──────────────────────────────
             let newStreak;
-            if (!claim || timePassed > EXPIRY_MS) {
-                newStreak = 1; // streak broken or first work
+            let diffDays = 0;
+            if (!claim) {
+                newStreak = 1;
             } else {
-                // Check if last claim was on a different UTC calendar date
-                const lastClaimDateStr = new Date(claim.updated_at).toISOString().slice(0, 10);
-                if (todayDateStr !== lastClaimDateStr) {
-                    newStreak = claim.streak + 1;
+                const lastClaimDateStr = claim.last_claimed || getGmt530DateString(new Date(claim.updated_at));
+                const d1 = new Date(lastClaimDateStr);
+                const d2 = new Date(todayDateStr);
+                const diffTime = Math.abs(d2 - d1);
+                diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays > 1) {
+                    newStreak = 1; // streak broken
+                } else if (diffDays === 1) {
+                    newStreak = claim.streak + 1; // next day
                 } else {
-                    newStreak = claim.streak; // same calendar day work
+                    newStreak = claim.streak; // same day
                 }
             }
 
@@ -241,9 +253,9 @@ Example: You helped a family from a car accident on the road and they rewarded y
                 .setFooter({
                     text: isBonusClaimed
                         ? '🎉 Streak successfully milestone claimed! A new cycle has begun.'
-                        : claim && timePassed > EXPIRY_MS
-                            ? '💔 Your streak was reset because you didn\'t work within 12 hours after your last cooldown ended.'
-                            : 'Next work available in 12 hours • Keep working daily to maintain your streak!',
+                        : (claim && diffDays > 1)
+                            ? '💔 Your streak was reset because you didn\'t work yesterday (GMT+5:30).'
+                            : 'Next work available in 6 hours • Keep working daily (GMT+5:30) to maintain your streak!',
                 })
                 .setTimestamp();
 

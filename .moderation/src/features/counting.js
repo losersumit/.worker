@@ -30,7 +30,6 @@ The number can also be related to normal general knowlege.
 
 Reply strictly with "YES" if it evaluates to ${expected}.
 Reply strictly with "NO" if it evaluates to a different number.
-Reply strictly with "CHAT" if it is just text/chat and not an attempt to count.
 `;
 
   const aiResponse = await askCountingAi(prompt);
@@ -53,7 +52,6 @@ Message: "${content}"
 
 Return strictly one of these formats:
 - an integer like 554 if the message clearly represents exactly one count number
-- CHAT if it is chatter or does not represent a count
 - INVALID if it looks like a counting attempt but you cannot confidently resolve it to one integer
 
 If it is complex mathematical expression, solve it using BODMAS rules.
@@ -67,7 +65,7 @@ Accept mathematical expressions, riddles, and number words when they clearly res
     aiResponse?.choices?.[0]?.message?.content?.trim().toUpperCase() ||
     "INVALID";
 
-  if (answer === "CHAT" || answer === "INVALID") {
+  if (answer === "INVALID") {
     return null;
   }
 
@@ -157,16 +155,11 @@ export async function handleCounting(message) {
         currentCount: expected,
         lastUserId: message.author.id,
       });
-    } else if (answer.includes("NO")) {
+    } else {
       await message.react("❌");
       await message.reply(
         `Wrong value! The next number is **${expected}**. Try again!`,
       );
-      // DO NOT RESET COUNT
-    } else {
-      // "CHAT" or unsure - Ignore or react with a question mark?
-      // User said "counting should never ever break".
-      // If it's chat, we just let it be.
     }
   } catch (err) {
     console.error("Error in AI counting:", err);
