@@ -47,6 +47,16 @@ export default {
                 return interaction.editReply({ content: '❌ Registration number must be exactly 3 digits (e.g., 007).' });
             }
 
+            // Ensure target user has the Trainee role before enlisting
+            const TRAINEE_ROLE_ID = process.env.TRAINEE_ROLE_ID || '1475196328303792138';
+            const targetMemberCheck = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+            if (!targetMemberCheck) {
+                return interaction.editReply({ content: '❌ That user is not in this server.' });
+            }
+            if (!targetMemberCheck.roles.cache.has(TRAINEE_ROLE_ID)) {
+                return interaction.editReply({ content: `❌ **${targetUser.username}** does not have the Trainee role. Enlistment rejected.` });
+            }
+
             // 2. Fetch Guild Info
             const guildId = interaction.guildId;
             let guildTag = null;

@@ -39,6 +39,11 @@ export default {
             const FO_ROLE_ID = process.env.FO_ROLE_ID || '1475314865878077603';
             const SMO_ROLE_ID = process.env.SMO_ROLE_ID || '1475314856184778835';
 
+            // Ensure target user has the Trainee role before promoting
+            if (!member.roles.cache.has(TRAINING_ROLE_ID)) {
+                return interaction.editReply({ content: `❌ **${targetUser.username}** does not have the Trainee role. Promotion rejected.` });
+            }
+
             let promotedFrom = '';
             let promotedTo = '';
             let oldRole = '';
