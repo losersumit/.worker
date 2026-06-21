@@ -36,6 +36,7 @@ export async function moderateMessage(messageContent) {
       - Spam, scams, or malicious links
       - Self-harm or suicide content
       - Personal information sharing (doxxing)
+      - If it is a discord server link looking like discord.gg/, flag it.
 
       Message to analyze: "${messageContent}"
 

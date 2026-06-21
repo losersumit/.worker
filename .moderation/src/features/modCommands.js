@@ -231,7 +231,7 @@ async function handleBan(message, args, client) {
     }
 
     try {
-        await message.guild.members.ban(user.id, { reason, deleteMessageSeconds: 0 });
+        await message.guild.members.ban(user.id, { reason, deleteMessageSeconds: 86400 });
 
         const embed = new EmbedBuilder()
             .setColor(0xE74C3C)
