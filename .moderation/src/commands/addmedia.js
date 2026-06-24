@@ -16,8 +16,7 @@ export default {
             opt.setName('description')
                 .setDescription('Caption / description for this media')
                 .setRequired(true)
-        )
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+        ),
 
     async execute(interaction) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
