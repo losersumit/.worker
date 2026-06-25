@@ -7,6 +7,7 @@ import { handleEnlistmentApplication, executeApplicationAccept, executeApplicati
 import { handleSlotMachineInteraction } from '../../../.economy/interactions/slotMachineInteraction.js';
 import { handleRouletteTableInteraction } from '../../../.economy/interactions/rouletteTableInteraction.js';
 import { handleTodoPagination } from '../features/todoCommands.js';
+import { handleAgentConfirmation } from '../systems/confirmationHandler.js';
 
 export default {
     name: Events.InteractionCreate,
@@ -77,6 +78,9 @@ export default {
             } else if (interaction.customId.startsWith('todo_prev:') || interaction.customId.startsWith('todo_next:')) {
                 console.log('[Button] Identified as Todo Pagination interaction.');
                 await handleTodoPagination(interaction, client);
+            } else if (interaction.customId.startsWith('agent_confirm:') || interaction.customId.startsWith('agent_cancel:')) {
+                console.log('[Button] Identified as Agent Confirmation/Cancellation.');
+                await handleAgentConfirmation(interaction, client);
             } else {
                 console.log(`[Button] Unknown or handled elsewhere: ${interaction.customId}`);
             }

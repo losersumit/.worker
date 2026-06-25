@@ -8,6 +8,8 @@ import { handleRagChat } from '../features/ragChat.js';
 import { logMessageModeration, takeModAction, getActionDescription } from '../utils/moderationUtils.js';
 import { recentActivity } from '../utils/activityState.js';
 import { handleModCommand } from '../features/modCommands.js';
+import { hasPendingSession } from '../systems/taskSession.js';
+import { runAgentLoop } from '../systems/agentLoop.js';
 
 export default {
     name: Events.MessageCreate,
@@ -231,6 +233,16 @@ export default {
                     // If message was moderated/deleted, don't also run chat/FAQ on it.
                     return;
                 }
+            }
+
+            // ===== Agent task continuation check =====
+            if (hasPendingSession(message.author.id, message.channel.id)) {
+                try {
+                    await runAgentLoop(message, client, message.content);
+                } catch (err) {
+                    console.error('[Agent] Task continuation error:', err);
+                }
+                return;
             }
 
             // ===== RAG chat and retrieval commands =====

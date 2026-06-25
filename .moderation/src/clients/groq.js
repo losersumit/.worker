@@ -73,6 +73,15 @@ async function postWithKey(payload, apiKey) {
  * Call Groq Chat Completions with automatic simple failover across available keys.
  * If the active key hits quota/token exhaustion, it rotates to the next available key and retries.
  * Handles 404 Model Not Found by switching to fallback model if available.
+ *
+ * @param {Object} payload - The request payload
+ * @param {string} payload.model - Model name (e.g. 'llama-3.3-70b-versatile')
+ * @param {Array} payload.messages - Chat messages array
+ * @param {number} [payload.temperature] - Sampling temperature
+ * @param {number} [payload.max_tokens] - Max tokens in response
+ * @param {Array} [payload.tools] - Tool definitions for function calling (Groq native tool use)
+ * @param {string|Object} [payload.tool_choice] - Tool choice strategy ('auto', 'none', or specific tool)
+ * @returns {Promise<Object>} Groq API response
  */
 export async function groqChatCompletion(payload) {
   console.log(`[GroqClient] Starting request with model: ${payload.model}`);
