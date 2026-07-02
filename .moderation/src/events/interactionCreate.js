@@ -1,4 +1,4 @@
-import { Events } from 'discord.js';
+import { Events, EmbedBuilder } from 'discord.js';
 import config from '../config.js';
 import { supabase } from '../clients/supabase.js';
 import { trackTransaction } from '../utils/economyUtils.js';
@@ -7,6 +7,7 @@ import { handleEnlistmentApplication, executeApplicationAccept, executeApplicati
 import { handleSlotMachineInteraction } from '../../../.economy/interactions/slotMachineInteraction.js';
 import { handleRouletteTableInteraction } from '../../../.economy/interactions/rouletteTableInteraction.js';
 import { handleTodoPagination } from '../features/todoCommands.js';
+import { groqChatCompletion } from '../clients/groq.js';
 
 export default {
     name: Events.InteractionCreate,
@@ -77,8 +78,18 @@ export default {
             } else if (interaction.customId.startsWith('todo_prev:') || interaction.customId.startsWith('todo_next:')) {
                 console.log('[Button] Identified as Todo Pagination interaction.');
                 await handleTodoPagination(interaction, client);
+            } else if (interaction.customId.startsWith('know_more_gun:')) {
+                console.log('[Button] Identified as Know More Gun interaction.');
+                await handleKnowMoreGun(interaction, client);
             } else {
                 console.log(`[Button] Unknown or handled elsewhere: ${interaction.customId}`);
+            }
+        }
+
+        if (interaction.isModalSubmit()) {
+            if (interaction.customId === 'add_skin_modal') {
+                await handleAddSkinModal(interaction, client);
+                return;
             }
         }
     },
@@ -94,14 +105,14 @@ async function handlePingRole(interaction) {
 
         if (member.roles.cache.has(pingRoleId)) {
             await member.roles.remove(pingRoleId);
-            await interaction.editReply(`âœ… Removed the <@&${pingRoleId}> role from you.`);
+            await interaction.editReply(`✅ Removed the <@&${pingRoleId}> role from you.`);
         } else {
             await member.roles.add(pingRoleId);
-            await interaction.editReply(`âœ… Assigned the <@&${pingRoleId}> role to you.`);
+            await interaction.editReply(`✅ Assigned the <@&${pingRoleId}> role to you.`);
         }
     } catch (err) {
         console.error('Error toggling ping role:', err);
-        await interaction.editReply('âŒ Failed to toggle the role. Please check my permissions.');
+        await interaction.editReply('❌ Failed to toggle the role. Please check my permissions.');
     }
 }
 
@@ -118,7 +129,7 @@ async function handleBuySkin(interaction, client) {
         console.log(`[BuySkin] Checking role: ${startRole}`);
         if (!interaction.member.roles.cache.has(startRole)) {
             console.log(`[BuySkin] Role check failed for user: ${interaction.user.tag}`);
-            return interaction.editReply('âŒ You are not Enlisted Driver, ask Commander to enlist you.');
+            return interaction.editReply('❌ You are not Enlisted Driver, ask Commander to enlist you.');
         }
 
         // Retired Personnel cannot buy skins
@@ -136,7 +147,7 @@ async function handleBuySkin(interaction, client) {
 
         if (playerError || !player) {
             console.error('[BuySkin] Player Fetch Error:', playerError);
-            return interaction.editReply('âŒ You are not registered in the economy system.');
+            return interaction.editReply('❌ You are not registered in the economy system.');
         }
         console.log(`[BuySkin] Player found: ID ${player.id}`);
 
@@ -149,7 +160,7 @@ async function handleBuySkin(interaction, client) {
 
         if (statsError || !stats) {
             console.error('[BuySkin] Stats Fetch Error:', statsError);
-            return interaction.editReply('âŒ Could not fetch your balance.');
+            return interaction.editReply('❌ Could not fetch your balance.');
         }
         console.log(`[BuySkin] Balance: ${stats.wallet}`);
 
@@ -162,7 +173,7 @@ async function handleBuySkin(interaction, client) {
 
         if (skinError || !skin) {
             console.error('[BuySkin] Skin Fetch Error:', skinError);
-            return interaction.editReply(`âŒ Skin with code \`${skinCode}\` not found/unavailable.`);
+            return interaction.editReply(`❌ Skin with code \`${skinCode}\` not found/unavailable.`);
         }
         console.log(`[BuySkin] Skin found: ${skin.name} | Price: ${skin.price}`);
 
@@ -234,7 +245,7 @@ async function handleBuySkin(interaction, client) {
 
         if (updateError) {
             console.error('[BuySkin] Deduction Error:', updateError);
-            return interaction.editReply('âŒ Failed to deduct funds from your account.');
+            return interaction.editReply('❌ Failed to deduct funds from your account.');
         }
 
         console.log('[BuySkin] Adding to guild funds...');
@@ -256,7 +267,7 @@ async function handleBuySkin(interaction, client) {
 
         if (addSkinError) {
             console.error('[BuySkin] Inventory Add Error:', addSkinError);
-            return interaction.editReply('âŒ Failed to add skin to your inventory. Contact admin.');
+            return interaction.editReply('❌ Failed to add skin to your inventory. Contact admin.');
         }
 
         console.log('[BuySkin] Tracking transaction...');
@@ -285,23 +296,113 @@ async function handleBuySkin(interaction, client) {
                 }
             }
 
-            const messageOptions = { content: `Your **${skin.name}** skin has been delivered! âš™ï¸\nYou have 5 minutes to download it.` };
+            const messageOptions = { content: `Your **${skin.name}** skin has been delivered! ⚙️ \nYou have 5 minutes to download it.` };
             if (extraContent) messageOptions.content += `\n\n${extraContent.trim()}`;
             if (files.length > 0) messageOptions.files = files;
             else if (!extraContent && fileLinks.length > 0) messageOptions.content += `\nLinks: ${fileLinks.join('\n')}`;
 
             const skinMessage = await dm.send(messageOptions);
             setTimeout(() => { skinMessage.delete().catch(err => console.error('Failed to delete skin message:', err)); }, 5 * 60 * 1000);
-            await interaction.editReply(`âœ… **${skin.name}** purchased successfully! Check your DMs.`);
+            await interaction.editReply(`✅ **${skin.name}** purchased successfully! Check your DMs.`);
         } catch (dmError) {
             console.error('Failed to send DM:', dmError);
-            await interaction.editReply(`âœ… **${skin.name}** purchased, but I couldn't DM you! Please unlock your DMs and try \`?send ${skinCode}\` in the economy bot to retrieve it.`);
+            await interaction.editReply(`✅ **${skin.name}** purchased, but I couldn't DM you! Please unlock your DMs and try \`?send ${skinCode}\` in the economy bot to retrieve it.`);
         }
     } catch (error) {
         console.error('Error in handleBuySkin:', error);
-        await interaction.editReply('âŒ An unexpected error occurred while processing your purchase.');
+        await interaction.editReply('❌ An unexpected error occurred while processing your purchase.');
     }
 }
 
+async function handleAddSkinModal(interaction, client) {
+    await interaction.deferReply({ ephemeral: true });
 
+    try {
+        const code = interaction.fields.getTextInputValue('skin_code').trim();
+        const name = interaction.fields.getTextInputValue('skin_name').trim();
+        const priceStr = interaction.fields.getTextInputValue('skin_price').trim();
+        const filePath = interaction.fields.getTextInputValue('skin_file_path').trim();
+        const rolesStr = interaction.fields.getTextInputValue('skin_roles_allowed').trim();
 
+        // Validate price is a positive number
+        const price = Number(priceStr);
+        if (isNaN(price) || price < 0) {
+            return interaction.editReply('❌ Price must be a valid non-negative number.');
+        }
+
+        // Parse roles allowed
+        let rolesAllowed = [];
+        if (rolesStr) {
+            rolesAllowed = rolesStr.split(',').map(r => r.trim()).filter(r => r.length > 0);
+        }
+
+        // Insert into database
+        const { error } = await supabase
+            .from('skins')
+            .insert({
+                code,
+                name,
+                price,
+                file_path: filePath,
+                available: true,
+                roles_allowed: rolesAllowed
+            });
+
+        if (error) {
+            console.error('[AddSkin] Database Insert Error:', error);
+            return interaction.editReply(`❌ Failed to add skin: ${error.message}`);
+        }
+
+        await interaction.editReply(`✅ Skin **${name}** (Code: \`${code}\`) has been added successfully!`);
+
+    } catch (err) {
+        console.error('[AddSkin] Error handling modal submit:', err);
+        await interaction.editReply(`❌ An unexpected error occurred: ${err.message}`);
+    }
+}
+
+async function handleKnowMoreGun(interaction, client) {
+    // Defer publicly so everyone can see the response
+    await interaction.deferReply({ ephemeral: false });
+
+    // Parse gun name from button customId: "know_more_gun:<gun name>"
+    const gun = interaction.customId.slice('know_more_gun:'.length);
+
+    try {
+        const aiResponse = await groqChatCompletion({
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+                {
+                    role: 'user',
+                    content: `Give me a brief 2-sentence description of the weapon "${gun}", followed by one truly amazing or surprising fact about it. Format your response exactly like this:\n**Description:** <2 sentences>\n**Amazing Fact:** <1 surprising fact>`
+                }
+            ]
+        });
+
+        const raw = aiResponse?.choices?.[0]?.message?.content?.trim() || 'Could not retrieve information.';
+
+        // Parse out the two sections
+        const descMatch = raw.match(/\*\*Description:\*\*\s*([\s\S]*?)(?=\*\*Amazing Fact:\*\*|$)/i);
+        const factMatch = raw.match(/\*\*Amazing Fact:\*\*\s*([\s\S]*?)$/i);
+
+        const description = descMatch ? descMatch[1].trim() : raw;
+        const fact = factMatch ? factMatch[1].trim() : null;
+
+        const embed = new EmbedBuilder()
+            .setColor(0x1F1F1F)
+            .setTitle(`🔫 ${gun}`)
+            .setDescription(description)
+            .setFooter({ text: 'Weapon Intel • Powered by AI' })
+            .setTimestamp();
+
+        if (fact) {
+            embed.addFields({ name: '⚡ Amazing Fact', value: fact });
+        }
+
+        await interaction.editReply({ embeds: [embed] });
+
+    } catch (err) {
+        console.error('[KnowMoreGun] Groq error:', err);
+        await interaction.editReply(`❌ Could not fetch info about **${gun}**: ${err.message}`);
+    }
+}

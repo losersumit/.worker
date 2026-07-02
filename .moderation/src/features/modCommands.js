@@ -1,7 +1,8 @@
-import { EmbedBuilder, PermissionsBitField } from 'discord.js';
+import { EmbedBuilder, PermissionsBitField, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { getUserWarnings, resetWarnings, killUser, unkillUser } from '../systems/storage.js';
 import { handleTodoCommand } from './todoCommands.js';
 import { supabase } from '../clients/supabase.js';
+import { groqChatCompletion } from '../clients/groq.js';
 
 
 const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
@@ -218,9 +219,9 @@ async function handleUnmute(message, args, client) {
     }
 }
 
-async function handleKill(message, args, client) {
+async function handleAssassinate(message, args, client) {
     const targetArg = args[0];
-    const reason = args.slice(1).join(' ') || `Killed by ${message.author.tag}`;
+    const reason = args.slice(1).join(' ') || `Assassinated by ${message.author.tag}`;
 
     const resolved = await resolveUserForBan(message, targetArg, client);
     if (!resolved) return message.reply('❌ Could not find that user. Use a mention, user ID, or username.');
@@ -229,7 +230,7 @@ async function handleKill(message, args, client) {
 
     // If in the guild, check role hierarchy
     if (member && member.roles.highest.position >= message.member.roles.highest.position && message.author.id !== message.guild.ownerId) {
-        return message.reply('❌ I cannot kill this user. Check role hierarchy.');
+        return message.reply('❌ I cannot assassinate this user. Check role hierarchy.');
     }
 
     try {
@@ -240,33 +241,61 @@ async function handleKill(message, args, client) {
 
         await killUser(user.id, user.tag);
 
+        // Call Groq to choose a gun
+        let gun = 'Sniper Rifle';
+        try {
+            const aiResponse = await groqChatCompletion({
+                model: 'llama-3.3-70b-versatile',
+                messages: [{ role: 'user', content: 'Choose a random, cool, realistic or fictional gun or weapon that can be used for assassination. Return only the name of the weapon, nothing else. No punctuation, no quotes, no explanation.' }]
+            });
+            if (aiResponse?.choices?.[0]?.message?.content) {
+                gun = aiResponse.choices[0].message.content.trim().replace(/["']/g, '');
+            }
+        } catch (aiErr) {
+            console.error('[Assassinate] Groq generation failed:', aiErr);
+        }
+
         const embed = new EmbedBuilder()
             .setColor(0xE74C3C)
-            .setDescription(`💀 **${user.tag}** has been killed (all roles stripped).`)
+            .setDescription(`💀 **${user.tag}** has been assassinated by **${message.member.displayName}** with a **${gun}**.`)
             .addFields({ name: 'Reason', value: reason })
-            .setFooter({ text: `By ${message.member.displayName}` })
+            .setFooter({ text: `Assassination Request Complete` })
             .setTimestamp();
 
-        await message.reply({ embeds: [embed] });
-        await logModAction(client, message.guild, 'kill', message.author, user, `Reason: ${reason}`);
+        const button = new ButtonBuilder()
+            .setCustomId(`know_more_gun:${gun}`)
+            .setLabel(`Know more about ${gun}.`)
+            .setStyle(ButtonStyle.Primary);
+
+        const row = new ActionRowBuilder().addComponents(button);
+
+        await message.reply({ embeds: [embed], components: [row] });
+        await logModAction(client, message.guild, 'assassinate', message.author, user, `Reason: ${reason} (Weapon: ${gun})`);
     } catch (err) {
-        console.error('[MOD] Kill error:', err);
-        message.reply(`❌ Failed to kill: ${err.message}`);
+        console.error('[MOD] Assassinate error:', err);
+        message.reply(`❌ Failed to assassinate: ${err.message}`);
     }
 }
 
-async function handleUnkill(message, args, client) {
+async function handleRevive(message, args, client) {
     const targetArg = args[0];
-    if (!targetArg) return message.reply('❌ Please provide a user ID, mention, or username to unkill.');
+    if (!targetArg) return message.reply('❌ Please provide a user ID, mention, or username to revive.');
 
     let discordId = null;
     let user = null;
+    let member = null;
 
     // Try direct ID or mention first
     const rawId = targetArg.replace(/[^0-9]/g, '');
     if (rawId && rawId.length >= 17) {
-        user = await client.users.fetch(rawId).catch(() => null);
-        if (user) discordId = user.id;
+        member = await message.guild.members.fetch(rawId).catch(() => null);
+        if (member) {
+            user = member.user;
+            discordId = user.id;
+        } else {
+            user = await client.users.fetch(rawId).catch(() => null);
+            if (user) discordId = user.id;
+        }
     }
 
     // Fallback: search killed_users table by username
@@ -283,7 +312,9 @@ async function handleUnkill(message, args, client) {
             );
             if (match) {
                 discordId = match.discord_id;
-                user = await client.users.fetch(discordId).catch(() => null);
+                member = await message.guild.members.fetch(discordId).catch(() => null);
+                if (member) user = member.user;
+                else user = await client.users.fetch(discordId).catch(() => null);
             }
         }
     }
@@ -295,18 +326,35 @@ async function handleUnkill(message, args, client) {
     try {
         await unkillUser(discordId);
 
+        // If the user is in the server, give them the Visitor role
+        let roleMsg = '';
+        if (member) {
+            const visitorRoleId = process.env.VISITOR_ROLE_ID || process.env.AUTO_ROLE_ID;
+            if (visitorRoleId) {
+                const role = message.guild.roles.cache.get(visitorRoleId);
+                if (role) {
+                    await member.roles.add(role);
+                    roleMsg = ' (Visitor role restored)';
+                } else {
+                    roleMsg = ' (⚠️ Visitor role configured but not found in server)';
+                }
+            } else {
+                roleMsg = ' (⚠️ Visitor role ID not configured)';
+            }
+        }
+
         const tag = user ? user.tag : discordId;
         const embed = new EmbedBuilder()
             .setColor(0x2ECC71)
-            .setDescription(`✅ **${tag}** has been unkilled. Their status is now **alive**.`)
+            .setDescription(`✅ **${tag}** has been revived. Their status is now **alive**${roleMsg}.`)
             .setFooter({ text: `By ${message.member.displayName}` })
             .setTimestamp();
 
         await message.reply({ embeds: [embed] });
-        await logModAction(client, message.guild, 'unkill', message.author, user || { tag: discordId, id: discordId }, 'Kill status set to alive');
+        await logModAction(client, message.guild, 'revive', message.author, user || { tag: discordId, id: discordId }, `User revived${roleMsg}`);
     } catch (err) {
-        console.error('[MOD] Unkill error:', err);
-        message.reply(`❌ Failed to unkill: ${err.message}`);
+        console.error('[MOD] Revive error:', err);
+        message.reply(`❌ Failed to revive: ${err.message}`);
     }
 }
 
@@ -341,9 +389,10 @@ async function handleKick(message, args, client) {
 
 async function handleLock(message, args, client) {
     const targetArg = args[0];
-    if (!targetArg) return message.reply('❌ Usage: `!lock <#channel | channel_id | channel_link>`');
-
-    const channel = await resolveChannel(message, targetArg, client);
+    // Default to the current channel if none specified
+    const channel = targetArg
+        ? await resolveChannel(message, targetArg, client)
+        : message.channel;
     if (!channel) return message.reply('❌ Could not find that channel.');
 
     const rolesToLock = [VISITOR_ROLE_ID, ENLISTED_ROLE_ID].filter(Boolean);
@@ -372,9 +421,10 @@ async function handleLock(message, args, client) {
 
 async function handleUnlock(message, args, client) {
     const targetArg = args[0];
-    if (!targetArg) return message.reply('❌ Usage: `!unlock <#channel | channel_id | channel_link>`');
-
-    const channel = await resolveChannel(message, targetArg, client);
+    // Default to the current channel if none specified
+    const channel = targetArg
+        ? await resolveChannel(message, targetArg, client)
+        : message.channel;
     if (!channel) return message.reply('❌ Could not find that channel.');
 
     const rolesToUnlock = [VISITOR_ROLE_ID, ENLISTED_ROLE_ID].filter(Boolean);
@@ -438,7 +488,7 @@ function formatActionType(actionType) {
 
 async function handleWrns(message, args, client) {
     const targetArg = args[0];
-    if (!targetArg) return message.reply('❌ Usage: `!wrns <@user|ID|username>`');
+    if (!targetArg) return message.reply('❌ Usage: `!warns <@user|ID|username>`');
 
     const target = await resolveTarget(message, targetArg);
     if (!target) return message.reply('❌ Could not find that user.');
@@ -484,7 +534,7 @@ async function handleWrns(message, args, client) {
 
 async function handleClrWrns(message, args, client) {
     const targetArg = args[0];
-    if (!targetArg) return message.reply('❌ Usage: `!clrwrns <@user|ID|username>`');
+    if (!targetArg) return message.reply('❌ Usage: `!cw <@user|ID|username>`');
 
     const target = await resolveTarget(message, targetArg);
     if (!target) return message.reply('❌ Could not find that user.');
@@ -511,14 +561,14 @@ async function handleModHelp(message, args, client) {
                 value:
                     '`!mute <@user|ID|username> [duration]`\nTimeout a user. No duration = 28 days.\n' +
                     '`!unmute <@user|ID|username>`\nRemove timeout from a user.\n' +
-                    '`!kill <@user|ID|username> [reason]`\nStrip all roles from a user and restrict autorole.\n' +
-                    '`!unkill <ID|username>`\nUnkill a user to restore autorole capability.\n' +
+                    '`!assassinate <@user|ID|username> [reason]`\nAssassinate a user (strips all roles and restricts autorole).\n' +
+                    '`!revive <ID|username>`\nRevive a user (restores autorole capability and Visitor role).\n' +
                     '`!kick <@user|ID|username> [reason]`\nKick a user from the server.\n' +
-                    '`!lock <#channel|ID|link>`\nLock a channel (disable send for visitors & enlisted).\n' +
-                    '`!unlock <#channel|ID|link>`\nUnlock a previously locked channel.\n' +
+                    '`!lock [#channel|ID|link]`\nLock a channel. Defaults to current channel if none given.\n' +
+                    '`!unlock [#channel|ID|link]`\nUnlock a channel. Defaults to current channel if none given.\n' +
                     '`!purge <1-100>`\nBulk delete messages in the current channel.\n' +
-                    '`!wrns <@user|ID|username>`\nView warnings for a user.\n' +
-                    '`!clrwrns <@user|ID|username>`\nClear all warnings for a user.\n' +
+                    '`!warns <@user|ID|username>`\nView warnings for a user.\n' +
+                    '`!cw <@user|ID|username>`\nClear all warnings for a user.\n' +
                     '`!restart`\nRestart the bot container (crashing it so Railway boots it back up).\n' +
                     '`!modhelp`\nShow this help page.',
                 inline: false
@@ -591,15 +641,15 @@ async function resolveChannel(message, input, client) {
 const MOD_COMMANDS = {
     mute: handleMute,
     unmute: handleUnmute,
-    kill: handleKill,
-    unkill: handleUnkill,
+    assassinate: handleAssassinate,
+    revive: handleRevive,
     kick: handleKick,
     lock: handleLock,
     unlock: handleUnlock,
     purge: handlePurge,
     modhelp: handleModHelp,
-    wrns: handleWrns,
-    clrwrns: handleClrWrns,
+    warns: handleWrns,
+    cw: handleClrWrns,
     restart: handleRestart,
     todo: handleTodoCommand,
 };
@@ -621,17 +671,15 @@ export async function handleModCommand(message, client) {
         return true;
     }
 
-    if (args.length < 1 && !['modhelp', 'purge', 'restart', 'todo'].includes(commandName)) {
+    if (args.length < 1 && !['modhelp', 'purge', 'restart', 'todo', 'lock', 'unlock'].includes(commandName)) {
         const usages = {
             mute: '`!mute <@user|ID|username> [duration]`',
             unmute: '`!unmute <@user|ID|username>`',
-            kill: '`!kill <@user|ID|username> [reason]`',
-            unkill: '`!unkill <ID|username>`',
+            assassinate: '`!assassinate <@user|ID|username> [reason]`',
+            revive: '`!revive <ID|username>`',
             kick: '`!kick <@user|ID|username> [reason]`',
-            lock: '`!lock <#channel|ID|link>`',
-            unlock: '`!unlock <#channel|ID|link>`',
-            wrns: '`!wrns <@user|ID|username>`',
-            clrwrns: '`!clrwrns <@user|ID|username>`',
+            warns: '`!warns <@user|ID|username>`',
+            cw: '`!cw <@user|ID|username>`',
             restart: '`!restart`',
         };
         await message.reply(`Usage: ${usages[commandName]}`);

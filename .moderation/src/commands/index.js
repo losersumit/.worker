@@ -17,6 +17,7 @@ import adddriver from "./adddriver.js";
 import addmedia from "./addmedia.js";
 import promote from "./promote.js";
 import sendstylingembed from "./sendstylingembed.js";
+import addskin from "./addskin.js";
 
 
 export const commands = [
@@ -27,7 +28,8 @@ export const commands = [
     adddriver,
     addmedia,
     promote,
-    sendstylingembed
+    sendstylingembed,
+    addskin
 ];
 
 // Helper function to format dates
