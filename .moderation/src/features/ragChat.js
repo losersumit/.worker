@@ -1,7 +1,6 @@
 import '../utils/loadEnv.js';
 import { groqChatCompletion } from '../clients/groq.js';
 import { findFaqAnswer, embed } from '../systems/faq.js';
-import { runAgentLoop } from '../systems/agentLoop.js';
 import config from '../config.js';
 
 const CHAT_MODEL = config.ai.model;
@@ -343,12 +342,53 @@ async function askWithContext(message, client, question) {
         await message.channel.sendTyping();
     } catch { }
 
+    let rawChannelHistory = 'No recent channel messages.';
     try {
-        await runAgentLoop(message, client);
+        const lastMsgs = await message.channel.messages.fetch({ limit: 15 });
+        // Discord returns messages newest first; reverse to chronological order
+        const msgsArray = Array.from(lastMsgs.values()).reverse();
+        rawChannelHistory = msgsArray.map(m => {
+            const name = m.member?.displayName || m.author.globalName || m.author.username;
+            const text = sanitizeText(m.content) || '[attachment/embed]';
+            return `${name}: ${text}`;
+        }).join('\n');
     } catch (err) {
-        console.error('[RAG] Agent loop error:', err);
-        await message.reply('Something went wrong. Try again.').catch(() => {});
+        console.error('[RAG] Error fetching channel limit 15:', err.message);
     }
+
+    const [context, verifiedIdentity] = await Promise.all([
+        retrieveContext(client.supabase, question, message.channel.id),
+        getVerifiedIdentity(client.supabase, message.guild?.id, message.author.id),
+    ]);
+
+    const username = message.member?.displayName || message.author.globalName || message.author.username;
+    const { key, history, userName } = pushConversationTurn(message, question);
+
+    const prompt = buildPrompt(question, context, username, verifiedIdentity, history, rawChannelHistory);
+
+    const image = getImageAttachment(message);
+    let modelToUse = CHAT_MODEL;
+    let userContent = prompt;
+
+    if (image) {
+        modelToUse = config.ai.visionModel || config.ai.fallbackVisionModel;
+        userContent = [
+            { type: 'text', text: `${prompt}\n\nAlso analyze the attached image if relevant.` },
+            { type: 'image_url', image_url: { url: image.url } }
+        ];
+    }
+
+    const data = await groqChatCompletion({
+        model: modelToUse,
+        messages: [{ role: 'user', content: userContent }],
+        temperature: CHAT_TEMPERATURE,
+        max_tokens: CHAT_MAX_TOKENS,
+    });
+
+    const answer = data?.choices?.[0]?.message?.content?.trim() || 'No answer generated.';
+    pushAssistantTurn(key, answer);
+
+    await message.reply(answer);
 }
 
 async function buildHourlySummaryForChannel(supabase, channelId, startIso, endIso) {

@@ -8,10 +8,10 @@ import { getSession, updateSession, clearSession, STATES } from './taskSession.j
 import { EmbedBuilder } from 'discord.js';
 
 // Role IDs authorized to confirm agent actions (Commander / Partner)
-const AUTHORIZED_ROLE_IDS = [
-    process.env.COMMANDER_ROLE_ID,
-    process.env.PARTNER_ROLE_ID,
-].filter(Boolean);
+const AUTHORIZED_ROLE_IDS = (process.env.AGENT_CONFIRM_ROLES || '1448029016844931143,1463184412937289973')
+    .split(',')
+    .map(r => r.trim())
+    .filter(Boolean);
 
 /**
  * Handle an agent confirmation or cancellation button interaction.

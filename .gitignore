@@ -1,6 +1,6 @@
 .env
 .page
-D:\.worker\.worker\Genius.txt
+Genius.txt
 
 .moderation/data/
 slot-game.txt
