@@ -484,9 +484,6 @@ export async function runInactivityScan(client, supabase) {
                 // ── DB update ─────────────────────────────────────────────
                 await supabase.from('enlisted_drivers').update({ status: 'RTD' }).eq('discord_id', memberId);
 
-                // ── Notify in Bond's Cabin ────────────────────────────────
-                await notifyRetirement(client, member);
-
                 rtdMembers.push({ member });
 
                 await new Promise(r => setTimeout(r, 1000));

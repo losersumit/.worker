@@ -1,6 +1,7 @@
 import { Events, EmbedBuilder, AttachmentBuilder } from 'discord.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { isUserKilled } from '../systems/storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -9,10 +10,15 @@ export default {
     name: Events.GuildMemberAdd,
     async execute(member, client) {
         try {
-            const roleId = process.env.VISITOR_ROLE_ID || process.env.AUTO_ROLE_ID;
-            if (roleId) {
-                const role = member.guild.roles.cache.get(roleId);
-                if (role) await member.roles.add(role);
+            const isKilled = await isUserKilled(member.id).catch(() => false);
+            if (isKilled) {
+                console.log(`[JOIN] User ${member.user.tag} (${member.id}) is marked as killed. Skipping auto-role.`);
+            } else {
+                const roleId = process.env.VISITOR_ROLE_ID || process.env.AUTO_ROLE_ID;
+                if (roleId) {
+                    const role = member.guild.roles.cache.get(roleId);
+                    if (role) await member.roles.add(role);
+                }
             }
 
             // Welcome Message

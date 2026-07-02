@@ -1,6 +1,8 @@
 import { EmbedBuilder, PermissionsBitField } from 'discord.js';
-import { getUserWarnings, resetWarnings } from '../systems/storage.js';
+import { getUserWarnings, resetWarnings, killUser, unkillUser } from '../systems/storage.js';
 import { handleTodoCommand } from './todoCommands.js';
+import { supabase } from '../clients/supabase.js';
+
 
 const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
 const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID;
@@ -216,92 +218,95 @@ async function handleUnmute(message, args, client) {
     }
 }
 
-async function handleBan(message, args, client) {
+async function handleKill(message, args, client) {
     const targetArg = args[0];
-    const reason = args.slice(1).join(' ') || `Banned by ${message.author.tag}`;
+    const reason = args.slice(1).join(' ') || `Killed by ${message.author.tag}`;
 
     const resolved = await resolveUserForBan(message, targetArg, client);
     if (!resolved) return message.reply('❌ Could not find that user. Use a mention, user ID, or username.');
 
     const { user, member } = resolved;
 
-    // If in the guild, check if bannable
-    if (member && !member.bannable) {
-        return message.reply('❌ I cannot ban this user. Check my role hierarchy.');
+    // If in the guild, check role hierarchy
+    if (member && member.roles.highest.position >= message.member.roles.highest.position && message.author.id !== message.guild.ownerId) {
+        return message.reply('❌ I cannot kill this user. Check role hierarchy.');
     }
 
     try {
-        await message.guild.members.ban(user.id, { reason, deleteMessageSeconds: 86400 });
+        if (member) {
+            // Strip all roles
+            await member.roles.set([]).catch(err => console.error('Failed to strip roles:', err));
+        }
+
+        await killUser(user.id, user.tag);
 
         const embed = new EmbedBuilder()
             .setColor(0xE74C3C)
-            .setDescription(`🔨 **${user.tag}** has been banned.`)
+            .setDescription(`💀 **${user.tag}** has been killed (all roles stripped).`)
             .addFields({ name: 'Reason', value: reason })
             .setFooter({ text: `By ${message.member.displayName}` })
             .setTimestamp();
 
         await message.reply({ embeds: [embed] });
-        await logModAction(client, message.guild, 'ban', message.author, user, `Reason: ${reason}`);
+        await logModAction(client, message.guild, 'kill', message.author, user, `Reason: ${reason}`);
     } catch (err) {
-        console.error('[MOD] Ban error:', err);
-        message.reply(`❌ Failed to ban: ${err.message}`);
+        console.error('[MOD] Kill error:', err);
+        message.reply(`❌ Failed to kill: ${err.message}`);
     }
 }
 
-async function handleUnban(message, args, client) {
+async function handleUnkill(message, args, client) {
     const targetArg = args[0];
-    if (!targetArg) return message.reply('❌ Please provide a user ID or username to unban.');
+    if (!targetArg) return message.reply('❌ Please provide a user ID, mention, or username to unkill.');
 
-    // Try direct ID first
-    const userId = targetArg.replace(/[^0-9]/g, '');
+    let discordId = null;
+    let user = null;
 
-    if (userId && userId.length >= 17) {
-        try {
-            const ban = await message.guild.bans.fetch(userId).catch(() => null);
-            if (!ban) return message.reply('❌ That user is not banned.');
+    // Try direct ID or mention first
+    const rawId = targetArg.replace(/[^0-9]/g, '');
+    if (rawId && rawId.length >= 17) {
+        user = await client.users.fetch(rawId).catch(() => null);
+        if (user) discordId = user.id;
+    }
 
-            await message.guild.members.unban(userId, `Unbanned by ${message.author.tag}`);
+    // Fallback: search killed_users table by username
+    if (!discordId) {
+        const { data: rows } = await supabase
+            .from('killed_users')
+            .select('discord_id, username')
+            .eq('status', 'killed');
 
-            const embed = new EmbedBuilder()
-                .setColor(0x2ECC71)
-                .setDescription(`✅ **${ban.user.tag}** has been unbanned.`)
-                .setFooter({ text: `By ${message.member.displayName}` })
-                .setTimestamp();
-
-            await message.reply({ embeds: [embed] });
-            await logModAction(client, message.guild, 'unban', message.author, ban.user, 'Ban lifted');
-            return;
-        } catch (err) {
-            console.error('[MOD] Unban error:', err);
-            return message.reply(`❌ Failed to unban: ${err.message}`);
+        if (rows && rows.length > 0) {
+            const match = rows.find(r =>
+                r.username?.toLowerCase() === targetArg.toLowerCase() ||
+                r.discord_id === targetArg
+            );
+            if (match) {
+                discordId = match.discord_id;
+                user = await client.users.fetch(discordId).catch(() => null);
+            }
         }
     }
 
-    // Try searching by username in the ban list
+    if (!discordId) {
+        return message.reply('❌ Could not find a killed user matching that ID or username.');
+    }
+
     try {
-        const bans = await message.guild.bans.fetch();
-        const searchTerm = targetArg.toLowerCase();
-        const matchedBan = bans.find(b =>
-            b.user.username.toLowerCase() === searchTerm ||
-            b.user.tag.toLowerCase() === searchTerm ||
-            b.user.username.toLowerCase().includes(searchTerm)
-        );
+        await unkillUser(discordId);
 
-        if (!matchedBan) return message.reply('❌ Could not find a banned user matching that name.');
-
-        await message.guild.members.unban(matchedBan.user.id, `Unbanned by ${message.author.tag}`);
-
+        const tag = user ? user.tag : discordId;
         const embed = new EmbedBuilder()
             .setColor(0x2ECC71)
-            .setDescription(`✅ **${matchedBan.user.tag}** has been unbanned.`)
+            .setDescription(`✅ **${tag}** has been unkilled. Their status is now **alive**.`)
             .setFooter({ text: `By ${message.member.displayName}` })
             .setTimestamp();
 
         await message.reply({ embeds: [embed] });
-        await logModAction(client, message.guild, 'unban', message.author, matchedBan.user, 'Ban lifted');
+        await logModAction(client, message.guild, 'unkill', message.author, user || { tag: discordId, id: discordId }, 'Kill status set to alive');
     } catch (err) {
-        console.error('[MOD] Unban error:', err);
-        message.reply(`❌ Failed to unban: ${err.message}`);
+        console.error('[MOD] Unkill error:', err);
+        message.reply(`❌ Failed to unkill: ${err.message}`);
     }
 }
 
@@ -506,8 +511,8 @@ async function handleModHelp(message, args, client) {
                 value:
                     '`!mute <@user|ID|username> [duration]`\nTimeout a user. No duration = 28 days.\n' +
                     '`!unmute <@user|ID|username>`\nRemove timeout from a user.\n' +
-                    '`!ban <@user|ID|username> [reason]`\nBan a user (works for non-members too).\n' +
-                    '`!unban <ID|username>`\nUnban a user by ID or username.\n' +
+                    '`!kill <@user|ID|username> [reason]`\nStrip all roles from a user and restrict autorole.\n' +
+                    '`!unkill <ID|username>`\nUnkill a user to restore autorole capability.\n' +
                     '`!kick <@user|ID|username> [reason]`\nKick a user from the server.\n' +
                     '`!lock <#channel|ID|link>`\nLock a channel (disable send for visitors & enlisted).\n' +
                     '`!unlock <#channel|ID|link>`\nUnlock a previously locked channel.\n' +
@@ -586,8 +591,8 @@ async function resolveChannel(message, input, client) {
 const MOD_COMMANDS = {
     mute: handleMute,
     unmute: handleUnmute,
-    ban: handleBan,
-    unban: handleUnban,
+    kill: handleKill,
+    unkill: handleUnkill,
     kick: handleKick,
     lock: handleLock,
     unlock: handleUnlock,
@@ -620,8 +625,8 @@ export async function handleModCommand(message, client) {
         const usages = {
             mute: '`!mute <@user|ID|username> [duration]`',
             unmute: '`!unmute <@user|ID|username>`',
-            ban: '`!ban <@user|ID|username> [reason]`',
-            unban: '`!unban <ID|username>`',
+            kill: '`!kill <@user|ID|username> [reason]`',
+            unkill: '`!unkill <ID|username>`',
             kick: '`!kick <@user|ID|username> [reason]`',
             lock: '`!lock <#channel|ID|link>`',
             unlock: '`!unlock <#channel|ID|link>`',

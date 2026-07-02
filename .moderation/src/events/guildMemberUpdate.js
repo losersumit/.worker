@@ -29,6 +29,9 @@ export default {
         const oldAvatar = oldMember.user.avatar;
         const newAvatar = newMember.user.avatar;
 
+        const hadRTD = oldMember.roles.cache.has(RTD_ROLE_ID);
+        const hasRTD = newMember.roles.cache.has(RTD_ROLE_ID);
+
         // Ensure display_name updates in `players` table as before
         if (oldNick !== newNick) {
             try {
@@ -42,11 +45,66 @@ export default {
         const determineStatus = () => {
             if (hasAP)  return 'AP';
             if (hasRP)  return 'RP';
-            if (newMember.roles.cache.has(RTD_ROLE_ID)) return 'RTD';
+            if (hasRTD) return 'RTD';
             return null;
         };
 
-        // 1. ADDED ENLISTED ROLE -> Add to enlisted_drivers
+        // 1. GAINED RETIRED (RTD) ROLE -> Send Embed & update DB status
+        if (!hadRTD && hasRTD) {
+            console.log(`[ENLISTED] ${newMember.user.tag} gained RTD role.`);
+            try {
+                const { data: playerData } = await supabase
+                    .from('players')
+                    .select('registration_number')
+                    .eq('discord_id', newMember.user.id)
+                    .maybeSingle();
+
+                const unitNumber = playerData ? playerData.registration_number : null;
+                const photoUrl = newMember.user.displayAvatarURL({ size: 512, extension: 'png' });
+
+                await supabase.from('enlisted_drivers').upsert({
+                    discord_id: newMember.user.id,
+                    display_name: newNick,
+                    unit_number: unitNumber,
+                    status: 'RTD',
+                    photo_url: photoUrl
+                }, { onConflict: 'discord_id' });
+                
+                console.log(`[ENLISTED] ✅ Status set/upserted to RTD for ${newMember.user.tag}`);
+            } catch (err) {
+                console.error('[ENLISTED] ❌ Failed to update RTD status:', err);
+            }
+
+            // ── Post retirement announcement embed ──────────
+            if (RTD_ANNOUNCE_CHANNEL_ID) {
+                try {
+                    const channel = await newMember.client.channels.fetch(RTD_ANNOUNCE_CHANNEL_ID).catch(() => null);
+                    if (channel) {
+                        const avatarUrl = newMember.user.displayAvatarURL({ extension: 'png', size: 256 });
+                        const embed = new EmbedBuilder()
+                            .setColor(0x5865f2)
+                            .setTitle('🎖️ Driver Retired from Active Duty')
+                            .setDescription(
+                                `**${newNick}** has been honorably retired from active service.\n` +
+                                `Thank you for your dedication and service to **NMC**. 🫡`
+                            )
+                            .setThumbnail(avatarUrl)
+                            .addFields(
+                                { name: '👤 Driver',   value: newNick,                 inline: true },
+                                { name: '📋 Status',   value: 'Retired (RTD)',          inline: true },
+                            )
+                            .setFooter({ text: 'National Mobility Command • Retired Personnel' })
+                            .setTimestamp();
+                        await channel.send({ embeds: [embed] });
+                        console.log(`[ENLISTED] ✅ RTD retirement embed posted for ${newMember.user.tag}`);
+                    }
+                } catch (err) {
+                    console.error('[ENLISTED] ❌ Failed to post RTD embed:', err);
+                }
+            }
+        }
+
+        // 2. ADDED ENLISTED ROLE -> Add to enlisted_drivers
         if (!hadEnlisted && hasEnlisted) {
             console.log(`[ENLISTED] ${newMember.user.tag} gained enlisted role, adding to table...`);
             try {
@@ -75,49 +133,18 @@ export default {
             }
         }
 
-        // 2. REMOVED ENLISTED ROLE
+        // 3. REMOVED ENLISTED ROLE
         else if (hadEnlisted && !hasEnlisted) {
-            // If the member now has the RTD role, they were retired by the scanner.
-            // Keep their row in enlisted_drivers with status='RTD' so the RTD embed
-            // can be rebuilt correctly on future restarts.
+            // If the member now has the RTD role, keep their row in enlisted_drivers with status='RTD'
             if (newMember.roles.cache.has(RTD_ROLE_ID)) {
-                console.log(`[ENLISTED] ${newMember.user.tag} lost enlisted role but has RTD role — updating status to RTD (keeping row).`);
+                console.log(`[ENLISTED] ${newMember.user.tag} lost enlisted role but has RTD role — ensuring status is RTD.`);
                 try {
                     await supabase
                         .from('enlisted_drivers')
                         .update({ status: 'RTD', display_name: newNick })
                         .eq('discord_id', newMember.user.id);
-                    console.log(`[ENLISTED] ✅ Status set to RTD for ${newMember.user.tag}`);
                 } catch (err) {
                     console.error('[ENLISTED] ❌ Failed to update RTD status:', err);
-                }
-
-                // ── Post retirement announcement embed ──────────
-                if (RTD_ANNOUNCE_CHANNEL_ID) {
-                    try {
-                        const channel = await newMember.client.channels.fetch(RTD_ANNOUNCE_CHANNEL_ID).catch(() => null);
-                        if (channel) {
-                            const avatarUrl = newMember.user.displayAvatarURL({ extension: 'png', size: 256 });
-                            const embed = new EmbedBuilder()
-                                .setColor(0x5865f2)
-                                .setTitle('🎖️ Driver Retired from Active Duty')
-                                .setDescription(
-                                    `**${newNick}** has been honorably retired from active service.\n` +
-                                    `Thank you for your dedication and service to **NMC**. 🫡`
-                                )
-                                .setThumbnail(avatarUrl)
-                                .addFields(
-                                    { name: '👤 Driver',   value: newNick,                 inline: true },
-                                    { name: '📋 Status',   value: 'Retired (RTD)',          inline: true },
-                                )
-                                .setFooter({ text: 'National Mobility Command • Retired Personnel' })
-                                .setTimestamp();
-                            await channel.send({ embeds: [embed] });
-                            console.log(`[ENLISTED] ✅ RTD retirement embed posted for ${newMember.user.tag}`);
-                        }
-                    } catch (err) {
-                        console.error('[ENLISTED] ❌ Failed to post RTD embed:', err);
-                    }
                 }
             } else {
                 // Genuinely left / was removed — delete the row

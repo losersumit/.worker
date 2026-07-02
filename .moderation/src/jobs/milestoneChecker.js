@@ -21,7 +21,7 @@ const MILESTONES = [
         key:    'runs',
         label:  'Total Runs',
         icon:   '🚛',
-        thresholds: [10, 25, 50, 100, 250, 500, 1000],
+        thresholds: [5, 10, 25, 50, 75, 100],
         format: n => `${n} runs logged`,
         message: (name, n) => `**${name}** just logged their **${n}th delivery**!`,
     },
@@ -29,7 +29,7 @@ const MILESTONES = [
         key:    'total_distance_km',
         label:  'Distance',
         icon:   '📍',
-        thresholds: [1000, 5000, 10000, 25000, 50000],
+        thresholds: [2000, 5000, 10000, 20000, 50000],
         format: n => `${n.toLocaleString()} km driven`,
         message: (name, n) => `**${name}** has now driven **${n.toLocaleString()} km** total!`,
     },
@@ -37,7 +37,7 @@ const MILESTONES = [
         key:    'level',
         label:  'Level',
         icon:   '⬆️',
-        thresholds: [5, 10, 15, 20, 25, 30, 50],
+        thresholds: [12, 30, 50, 75, 100, 150, 200],
         format: n => `Level ${n}`,
         message: (name, n) => `**${name}** reached **Level ${n}**!`,
     },
@@ -45,7 +45,7 @@ const MILESTONES = [
         key:    'clean_deliveries',
         label:  'Clean Deliveries',
         icon:   '✅',
-        thresholds: [10, 25, 50, 100, 250],
+        thresholds: [5, 10, 20, 50, 75, 100],
         format: n => `${n} clean deliveries`,
         message: (name, n) => `**${name}** hit **${n} clean deliveries** — no damage, no excuses!`,
     },
@@ -116,7 +116,16 @@ async function checkMilestones(client, supabase, discordId, playerId, displayNam
 
                     if (avatarUrl) embed.setThumbnail(avatarUrl);
 
-                    await channel.send({ embeds: [embed] });
+                    let pingContent = `<@${discordId}>`;
+                    if (def.key === 'total_distance_km' && threshold === 2000) {
+                        pingContent += `\n\nCongratulations, you are now eligible for Operator!`;
+                    } else if (def.key === 'clean_deliveries' && threshold === 10) {
+                        pingContent += `\n\nYou are now eligible for Senior Mobility Operator!`;
+                    } else if (def.key === 'runs' && threshold === 25) {
+                        pingContent += `\n\nYou are now eligible for Field Operator!`;
+                    }
+
+                    await channel.send({ content: pingContent, embeds: [embed] });
                     console.log(`[MILESTONE] ${displayName} — ${milestoneId}`);
                 }
 

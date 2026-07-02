@@ -372,6 +372,39 @@ export default {
                         console.error("Failed to rebuild embeds in /enlist:", rebuildErr);
                         embedMsg += " (⚠️ Rebuild failed, but registry updated).";
                     }
+
+                    // Send Milestone embed
+                    const milestoneChannelId = process.env.MILESTONES_CHANNEL_ID;
+                    if (milestoneChannelId) {
+                        try {
+                            const mChannel = await interaction.client.channels.fetch(milestoneChannelId).catch(() => null);
+                            if (mChannel) {
+                                const avatarUrl = targetUser.displayAvatarURL({ extension: 'png', size: 256 });
+                                const { data: stats } = await supabase
+                                    .from('player_stats')
+                                    .select('total_distance_km')
+                                    .eq('player_id', playerId)
+                                    .maybeSingle();
+                                const kms = stats ? Number(stats.total_distance_km || 0) : 0;
+
+                                const embed = new EmbedBuilder()
+                                    .setColor(0x00ff00)
+                                    .setTitle('🎖️ Driver Enlisted')
+                                    .setDescription(`**${targetUser.username}** has been enlisted in NMC!`)
+                                    .setThumbnail(avatarUrl)
+                                    .addFields(
+                                        { name: '👤 Driver', value: `<@${targetUser.id}>`, inline: true },
+                                        { name: 'Assigned UNIT Number', value: `${registrationNumber}`, inline: true },
+                                        { name: 'Current KMs', value: `${kms.toLocaleString()} km`, inline: true }
+                                    )
+                                    .setFooter({ text: 'National Mobility Command • Enlistment' })
+                                    .setTimestamp();
+                                await mChannel.send({ embeds: [embed] });
+                            }
+                        } catch (sendErr) {
+                            console.error('[Enlist] Failed to send milestone embed:', sendErr);
+                        }
+                    }
                 } else {
                     roleMsg = "⚠️ Member not found in guild.";
                 }

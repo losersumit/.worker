@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } from 'discord.js';
+import { supabase } from '../clients/supabase.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -106,6 +107,63 @@ export default {
             } catch (nickErr) {
                 console.error('[Promote] Failed to update nickname:', nickErr.message);
                 nickMsg = '⚠️ Failed to update nickname (Check bot permissions / role hierarchy).';
+            }
+
+            // Fetch stats for Milestone notification
+            let jobsDone = 0;
+            let cleanDeliveries = 0;
+            try {
+                const { data: playerData } = await supabase
+                    .from('players')
+                    .select('id')
+                    .eq('discord_id', targetUser.id)
+                    .maybeSingle();
+
+                if (playerData) {
+                    const { data: stats } = await supabase
+                        .from('player_stats')
+                        .select('runs, clean_deliveries')
+                        .eq('player_id', playerData.id)
+                        .maybeSingle();
+                    if (stats) {
+                        jobsDone = stats.runs || 0;
+                        cleanDeliveries = stats.clean_deliveries || 0;
+                    }
+                }
+            } catch (dbErr) {
+                console.error('[Promote] Database fetch error:', dbErr);
+            }
+
+            // Send Milestone embed
+            const milestoneChannelId = process.env.MILESTONES_CHANNEL_ID;
+            if (milestoneChannelId) {
+                try {
+                    const mChannel = await interaction.client.channels.fetch(milestoneChannelId).catch(() => null);
+                    if (mChannel) {
+                        const avatarUrl = targetUser.displayAvatarURL({ extension: 'png', size: 256 });
+                        const milestoneEmbed = new EmbedBuilder()
+                            .setColor(0x00ff00)
+                            .setTitle('🎉 Rank Promotion')
+                            .setDescription(`**${targetUser.username}** has been promoted to **${promotedTo}**!`)
+                            .setThumbnail(avatarUrl)
+                            .addFields(
+                                { name: '👤 Driver', value: `<@${targetUser.id}>`, inline: true },
+                                { name: 'Promotion Path', value: `${promotedFrom} ➡️ ${promotedTo}`, inline: true }
+                            )
+                            .setFooter({ text: 'National Mobility Command • Promotions' })
+                            .setTimestamp();
+
+                        if (oldRole === O_ROLE_ID) {
+                            milestoneEmbed.addFields({ name: 'Jobs Done', value: `${jobsDone}`, inline: true });
+                        } else if (oldRole === FO_ROLE_ID) {
+                            milestoneEmbed.addFields({ name: 'Clean Deliveries', value: `${cleanDeliveries}`, inline: true });
+                        }
+
+                        await mChannel.send({ embeds: [milestoneEmbed] });
+                    }
+                } catch (sendErr) {
+                    console.error('[Promote] Failed to send milestone embed:', sendErr);
+                }
             }
 
             // Success response

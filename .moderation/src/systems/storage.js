@@ -46,6 +46,7 @@ export async function initStorage(config) {
     console.log('Storage system initialized (Supabase Mode)');
 }
 
+
 /**
  * Add a warning to a user (Supabase)
  */
@@ -243,6 +244,59 @@ export function getLevelState() {
 
 // Removed: forceSave, getAllWarnings (not efficient for DB)
 
+export async function isUserKilled(userId) {
+    try {
+        const { data, error } = await supabase
+            .from('killed_users')
+            .select('status')
+            .eq('discord_id', userId)
+            .maybeSingle();
+        if (error) {
+            console.error('Error fetching killed status:', error);
+            return false;
+        }
+        return data?.status === 'killed';
+    } catch (err) {
+        console.error('isUserKilled error:', err);
+        return false;
+    }
+}
+
+export async function killUser(userId, username = '') {
+    try {
+        const { error } = await supabase
+            .from('killed_users')
+            .upsert({
+                discord_id: userId,
+                username: username,
+                status: 'killed',
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'discord_id' });
+        if (error) {
+            console.error('Error setting user status to killed:', error);
+        }
+    } catch (err) {
+        console.error('killUser error:', err);
+    }
+}
+
+export async function unkillUser(userId) {
+    try {
+        const { error } = await supabase
+            .from('killed_users')
+            .update({
+                status: 'alive',
+                updated_at: new Date().toISOString()
+            })
+            .eq('discord_id', userId);
+        if (error) {
+            console.error('Error setting user status to alive:', error);
+        }
+    } catch (err) {
+        console.error('unkillUser error:', err);
+    }
+}
+
 /**
  * Determine what action to take based on warning count
  */
@@ -261,3 +315,4 @@ function determineAction(warningCount, config) {
 
     return null;
 }
+
