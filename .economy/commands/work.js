@@ -192,14 +192,11 @@ export default {
             // ── 8. Generate Side Quest Story using Groq AI ────────
             let creativeComment = '';
             try {
-                const aiPrompt = `You are a creative writer for a trucking Discord bot economy game. Write a very short, engaging, one-sentence side quest comment where a truck driver does a trucking-related job, delivery, or a random roadside encounter, and earns exactly €${baseReward.toLocaleString()} euros.
+                const aiPrompt = `You are a creative writer for a Discord bot economy game. Write a very short, engaging, one-sentence side quest comment and earns exactly €${baseReward.toLocaleString()} euros.
 
 Requirements:
-- Must mention a realistic trucking action or roadside help.
 - Must mention the exact amount: €${baseReward.toLocaleString()}.
-- Do not include any intro, outro, quotes, markdown formatting, or extra sentences. Only return the one-sentence comment itself.
-
-Example: You helped a family from a car accident on the road and they rewarded you with €1,700.`;
+- Do not include any intro, outro, quotes, markdown formatting, or extra sentences. Only return the one-sentence comment itself.`;
 
                 const aiResponse = await groqChatCompletion({
                     model: config.ai.model,
