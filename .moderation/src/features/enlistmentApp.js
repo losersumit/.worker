@@ -56,10 +56,50 @@ export {
 export async function handleEnlistmentApplication(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
-  // 1. Guild check (must be NMC guild: 1448027116074434593)
-  if (interaction.guildId !== "1448027116074434593") {
+  const user = interaction.user;
+
+  // 1. Database registration and Guild check
+  const { data: playerData, error: playerError } = await supabase
+    .from("players")
+    .select("id, guild_id")
+    .eq("discord_id", user.id)
+    .maybeSingle();
+
+  if (!playerData) {
     return interaction.editReply(
-      "❌ This application is only available within the National Mobility Command (NMC) server.",
+      "❌ You are not registered in the database. Please register first.",
+    );
+  }
+
+  if (playerData.guild_id !== "1448027116074434593") {
+    let guildName = "Unknown Guild";
+    if (playerData.guild_id) {
+      const { data: guildData } = await supabase
+        .from("approved_guilds")
+        .select("guild_name")
+        .eq("guild_id", playerData.guild_id)
+        .maybeSingle();
+      if (guildData && guildData.guild_name) {
+        guildName = guildData.guild_name;
+      }
+    }
+
+    const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
+    if (LOG_CHANNEL_ID) {
+      try {
+        const logChannel = await interaction.client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
+        if (logChannel) {
+          await logChannel.send({
+            content: `<@${user.id}> from **${guildName}** tried to Apply.`
+          });
+        }
+      } catch (logErr) {
+        console.error("Failed to send log message:", logErr);
+      }
+    }
+
+    return interaction.editReply(
+      `❌ You are a registered driver in **${guildName}**. Please ask @losersumit to change your guild.`
     );
   }
 
@@ -75,22 +115,7 @@ export async function handleEnlistmentApplication(interaction) {
     );
   }
 
-  const user = interaction.user;
-
-  // 2. Database registration check
-  const { data: playerData, error: playerError } = await supabase
-    .from("players")
-    .select("id")
-    .eq("discord_id", user.id)
-    .maybeSingle();
-
-  if (!playerData) {
-    return interaction.editReply(
-      "❌ You are not registered in the database. Please register first.",
-    );
-  }
-
-  // 3. 2,000 km check
+  // 2. 2,000 km check
   const { data: statsData, error: statsError } = await supabase
     .from("player_stats")
     .select("total_distance_km")
