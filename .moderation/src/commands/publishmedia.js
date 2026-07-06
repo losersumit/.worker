@@ -4,6 +4,7 @@ import { supabase } from '../clients/supabase.js';
 import { publishToInstagram } from '../clients/socials.js';
 import config from '../config.js';
 import axios from 'axios';
+import schedule from 'node-schedule';
 
 const VIDEO_EXTS = ['.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v'];
 
@@ -23,8 +24,11 @@ export default {
         ),
 
     async execute(interaction) {
-        // Defer reply since fetching, vision analysis, and social publishing can take several seconds
+        // Defer reply since fetching, vision analysis, storage upload, and social publishing can take several seconds
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+        // Keep track of the temporary storage path to clean up later
+        let tempStoragePath = null;
 
         try {
             // 1. Role Check (Admins, Commanders, Partners)
@@ -122,8 +126,6 @@ export default {
                 embed.setImage(`attachment://${filename}`);
             }
 
-
-
             const sentMessage = await stylingChannel.send({ embeds: [embed], files: [file] });
             const sentAttachment = sentMessage.attachments.first();
             const finalMediaUrl = sentAttachment ? sentAttachment.url : mediaAttachment.url;
@@ -148,19 +150,65 @@ export default {
                 supabaseStatus = `❌ Failed: ${dbError.message}`;
             }
 
-            // 5. Post to Instagram
-            console.log('[PublishMedia] Publishing to Instagram...');
+            // 5. Create Bucket & Upload to Supabase Storage (temp storage for Instagram download)
+            console.log('[PublishMedia] Ensuring instagram-temp Supabase bucket exists...');
+            try {
+                await supabase.storage.createBucket('instagram-temp', { public: true });
+            } catch (_) {}
+
+            const timestamp = Date.now();
+            const randomSuffix = Math.random().toString(36).substring(2, 8);
+            const fileExtension = filename.split('.').pop() || (mediaType === 'video' ? 'mp4' : 'png');
+            tempStoragePath = `instagram/${timestamp}-${randomSuffix}.${fileExtension}`;
+
+            console.log(`[PublishMedia] Uploading temp object to storage: ${tempStoragePath}...`);
+            const { error: uploadError } = await supabase.storage
+                .from('instagram-temp')
+                .upload(tempStoragePath, mediaBuffer, {
+                    contentType: mediaAttachment.contentType || (mediaType === 'video' ? 'video/mp4' : 'image/png'),
+                    upsert: true
+                });
+
+            if (uploadError) {
+                throw new Error(`Supabase Storage upload failed: ${uploadError.message}`);
+            }
+
+            const { data: publicUrlData } = supabase.storage
+                .from('instagram-temp')
+                .getPublicUrl(tempStoragePath);
+            const tempPublicUrl = publicUrlData.publicUrl;
+
+            // 6. Post to Instagram using the temp public URL
+            console.log('[PublishMedia] Publishing to Instagram via temporary public URL...');
             let instagramStatus = 'Pending';
             try {
                 const igPostId = await publishToInstagram({
-                    mediaUrl: finalMediaUrl,
+                    mediaUrl: tempPublicUrl,
                     mediaType: mediaType,
                     caption: description
                 });
                 instagramStatus = `✅ Posted (ID: ${igPostId})`;
+                
+                // Success: Delete the temporary object immediately
+                console.log(`[PublishMedia] Instagram publish successful. Deleting temporary object: ${tempStoragePath}...`);
+                await supabase.storage.from('instagram-temp').remove([tempStoragePath]);
             } catch (igErr) {
-                console.error('[PublishMedia] Instagram publish error:', igErr);
+                console.error('[PublishMedia] Instagram publish error:', igErr.message);
                 instagramStatus = `❌ Failed: ${igErr.message}`;
+
+                // Failure: Keep temporary object for 1 hour for debugging, then clean it up
+                const cleanupTime = new Date(Date.now() + 60 * 60 * 1000);
+                const pathForCleanup = tempStoragePath;
+                console.log(`[PublishMedia] Keeping temporary file for debugging. Scheduled deletion at: ${cleanupTime.toISOString()}`);
+                
+                schedule.scheduleJob(cleanupTime, async () => {
+                    try {
+                        console.log(`[PublishMedia] Running scheduled cleanup for: ${pathForCleanup}...`);
+                        await supabase.storage.from('instagram-temp').remove([pathForCleanup]);
+                    } catch (cleanupErr) {
+                        console.error(`[PublishMedia] Scheduled cleanup failed for ${pathForCleanup}:`, cleanupErr.message);
+                    }
+                });
             }
 
             // Status message
@@ -175,6 +223,14 @@ export default {
 
         } catch (error) {
             console.error('Error executing /publishmedia:', error);
+            
+            // Fallback cleanup if upload succeeded but error was thrown before publishing flow finished
+            if (tempStoragePath) {
+                try {
+                    await supabase.storage.from('instagram-temp').remove([tempStoragePath]);
+                } catch (_) {}
+            }
+            
             return interaction.editReply({ content: `❌ An unexpected error occurred: ${error.message}` });
         }
     }

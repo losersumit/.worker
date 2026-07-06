@@ -1,13 +1,12 @@
 import axios from 'axios';
 
 /**
- * Publishes an image or video to Instagram using the Facebook Graph API.
+ * Publishes an image or video to Instagram using the Instagram Graph API.
  * @param {object} params
  * @param {string} params.mediaUrl - The public url of the image or video (e.g. Discord CDN URL).
  * @param {'image'|'video'} params.mediaType - The type of media.
  * @param {string} params.caption - The text caption for the post.
- * @param {string} [params.song] - Optional song details to append to caption or log.
- * @returns {Promise<string>} The published post ID or URL.
+ * @returns {Promise<string>} The published post ID.
  */
 export async function publishToInstagram({ mediaUrl, mediaType, caption }) {
     const userId = process.env.INSTAGRAM_USER_ID;
@@ -17,7 +16,12 @@ export async function publishToInstagram({ mediaUrl, mediaType, caption }) {
         throw new Error('Missing Instagram credentials (INSTAGRAM_USER_ID or INSTAGRAM_ACCESS_TOKEN) in configuration.');
     }
 
-    console.log(`[Instagram Client] Creating media container for ${mediaType}...`);
+    // Reject ephemeral Discord attachment URLs
+    if (mediaUrl && mediaUrl.includes('ephemeral-attachments')) {
+        throw new Error('Ephemeral Discord attachment URLs cannot be processed because Instagram requires a publicly downloadable URL. Please use a permanent Discord attachment URL.');
+    }
+
+    console.log(`[Instagram Client] Creating media container for ${mediaType} on Instagram Graph API v25.0...`);
     
     const isVideo = mediaType === 'video';
     const containerParams = {
@@ -26,25 +30,38 @@ export async function publishToInstagram({ mediaUrl, mediaType, caption }) {
     };
 
     if (isVideo) {
-        containerParams.media_type = 'REELS'; // Using Reels for video posts on Instagram
+        containerParams.media_type = 'REELS'; // Using Reels for video posts
         containerParams.video_url = mediaUrl;
     } else {
         containerParams.image_url = mediaUrl;
     }
 
-    // 1. Create Media Container
-    const containerRes = await axios.post(
-        `https://graph.facebook.com/v19.0/${userId}/media`,
-        null,
-        { params: containerParams }
-    );
+    let containerId;
+    try {
+        // 1. Create Media Container
+        const containerRes = await axios.post(
+            `https://graph.instagram.com/v25.0/${userId}/media`,
+            null,
+            { params: containerParams }
+        );
 
-    const containerId = containerRes.data.id;
-    if (!containerId) {
-        throw new Error('Failed to retrieve container ID from Meta API response.');
+        containerId = containerRes.data.id;
+        if (!containerId) {
+            throw new Error('Failed to retrieve container ID from Instagram API response.');
+        }
+        console.log(`[Instagram Client] Created container ID: ${containerId}`);
+    } catch (error) {
+        if (error.response) {
+            const cleanedUrl = error.config?.url ? error.config.url.split('?')[0] : 'Unknown URL';
+            console.error('[Instagram Client] Media container creation failed:', {
+                status: error.response.status,
+                url: cleanedUrl,
+                data: error.response.data
+            });
+            throw new Error(`Meta API container creation failed: ${JSON.stringify(error.response.data)}`);
+        }
+        throw error;
     }
-
-    console.log(`[Instagram Client] Created container ID: ${containerId}.`);
 
     // 2. If video, poll status until FINISHED
     if (isVideo) {
@@ -58,7 +75,7 @@ export async function publishToInstagram({ mediaUrl, mediaType, caption }) {
             attempts++;
 
             try {
-                const statusRes = await axios.get(`https://graph.facebook.com/v19.0/${containerId}`, {
+                const statusRes = await axios.get(`https://graph.instagram.com/v25.0/${containerId}`, {
                     params: {
                         fields: 'status_code',
                         access_token: token,
@@ -67,7 +84,16 @@ export async function publishToInstagram({ mediaUrl, mediaType, caption }) {
                 statusCode = statusRes.data.status_code;
                 console.log(`[Instagram Client] Polling attempt ${attempts}/${maxAttempts}: status is ${statusCode}`);
             } catch (pollErr) {
-                console.error('[Instagram Client] Polling error:', pollErr.message);
+                if (pollErr.response) {
+                    const cleanedUrl = pollErr.config?.url ? pollErr.config.url.split('?')[0] : 'Unknown URL';
+                    console.error('[Instagram Client] Polling status failed:', {
+                        status: pollErr.response.status,
+                        url: cleanedUrl,
+                        data: pollErr.response.data
+                    });
+                } else {
+                    console.error('[Instagram Client] Polling error:', pollErr.message);
+                }
             }
         }
 
@@ -78,18 +104,31 @@ export async function publishToInstagram({ mediaUrl, mediaType, caption }) {
 
     // 3. Publish Media Container
     console.log(`[Instagram Client] Publishing container: ${containerId}...`);
-    const publishRes = await axios.post(
-        `https://graph.facebook.com/v19.0/${userId}/media_publish`,
-        null,
-        {
-            params: {
-                creation_id: containerId,
-                access_token: token,
+    try {
+        const publishRes = await axios.post(
+            `https://graph.instagram.com/v25.0/${userId}/media_publish`,
+            null,
+            {
+                params: {
+                    creation_id: containerId,
+                    access_token: token,
+                }
             }
-        }
-    );
+        );
 
-    const postId = publishRes.data.id;
-    console.log(`[Instagram Client] Successfully published! Post ID: ${postId}`);
-    return postId;
+        const postId = publishRes.data.id;
+        console.log(`[Instagram Client] Successfully published! Post ID: ${postId}`);
+        return postId;
+    } catch (error) {
+        if (error.response) {
+            const cleanedUrl = error.config?.url ? error.config.url.split('?')[0] : 'Unknown URL';
+            console.error('[Instagram Client] Media publish failed:', {
+                status: error.response.status,
+                url: cleanedUrl,
+                data: error.response.data
+            });
+            throw new Error(`Meta API media publish failed: ${JSON.stringify(error.response.data)}`);
+        }
+        throw error;
+    }
 }

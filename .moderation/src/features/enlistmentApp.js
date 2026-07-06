@@ -6,6 +6,7 @@ import {
   ComponentType,
 } from "discord.js";
 import { groqChatCompletion } from "../clients/groq.js";
+import { supabase } from "../clients/supabase.js";
 import config from "../config.js";
 
 const TRAINING_ROLE_ID = process.env.TRAINEE_ROLE_ID || "1475196328303792138";
@@ -55,6 +56,13 @@ export {
 export async function handleEnlistmentApplication(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
+  // 1. Guild check (must be NMC guild: 1448027116074434593)
+  if (interaction.guildId !== "1448027116074434593") {
+    return interaction.editReply(
+      "❌ This application is only available within the National Mobility Command (NMC) server.",
+    );
+  }
+
   const BLOCKED_ROLES = [
     process.env.TRAINEE_ROLE_ID || "1475196328303792138",
     process.env.ENLISTED_ROLE_ID || "1482386008376086598",
@@ -68,6 +76,33 @@ export async function handleEnlistmentApplication(interaction) {
   }
 
   const user = interaction.user;
+
+  // 2. Database registration check
+  const { data: playerData, error: playerError } = await supabase
+    .from("players")
+    .select("id")
+    .eq("discord_id", user.id)
+    .maybeSingle();
+
+  if (!playerData) {
+    return interaction.editReply(
+      "❌ You are not registered in the database. Please register first.",
+    );
+  }
+
+  // 3. 2,000 km check
+  const { data: statsData, error: statsError } = await supabase
+    .from("player_stats")
+    .select("total_distance_km")
+    .eq("player_id", playerData.id)
+    .maybeSingle();
+
+  const totalKm = statsData ? (statsData.total_distance_km || 0) : 0;
+  if (totalKm < 2000) {
+    return interaction.editReply(
+      `❌ You do not meet the enlistment requirements. You currently have **${totalKm.toLocaleString()} km** (minimum 2,000 km required in player_stats to apply).`,
+    );
+  }
 
   try {
     const dmChannel = await user.createDM();
@@ -482,8 +517,60 @@ export async function handlePromotionRequest(interaction) {
   let targetOfficerKey = null;
   if (member.roles.cache.has(FO_ROLE_ID)) {
     targetOfficerKey = "smo";
+
+    // Check 10 clean deliveries constraint
+    const { data: playerData } = await supabase
+        .from('players')
+        .select('id')
+        .eq('discord_id', user.id)
+        .maybeSingle();
+
+    let cleanDeliveries = 0;
+    if (playerData) {
+        const { data: stats } = await supabase
+            .from('player_stats')
+            .select('clean_deliveries')
+            .eq('player_id', playerData.id)
+            .maybeSingle();
+        if (stats) {
+            cleanDeliveries = stats.clean_deliveries || 0;
+        }
+    }
+
+    if (cleanDeliveries < 10) {
+        return interaction.editReply(
+            `❌ You cannot start a promotion trial to Senior Mobility Operator because you only have **${cleanDeliveries} clean deliveries** (minimum 10 required).`
+        );
+    }
+
   } else if (member.roles.cache.has(O_ROLE_ID)) {
     targetOfficerKey = "field_operator";
+
+    // Check 25 logged runs constraint
+    const { data: playerData } = await supabase
+        .from('players')
+        .select('id')
+        .eq('discord_id', user.id)
+        .maybeSingle();
+
+    let runs = 0;
+    if (playerData) {
+        const { data: stats } = await supabase
+            .from('player_stats')
+            .select('runs')
+            .eq('player_id', playerData.id)
+            .maybeSingle();
+        if (stats) {
+            runs = stats.runs || 0;
+        }
+    }
+
+    if (runs < 25) {
+        return interaction.editReply(
+            `❌ You cannot start a promotion trial to Field Operator because you only have **${runs} logged runs** (minimum 25 required).`
+        );
+    }
+
   } else {
     return interaction.editReply(
       "❌ You must be an Operator [O] or Field Operator [FO] to request a promotion.",

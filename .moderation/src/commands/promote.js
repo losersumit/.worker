@@ -56,11 +56,61 @@ export default {
                 promotedTo = 'Field Operator [FO]';
                 oldRole = O_ROLE_ID;
                 newRole = FO_ROLE_ID;
+
+                // Check 25 logged runs constraint
+                const { data: playerData } = await supabase
+                    .from('players')
+                    .select('id')
+                    .eq('discord_id', targetUser.id)
+                    .maybeSingle();
+
+                let runs = 0;
+                if (playerData) {
+                    const { data: stats } = await supabase
+                        .from('player_stats')
+                        .select('runs')
+                        .eq('player_id', playerData.id)
+                        .maybeSingle();
+                    if (stats) {
+                        runs = stats.runs || 0;
+                    }
+                }
+
+                if (runs < 25) {
+                    return interaction.editReply({
+                        content: `❌ **${targetUser.username}** cannot be promoted to Field Operator because they only have **${runs} logged runs** (minimum 25 required).`
+                    });
+                }
             } else if (member.roles.cache.has(FO_ROLE_ID)) {
                 promotedFrom = 'Field Operator [FO]';
                 promotedTo = 'Senior Mobility Operator [SMO]';
                 oldRole = FO_ROLE_ID;
                 newRole = SMO_ROLE_ID;
+
+                // Check 10 clean deliveries constraint
+                const { data: playerData } = await supabase
+                    .from('players')
+                    .select('id')
+                    .eq('discord_id', targetUser.id)
+                    .maybeSingle();
+
+                let cleanDeliveries = 0;
+                if (playerData) {
+                    const { data: stats } = await supabase
+                        .from('player_stats')
+                        .select('clean_deliveries')
+                        .eq('player_id', playerData.id)
+                        .maybeSingle();
+                    if (stats) {
+                        cleanDeliveries = stats.clean_deliveries || 0;
+                    }
+                }
+
+                if (cleanDeliveries < 10) {
+                    return interaction.editReply({
+                        content: `❌ **${targetUser.username}** cannot be promoted to Senior Mobility Operator because they only have **${cleanDeliveries} clean deliveries** (minimum 10 required).`
+                    });
+                }
             } else {
                 return interaction.editReply({ content: '❌ User does not have Operator [O] or Field Operator [FO] role.' });
             }

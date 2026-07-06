@@ -57,6 +57,31 @@ export default {
                 return interaction.editReply({ content: `❌ **${targetUser.username}** does not have the Trainee role. Enlistment rejected.` });
             }
 
+            // Check if player has at least 2000 km in player_stats
+            const { data: existingPlayer, error: playerFetchError } = await supabase
+                .from('players')
+                .select('id')
+                .eq('discord_id', targetUser.id)
+                .maybeSingle();
+
+            let totalKm = 0;
+            if (existingPlayer) {
+                const { data: statsData, error: statsFetchError } = await supabase
+                    .from('player_stats')
+                    .select('total_distance_km')
+                    .eq('player_id', existingPlayer.id)
+                    .maybeSingle();
+                if (statsData) {
+                    totalKm = statsData.total_distance_km || 0;
+                }
+            }
+
+            if (totalKm < 2000) {
+                return interaction.editReply({
+                    content: `❌ **${targetUser.username}** only has **${totalKm.toLocaleString()} km** (minimum 2,000 km required in player_stats). Enlistment rejected.`
+                });
+            }
+
             // 2. Fetch Guild Info
             const guildId = interaction.guildId;
             let guildTag = null;
