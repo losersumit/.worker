@@ -1,4 +1,4 @@
-﻿import { Client, GatewayIntentBits } from 'discord.js';
+import { Client, GatewayIntentBits } from 'discord.js';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -25,20 +25,21 @@ export async function postPermanentSlots(client) {
             messages.filter((m) => m.author.id === client.user.id && m.embeds[0] && m.embeds[0].title?.includes('Slot Machine #')).values()
         ).sort((a, b) => a.embeds[0].title.localeCompare(b.embeds[0].title));
 
-        if (oldMachines.length === 5) {
-            console.log('[SLOTS] Found 5 existing slot machines. Updating them in-place...');
-            for (let i = 0; i < 5; i++) {
+        // We only want 2 slot machines. If there are exactly 2, edit in-place.
+        if (oldMachines.length === 2) {
+            console.log('[SLOTS] Found 2 existing slot machines. Updating them in-place...');
+            for (let i = 0; i < 2; i++) {
                 await oldMachines[i].edit({
                     embeds: [createDefaultSlotEmbed(i + 1)],
                     components: [createDefaultSlotRow(i + 1)]
                 });
             }
         } else {
-            console.log(`[SLOTS] Machine count mismatch (${oldMachines.length}/5). Deleting and re-posting...`);
+            console.log(`[SLOTS] Machine count mismatch (${oldMachines.length}/2). Deleting existing machine messages and re-posting...`);
             if (oldMachines.length > 0) {
                 await channel.bulkDelete(oldMachines);
             }
-            for (let i = 1; i <= 5; i++) {
+            for (let i = 1; i <= 2; i++) {
                 await channel.send({
                     embeds: [createDefaultSlotEmbed(i)],
                     components: [createDefaultSlotRow(i)]
@@ -46,7 +47,20 @@ export async function postPermanentSlots(client) {
             }
         }
 
-        console.log('[SLOTS] 5 slot machines refreshed successfully!');
+        // Clean up any extra info panel or legacy messages to ensure correct order
+        // Deleting the old Info panels first ensures we don't have multiple copies
+        const infoMessages = Array.from(
+            messages.filter((m) => m.author.id === client.user.id && m.embeds[0] && m.embeds[0].title?.includes('Slots Info')).values()
+        );
+        if (infoMessages.length > 0) {
+            await channel.bulkDelete(infoMessages);
+        }
+
+        // Create the bottom Info Panel containing occupant statuses and utility buttons
+        const { updateInfoPanelOccupants } = await import('../interactions/slotMachineInteraction.js');
+        await updateInfoPanelOccupants(client, channel.guildId);
+
+        console.log('[SLOTS] 2 slot machines and info panel refreshed successfully!');
     } catch (error) {
         console.error('[SLOTS] Error refreshing slot machines:', error);
     }

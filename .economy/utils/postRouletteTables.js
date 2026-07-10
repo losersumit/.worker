@@ -1,4 +1,4 @@
-﻿import { Client, GatewayIntentBits } from 'discord.js';
+import { Client, GatewayIntentBits } from 'discord.js';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -37,7 +37,19 @@ export async function postPermanentRouletteTables(client) {
             }
         }
 
-        console.log('[ROULETTE] 2 roulette tables refreshed successfully!');
+        // Clean up any extra info panel or legacy messages to ensure correct order
+        const infoMessages = Array.from(
+            messages.filter((m) => m.author.id === client.user.id && m.embeds[0] && m.embeds[0].title?.includes('Roulette Info')).values()
+        );
+        if (infoMessages.length > 0) {
+            await channel.bulkDelete(infoMessages);
+        }
+
+        // Update/create the bottommost Roulette Info Panel
+        const { updateRouletteInfoPanel } = await import('../interactions/rouletteTableInteraction.js');
+        await updateRouletteInfoPanel(client, channel.guildId);
+
+        console.log('[ROULETTE] 2 roulette tables and info panel refreshed successfully!');
     } catch (error) {
         console.error('[ROULETTE] Error refreshing roulette tables:', error);
     }

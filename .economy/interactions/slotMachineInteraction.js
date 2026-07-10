@@ -76,11 +76,11 @@ ${EMOJI_SEVEN} | ${EMOJI_SEVEN} | ${EMOJI_SEVEN}
 
 ? **This Session**
 Spins: 0  
-Won: �0  
-Lost: �0  
-Net: �0
+Won: ?0  
+Lost: ?0  
+Net: ?0
 
-Bet: �${BET} | Status: Free | ` 
+Bet: ?${BET} | Status: Free | ` 
         )
         .setTimestamp(new Date());
 }
@@ -103,12 +103,12 @@ function calculateSessionStats(historyLines) {
             paidSpins += 1;
         }
 
-        const winMatch = line.match(/\+�([\d,]+)/);
+        const winMatch = line.match(/\+?([\d,]+)/);
         if (winMatch) {
             totalWon += Number(winMatch[1].replace(/,/g, ''));
         }
 
-        if (line.includes(`-${'�'}${BET}`)) {
+        if (line.includes(`-${'?'}${BET}`)) {
             totalLost += BET;
         }
     }
@@ -170,7 +170,7 @@ function addHistoryAndSessionFields(embed, historyLines) {
     embed.addFields(...safeHistoryFields);
     embed.addFields({
         name: `${EMOJI_BONUS} This Session`,
-        value: `Spins: **${stats.paidSpins}**\nWon: **�${stats.totalWon.toLocaleString()}**\nLost: **�${stats.totalLost.toLocaleString()}**\nNet: **�${stats.net >= 0 ? '+' : ''}${stats.net.toLocaleString()}** ${stats.net >= 0 ? '??' : '??'}`,
+        value: `Spins: **${stats.paidSpins}**\nWon: **?${stats.totalWon.toLocaleString()}**\nLost: **?${stats.totalLost.toLocaleString()}**\nNet: **?${stats.net >= 0 ? '+' : ''}${stats.net.toLocaleString()}** ${stats.net >= 0 ? '??' : '??'}`,
         inline: false
     });
 }
@@ -243,7 +243,7 @@ async function runPermanentSpinAnimation(interaction, message, machineId, curren
             .setColor(color)
             .setTitle(title)
             .setDescription(`*Machine currently occupied by:* <@${currentOccupier}>\n\n>>> ## ${spinText}\n*Spinning the reels...*`)
-            .setFooter({ text: isFree ? 'Bonus Round - No bet deducted | Status: In use' : `Bet: �${BET} | Status: In use` })
+            .setFooter({ text: isFree ? 'Bonus Round - No bet deducted | Status: In use' : `Bet: ?${BET} | Status: In use` })
             .setTimestamp(new Date());
 
         addHistoryAndSessionFields(embed, historyLines);
@@ -274,16 +274,16 @@ async function runPermanentSpinAnimation(interaction, message, machineId, curren
             resultLine = `\n${EMOJI_PARTY} BONUS! Triple ${getEmoji(result.matchSymbol)} - 5 FREE SPINS UNLOCKED!`;
             break;
         case 'triple':
-            historyLine = `${prefix} | ${reelStr} | ${EMOJI_TROPHY} +�${result.payout.toLocaleString()}`;
-            resultLine = `\n${EMOJI_TROPHY} JACKPOT! Triple ${getEmoji(result.matchSymbol)} - Won �${result.payout.toLocaleString()}!`;
+            historyLine = `${prefix} | ${reelStr} | ${EMOJI_TROPHY} +?${result.payout.toLocaleString()}`;
+            resultLine = `\n${EMOJI_TROPHY} JACKPOT! Triple ${getEmoji(result.matchSymbol)} - Won ?${result.payout.toLocaleString()}!`;
             break;
         case 'double':
-            historyLine = `${prefix} | ${reelStr} | ${EMOJI_CHECK} +�${result.payout.toLocaleString()}`;
-            resultLine = `\n${EMOJI_CHECK} Double ${getEmoji(result.matchSymbol)} - Won �${result.payout.toLocaleString()}!`;
+            historyLine = `${prefix} | ${reelStr} | ${EMOJI_CHECK} +?${result.payout.toLocaleString()}`;
+            resultLine = `\n${EMOJI_CHECK} Double ${getEmoji(result.matchSymbol)} - Won ?${result.payout.toLocaleString()}!`;
             break;
         default:
-            historyLine = `${prefix} | ${reelStr} | ${EMOJI_CROSS} -�${BET}`;
-            resultLine = `\n${EMOJI_CROSS} No match - Lost �${BET}`;
+            historyLine = `${prefix} | ${reelStr} | ${EMOJI_CROSS} -?${BET}`;
+            resultLine = `\n${EMOJI_CROSS} No match - Lost ?${BET}`;
             break;
     }
 
@@ -291,14 +291,14 @@ async function runPermanentSpinAnimation(interaction, message, machineId, curren
         historyLine = result.type === 'loss' ? `${prefix} | ${reelStr} | ${EMOJI_FREE} FREE` : historyLine;
         resultLine = result.type === 'loss'
             ? `\n${EMOJI_FREE} Free Spin - No loss!`
-            : `\n${EMOJI_FREE} Free Spin - Won �${result.payout.toLocaleString()}!`;
+            : `\n${EMOJI_FREE} Free Spin - Won ?${result.payout.toLocaleString()}!`;
     }
 
     const finalEmbed = new EmbedBuilder()
         .setColor(color)
         .setTitle(title)
         .setDescription(`*Machine currently occupied by:* <@${currentOccupier}>\n\n>>> ## ${getEmoji(r1)}  |  ${getEmoji(r2)}  |  ${getEmoji(r3)}\n${resultLine}`)
-        .setFooter({ text: isFree ? 'Bonus Round - No bet deducted | Status: In use' : `Bet: �${BET} | Status: In use` })
+        .setFooter({ text: isFree ? 'Bonus Round - No bet deducted | Status: In use' : `Bet: ?${BET} | Status: In use` })
         .setTimestamp(new Date());
 
     const updatedHistoryLines = [...historyLines, historyLine];
@@ -351,10 +351,10 @@ async function runPermanentBonusRound(interaction, message, machineId, playerId,
         .setDescription(
             `*Machine currently occupied by:* <@${currentOccupier}>\n\n` +
             (totalBonusWin > 0
-                ? `**${EMOJI_FREE} Bonus Round Complete!**\nYou won **�${totalBonusWin.toLocaleString()}** from 5 free spins!\n\nPress **Spin** to play again or **Leave** to free the machine.`
+                ? `**${EMOJI_FREE} Bonus Round Complete!**\nYou won **?${totalBonusWin.toLocaleString()}** from 5 free spins!\n\nPress **Spin** to play again or **Leave** to free the machine.`
                 : `**${EMOJI_FREE} Bonus Round Complete!**\nNo wins from the bonus round.\n\nPress **Spin** to play again or **Leave** to free the machine.`)
         )
-        .setFooter({ text: `Bet: �${BET} | Status: In use` })
+        .setFooter({ text: `Bet: ?${BET} | Status: In use` })
         .setTimestamp(new Date());
 
     addHistoryAndSessionFields(summaryEmbed, historyLines);
@@ -392,12 +392,196 @@ async function handleLeaveInteraction(interaction, machineId) {
     await resetMachineMessage(message, machineId);
 }
 
+// Export block placeholder
+
+async function getSlotMachineOccupants(client, guildId) {
+    const channelId = process.env.SLOTS_CHANNEL_ID;
+    if (!channelId) return { 1: null, 2: null };
+    try {
+        const channel = await client.channels.fetch(channelId);
+        if (!channel) return { 1: null, 2: null };
+        const messages = await channel.messages.fetch({ limit: 20 });
+        const slotMessages = Array.from(messages.values()).filter(m => m.embeds[0] && m.embeds[0].title?.includes('Slot Machine #'));
+        const occupants = { 1: null, 2: null };
+        for (const msg of slotMessages) {
+            const mId = msg.embeds[0].title.split('#').pop().trim();
+            if (mId === '1' || mId === '2') {
+                const state = parseStateFromEmbed(msg.embeds[0]);
+                const timeSinceLastSpin = Date.now() - state.lastSpinTime;
+                const isTimeout = timeSinceLastSpin >= SESSION_TIMEOUT_MS;
+                if (state.occupiedBy && !isTimeout) {
+                    occupants[mId] = state.occupiedBy;
+                }
+            }
+        }
+        return occupants;
+    } catch (err) {
+        console.error('[SLOTS] Error reading occupants for info panel:', err);
+        return { 1: null, 2: null };
+    }
+}
+
+export async function updateInfoPanelOccupants(client, guildId) {
+    const channelId = process.env.SLOTS_CHANNEL_ID;
+    if (!channelId) return;
+
+    try {
+        const channel = await client.channels.fetch(channelId);
+        if (!channel) return;
+
+        const occupants = await getSlotMachineOccupants(client, guildId);
+        const occText1 = occupants[1] ? `Occupied by <@${occupants[1]}>` : 'Empty';
+        const occText2 = occupants[2] ? `Occupied by <@${occupants[2]}>` : 'Empty';
+
+        const embed = new EmbedBuilder()
+            .setColor(0x9B59B6)
+            .setTitle('🎰 Slots Info')
+            .setDescription(
+                '**💡 How to Play**\n' +
+                'Head to the **slots channel** and use the permanent slot machines.\n' +
+                'Press **Spin** and enter your bet amount.\n\n' +
+                '**🏆 Triple Payouts**\n' +
+                `${getEmoji('777')} **777** — €100,000\n` +
+                `${getEmoji('Seven')} **Seven** — €50,000\n` +
+                `${getEmoji('Wild')} **Wild** — €35,000\n` +
+                `${getEmoji('Dollar')} **Dollar** — €25,000\n` +
+                `${getEmoji('Crown')} **Crown** — €15,000\n` +
+                `${getEmoji('Bar')} **Bar** — €10,000\n` +
+                `${getEmoji('Watermelon')} **Watermelon** — €7,000\n\n` +
+                '**✅ More Triples**\n' +
+                `${getEmoji('Apple')} **Apple** — €5,000\n` +
+                `${getEmoji('Cherry')} **Cherry** — €3,500\n` +
+                `${getEmoji('Lemon')} **Lemon** — €2,500\n` +
+                `${getEmoji('Cards')} **Cards** — €2,000\n\n` +
+                '*Double payouts also available for 2 matching symbols!*\n\n' +
+                '**📜 Mechanics**\n' +
+                '• Bet any amount\n' +
+                '• 20% tax on winnings\n' +
+                '• Automated via button interactions\n\n' +
+                '**🖥️ Machine Status**\n' +
+                `Machine 1 : ${occText1}\n` +
+                `Machine 2 : ${occText2}`
+            )
+            .setFooter({ text: 'scroll up to play' });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('slots_info_wallet')
+                .setLabel('My Wallet')
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji('🪙'),
+            new ButtonBuilder()
+                .setCustomId('slots_info_stats')
+                .setLabel('My Stats')
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji('📊')
+        );
+
+        const messages = await channel.messages.fetch({ limit: 50 });
+        const oldInfo = Array.from(messages.values()).find(m => m.author.id === client.user.id && m.embeds[0] && m.embeds[0].title === '🎰 Slots Info');
+
+        if (oldInfo) {
+            await oldInfo.edit({ embeds: [embed], components: [row] });
+        } else {
+            await channel.send({ embeds: [embed], components: [row] });
+        }
+    } catch (error) {
+        console.error('[SLOTS] Error updating slots info panel:', error);
+    }
+}
+
+async function handleWalletButton(interaction, client) {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+        const { data: player } = await client.supabase.from('players').select('id').eq('discord_id', interaction.user.id).single();
+        if (!player) {
+            return interaction.editReply('❌ You are not registered in the economy system.');
+        }
+        const { data: stats } = await client.supabase.from('player_stats').select('wallet').eq('player_id', player.id).single();
+        if (!stats) {
+            return interaction.editReply('❌ Could not fetch your balance.');
+        }
+        return interaction.editReply(`🪙 Your current wallet balance: **€${Math.floor(stats.wallet).toLocaleString()}**`);
+    } catch (err) {
+        console.error('[SLOTS] Error in handleWalletButton:', err);
+        return interaction.editReply('❌ An error occurred while retrieving your wallet balance.');
+    }
+}
+
+async function handleStatsButton(interaction, client) {
+    await interaction.deferReply({ ephemeral: true });
+    try {
+        const { data: player } = await client.supabase.from('players').select('id').eq('discord_id', interaction.user.id).single();
+        if (!player) {
+            return interaction.editReply('❌ You are not registered in the economy system.');
+        }
+
+        const { data: history } = await client.supabase
+            .from('player_economy_history')
+            .select('transaction_type, amount, details')
+            .eq('player_id', player.id)
+            .ilike('details', '%Slot%');
+
+        let totalWon = 0;
+        let totalLost = 0;
+        let wins = 0;
+        let losses = 0;
+        let jackpots = 0;
+
+        for (const h of history || []) {
+            const amt = parseFloat(h.amount);
+            if (h.transaction_type === 'gamble_win') {
+                totalWon += amt;
+                wins++;
+                if (h.details.toLowerCase().includes('triple')) jackpots++;
+            } else if (h.transaction_type === 'gamble_loss') {
+                totalLost += amt;
+                losses++;
+            }
+        }
+
+        const totalPlayed = wins + losses;
+        const winPercent = totalPlayed > 0 ? ((wins / totalPlayed) * 100).toFixed(1) : '0.0';
+
+        const embed = new EmbedBuilder()
+            .setColor(0x9B59B6)
+            .setTitle(`🎰 Slots Stats: ${interaction.user.username}`)
+            .addFields(
+                { name: 'Spins Played', value: `**${totalPlayed}**`, inline: true },
+                { name: 'Win Rate', value: `**${winPercent}%**`, inline: true },
+                { name: '\x20', value: '\x20', inline: true }, // spacer
+                { name: 'Total Profit', value: `**€${totalWon.toLocaleString()}**`, inline: true },
+                { name: 'Total Lost', value: `**€${totalLost.toLocaleString()}**`, inline: true },
+                { name: 'Net Profit', value: `**€${(totalWon - totalLost).toLocaleString()}**`, inline: true },
+                { name: 'Jackpots (Triples)', value: `**${jackpots}**`, inline: true },
+                { name: 'Regular Wins', value: `**${wins - jackpots}**`, inline: true },
+                { name: '\x20', value: '\x20', inline: true } // spacer
+            )
+            .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }));
+
+        return interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+        console.error('[SLOTS] Error in handleStatsButton:', err);
+        return interaction.editReply('❌ Failed to load stats.');
+    }
+}
+
 export async function handleSlotMachineInteraction(interaction, client) {
     const customId = interaction.customId;
+
+    if (customId === 'slots_info_wallet') {
+        return handleWalletButton(interaction, client);
+    }
+    if (customId === 'slots_info_stats') {
+        return handleStatsButton(interaction, client);
+    }
+
     const machineId = customId.split('_').pop();
 
     if (customId.startsWith('slot_machine_leave_')) {
-        return handleLeaveInteraction(interaction, machineId);
+        await handleLeaveInteraction(interaction, machineId);
+        updateInfoPanelOccupants(client, interaction.guildId).catch(console.error);
+        return;
     }
 
     const message = interaction.message;
@@ -414,6 +598,7 @@ export async function handleSlotMachineInteraction(interaction, client) {
 
     if (isTimeout && state.occupiedBy) {
         await resetMachineMessage(message, machineId);
+        updateInfoPanelOccupants(client, interaction.guildId).catch(console.error);
     }
 
     if (isOccupiedByOther && !isTimeout) {
@@ -437,7 +622,7 @@ export async function handleSlotMachineInteraction(interaction, client) {
             const isOtherTimeout = otherTimeSinceLastSpin >= SESSION_TIMEOUT_MS;
 
             if (otherState.occupiedBy === interaction.user.id && !isOtherTimeout) {
-                const otherMachineId = otherEmbed.title.split('#')[1];
+                const otherMachineId = otherEmbed.title.split('#').pop().trim();
                 return interaction.reply({
                     content: `You are already occupying Slot Machine #${otherMachineId}. You can only play on one machine at a time!`,
                     ephemeral: true
@@ -458,7 +643,7 @@ export async function handleSlotMachineInteraction(interaction, client) {
     const { data: stats } = await client.supabase.from('player_stats').select('wallet').eq('player_id', player.id).single();
     if (stats.wallet < BET) {
         return interaction.followUp({
-            content: `Insufficient balance. You need **�${BET}**. Your balance: **�${Math.floor(stats.wallet).toLocaleString()}**`,
+            content: `Insufficient balance. You need **?${BET}**. Your balance: **?${Math.floor(stats.wallet).toLocaleString()}**`,
             ephemeral: true
         });
     }
@@ -466,7 +651,7 @@ export async function handleSlotMachineInteraction(interaction, client) {
     const { data: guild } = await client.supabase.from('approved_guilds').select('guild_income').eq('guild_id', message.guildId).single();
     if (parseFloat(guild?.guild_income || 0) < MIN_GUILD_INCOME) {
         return interaction.followUp({
-            content: `The guild treasury needs at least **�${MIN_GUILD_INCOME.toLocaleString()}** to run the slots.`,
+            content: `The guild treasury needs at least **?${MIN_GUILD_INCOME.toLocaleString()}** to run the slots.`,
             ephemeral: true
         });
     }
@@ -494,6 +679,9 @@ export async function handleSlotMachineInteraction(interaction, client) {
 
     await interaction.editReply({ embeds: [finalEmbed], components: [rowActive] });
     scheduleMachineReset(message, machineId, interaction.user.id);
+
+    // Update info panel status when a spin is executed
+    updateInfoPanelOccupants(client, message.guildId).catch(console.error);
 
     await processPayout(client, message, player.id, result, false);
 

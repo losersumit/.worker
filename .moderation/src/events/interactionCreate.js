@@ -81,6 +81,12 @@ export default {
             } else if (interaction.customId.startsWith('know_more_gun:')) {
                 console.log('[Button] Identified as Know More Gun interaction.');
                 await handleKnowMoreGun(interaction, client);
+            } else if (interaction.customId === 'slots_info_wallet' || interaction.customId === 'slots_info_stats') {
+                console.log('[Button] Identified as Slots Info panel button.');
+                await handleSlotMachineInteraction(interaction, client);
+            } else if (interaction.customId === 'roulette_info_wallet' || interaction.customId === 'roulette_info_stats') {
+                console.log('[Button] Identified as Roulette Info panel button.');
+                await handleRouletteTableInteraction(interaction, client);
             } else {
                 console.log(`[Button] Unknown or handled elsewhere: ${interaction.customId}`);
             }
