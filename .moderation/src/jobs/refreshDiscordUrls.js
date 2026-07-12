@@ -40,16 +40,45 @@ export async function refreshDiscordUrls(supabase, client) {
         try {
             const channel = await client.channels.fetch(row.channel_id);
             const message = await channel.messages.fetch(row.message_id);
-            const attachment = message.attachments.first();
+            
+            // Collect all candidate URLs from attachments and embeds
+            const candidates = [];
+            if (message.attachments) {
+                message.attachments.forEach(att => {
+                    if (att.url) candidates.push(att.url);
+                });
+            }
+            if (message.embeds) {
+                message.embeds.forEach(embed => {
+                    if (embed.image?.url) candidates.push(embed.image.url);
+                    if (embed.thumbnail?.url) candidates.push(embed.thumbnail.url);
+                    if (embed.video?.url) candidates.push(embed.video.url);
+                });
+            }
 
-            if (!attachment) {
-                console.warn(`[URL-REFRESH] Row ${row.id}: message has no attachment. Skipping.`);
+            if (candidates.length === 0) {
+                console.warn(`[URL-REFRESH] Row ${row.id}: message has no attachments or embeds. Skipping.`);
                 continue;
             }
 
-            // ALWAYS write the fresh URL — the expiry tokens in the query-string
-            // change every time, so comparing base paths would always say "no change".
-            const newUrl = attachment.url;
+            // Get base URL helper
+            const getBaseUrl = (url) => {
+                if (!url) return '';
+                try {
+                    const parsed = new URL(url);
+                    return parsed.origin + parsed.pathname;
+                } catch {
+                    return url.split('?')[0];
+                }
+            };
+
+            const targetBase = getBaseUrl(row.media_url);
+            let newUrl = candidates.find(c => getBaseUrl(c) === targetBase);
+
+            if (!newUrl) {
+                console.warn(`[URL-REFRESH] Row ${row.id}: No exact base URL match found. Falling back to first available URL.`);
+                newUrl = candidates[0];
+            }
 
             const { error: updateErr } = await supabase
                 .from('media_gallery')
