@@ -204,7 +204,7 @@ export default {
             // 6. Update Registry Message (supports both embeds and component-based layouts)
             let embedMsg = "";
             try {
-                const webhookUrl = process.env.ENLISTED_CHANNEL_WEBHOOK_URL;
+                const webhookUrl = process.env.OFFICERS_CHANNEL_WEBHOOK;
                 const messageId = process.env.AP_EMBED_MESSAGE_ID;
                 const channelId = process.env.ENLISTED_CHANNEL_ID;
 

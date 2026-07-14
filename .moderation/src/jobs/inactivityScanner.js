@@ -134,12 +134,12 @@ export async function rebuildPersonnelEmbeds(client, supabase) {
 
     console.log(`[INACTIVITY] Rebuilding embeds. AP: ${apMembers.length}, RP: ${rpMembers.length}`);
     await rebuildRegistryEmbed(
-        process.env.ENLISTED_CHANNEL_WEBHOOK_URL,
+        process.env.OFFICERS_CHANNEL_WEBHOOK,
         process.env.AP_EMBED_MESSAGE_ID,
         apMembers
     );
     await rebuildRegistryEmbed(
-        process.env.ENLISTED_CHANNEL_WEBHOOK_URL,
+        process.env.OFFICERS_CHANNEL_WEBHOOK,
         process.env.RP_EMBED_MESSAGE_ID,
         rpMembers
     );
@@ -156,7 +156,7 @@ export async function rebuildPersonnelEmbeds(client, supabase) {
         }
         sortRtdMembers(rtdMembers);
         await rebuildRtdEmbed(
-            process.env.ENLISTED_CHANNEL_WEBHOOK_URL,
+            process.env.OFFICERS_CHANNEL_WEBHOOK,
             process.env.RTD_EMBED_MESSAGE_ID,
             rtdMembers
         );
@@ -341,12 +341,12 @@ export async function runInactivityScan(client, supabase) {
         console.log(`[INACTIVITY] Rebuilding AP/RP embeds. AP: ${apMembers.length}, RP: ${rpMembers.length}`);
 
         await rebuildRegistryEmbed(
-            process.env.ENLISTED_CHANNEL_WEBHOOK_URL,
+            process.env.OFFICERS_CHANNEL_WEBHOOK,
             process.env.AP_EMBED_MESSAGE_ID,
             apMembers
         );
         await rebuildRegistryEmbed(
-            process.env.ENLISTED_CHANNEL_WEBHOOK_URL,
+            process.env.OFFICERS_CHANNEL_WEBHOOK,
             process.env.RP_EMBED_MESSAGE_ID,
             rpMembers
         );
@@ -495,7 +495,7 @@ export async function runInactivityScan(client, supabase) {
         // ── Rebuild RTD embed ──────────────────────────────────────────────
         sortRtdMembers(rtdMembers);
         await rebuildRtdEmbed(
-            process.env.ENLISTED_CHANNEL_WEBHOOK_URL,
+            process.env.OFFICERS_CHANNEL_WEBHOOK,
             process.env.RTD_EMBED_MESSAGE_ID,
             rtdMembers
         );
@@ -505,7 +505,7 @@ export async function runInactivityScan(client, supabase) {
             const updatedRpMembers = rpMembers.filter(item => !retiredInPhase2.has(item.member.id));
             console.log(`[INACTIVITY] Rebuilding RP embed after RTD removals. RP: ${updatedRpMembers.length} (removed ${retiredInPhase2.size} retired)`);
             await rebuildRegistryEmbed(
-                process.env.ENLISTED_CHANNEL_WEBHOOK_URL,
+                process.env.OFFICERS_CHANNEL_WEBHOOK,
                 process.env.RP_EMBED_MESSAGE_ID,
                 updatedRpMembers
             );

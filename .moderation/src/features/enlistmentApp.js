@@ -115,19 +115,7 @@ export async function handleEnlistmentApplication(interaction) {
     );
   }
 
-  // 2. 2,000 km check
-  const { data: statsData, error: statsError } = await supabase
-    .from("player_stats")
-    .select("total_distance_km")
-    .eq("player_id", playerData.id)
-    .maybeSingle();
 
-  const totalKm = statsData ? (statsData.total_distance_km || 0) : 0;
-  if (totalKm < 2000) {
-    return interaction.editReply(
-      `❌ You do not meet the enlistment requirements. You currently have **${totalKm.toLocaleString()} km** (minimum 2,000 km required in player_stats to apply).`,
-    );
-  }
 
   try {
     const dmChannel = await user.createDM();
