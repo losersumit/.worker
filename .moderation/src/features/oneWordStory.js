@@ -97,7 +97,7 @@ async function describeImageWithGemini(imageUrl) {
         content: [
           {
             type: "text",
-            text: "Describe this image in exactly one short sentence. Be concise and vivid. Do not include any preamble, just the description."
+            text: "Describe this image in one short sentence. Be concise and vivid. Do not include any preamble, just the description, make sure too tell the expression, mood, and action of the subject in the image. Do not include any hashtags or emojis."
           },
           {
             type: "image_url",
@@ -106,7 +106,7 @@ async function describeImageWithGemini(imageUrl) {
         ]
       }],
       temperature: 0.4,
-      max_tokens: 60
+      max_tokens: 100
     });
 
     const description = data?.choices?.[0]?.message?.content?.trim();
@@ -354,6 +354,8 @@ You may change grammar, tense, punctuation and word order freely.
 Do not list the words or entries.
 Write a proper narrative story.
 End with a satisfying conclusion.
+You can also use the nicknames of contributors as character names or references in the story.
+All type of content is allowed, including fantasy, sci-fi, horror, romance, comedy, explicit and absurdist elements.
 
 Also generate a suitable title, infer the genre, and provide a one-line moral.
 
