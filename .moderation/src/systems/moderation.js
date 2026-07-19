@@ -9,8 +9,9 @@
  */
 
 import "../utils/loadEnv.js";
-import config from "../config.js"; // Updated import
-import { groqChatCompletion } from "../clients/groq.js"; // Updated import
+import config from "../config.js";
+import { groqChatCompletion } from "../clients/groq.js";
+import { geminiChatCompletion } from "../clients/gemini.js";
 
 /**
  * Moderates a message using Groq's AI
@@ -142,10 +143,10 @@ export async function moderateImage(imageUrl) {
     `;
 
     console.log(
-      `[Moderation] Sending image request to Groq with model: ${config.ai.visionModel || config.ai.fallbackVisionModel}`,
+      `[Moderation] Sending image request to Gemini...`,
     );
 
-    const completion = await groqChatCompletion({
+    const completion = await geminiChatCompletion({
       messages: [
         {
           role: "user",
@@ -155,14 +156,13 @@ export async function moderateImage(imageUrl) {
           ],
         },
       ],
-      model: config.ai.visionModel || config.ai.fallbackVisionModel,
       temperature: config.ai.temperature,
       max_tokens: config.ai.maxTokens,
       top_p: config.ai.topP,
       response_format: { type: "json_object" },
     });
 
-    console.log("[Moderation] Received response from Groq for image.");
+    console.log("[Moderation] Received response from Gemini for image.");
 
     // Extract and parse the JSON response
     const responseText = completion?.choices?.[0]?.message?.content || "";

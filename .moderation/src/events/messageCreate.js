@@ -8,6 +8,7 @@ import { handleRagChat } from '../features/ragChat.js';
 import { logMessageModeration, takeModAction, getActionDescription } from '../utils/moderationUtils.js';
 import { recentActivity } from '../utils/activityState.js';
 import { handleModCommand } from '../features/modCommands.js';
+import { handleOneWordStory } from '../features/oneWordStory.js';
 
 export default {
     name: Events.MessageCreate,
@@ -72,6 +73,13 @@ export default {
         await handleCounting(message);
         const countingChannelId = process.env.COUNTING_CHANNEL_ID;
         if (message.channel.id === countingChannelId) {
+            return;
+        }
+
+        // One Word Story Channel
+        const oneWordStoryChannelId = process.env.ONE_WORD_STORY_CHANNEL_ID;
+        if (oneWordStoryChannelId && message.channel.id === oneWordStoryChannelId) {
+            await handleOneWordStory(message);
             return;
         }
 

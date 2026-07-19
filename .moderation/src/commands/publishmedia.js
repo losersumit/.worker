@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags, AttachmentBuilder } from 'discord.js';
-import { groqChatCompletion } from '../clients/groq.js';
+import { geminiChatCompletion } from '../clients/gemini.js';
 import { supabase } from '../clients/supabase.js';
 import { publishToInstagram } from '../clients/socials.js';
 import config from '../config.js';
@@ -68,10 +68,10 @@ export default {
             }
           `;
 
-                    const modelToUse = config.ai.visionModel || config.ai.fallbackVisionModel || "meta-llama/llama-4-scout-17b-16e-instruct";
-                    console.log(`[PublishMedia] Querying Groq vision model (${modelToUse}) for aesthetic color...`);
+                    const modelToUse = config.ai.visionModel || config.ai.fallbackVisionModel;
+                    console.log(`[PublishMedia] Querying Gemini vision model (${modelToUse}) for aesthetic color...`);
 
-                    const completion = await groqChatCompletion({
+                    const completion = await geminiChatCompletion({
                         messages: [
                             {
                                 role: "user",

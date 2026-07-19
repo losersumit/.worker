@@ -6,8 +6,7 @@ import { supabase } from '../clients/supabase.js';
 import { rebuildPersonnelEmbeds } from '../jobs/inactivityScanner.js';
 import { validateRun } from './anticheat.js';
 
-// Configuration
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+import { geminiChatCompletion } from '../clients/gemini.js';
 
 // Role Definitions
 const LEVEL_ROLES = [
@@ -22,63 +21,26 @@ const LEVEL_ROLES = [
 
 const ALL_ROLE_IDS = LEVEL_ROLES.map(r => r.id);
 
-// Load API Keys
-const keys = [
-    process.env.GROQ_API_KEY_ONE,
-    process.env.GROQ_API_KEY_TWO,
-    process.env.GROQ_API_KEY_THREE,
-    process.env.GROQ_API_KEY_FOUR,
-    process.env.GROQ_API_KEY_FIVE,
-    process.env.GROQ_API_KEY_SIX,
-    process.env.GROQ_API_KEY_SEVEN
-].filter(k => k);
+// ─── Gemini helper ─────────────────────────────────────────────────────────
 
-if (keys.length === 0) {
-    console.error('No Groq API keys found in .env');
-}
+async function callGeminiVision(prompt, imageUrl) {
+    try {
+        const response = await geminiChatCompletion({
+            messages: [{
+                role: 'user',
+                content: [
+                    { type: 'text', text: prompt },
+                    { type: 'image_url', image_url: { url: imageUrl } }
+                ]
+            }],
+            response_format: { type: 'json_object' }
+        });
 
-// ─── Groq helper (rotates keys on 429) ───────────────────────────────────────
-
-async function callGroqVision(prompt, imageUrl, maxRetries = 10) {
-    let keyIndex = 0;
-    let attempts = 0;
-
-    while (attempts < maxRetries) {
-        attempts++;
-        const apiKey = keys[keyIndex];
-
-        try {
-            const response = await axios.post(GROQ_API_URL, {
-                model: config.ai.visionModel,
-                messages: [{
-                    role: 'user',
-                    content: [
-                        { type: 'text', text: prompt },
-                        { type: 'image_url', image_url: { url: imageUrl } }
-                    ]
-                }],
-                response_format: { type: 'json_object' }
-            }, {
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type':  'application/json'
-                },
-                timeout: 30000
-            });
-
-            return response.data.choices[0].message.content;
-        } catch (error) {
-            if (error.response?.status === 429) {
-                keyIndex = (keyIndex + 1) % keys.length;
-                console.log(`[LevelSystem] Rate limit hit. Rotating to key index ${keyIndex}...`);
-                await new Promise(r => setTimeout(r, keyIndex === 0 ? 2000 : 500));
-                continue;
-            }
-            console.error(`[LevelSystem] Groq API error: ${error.message} (${error.response?.status})`);
-            return null;
-        }
+        return response.choices[0].message.content;
+    } catch (error) {
+        console.error(`[LevelSystem] Gemini API error: ${error.message}`);
+        return null;
     }
-    return null;
 }
 
 // ─── Unified extraction and validation: extracts all stats and returns them ──
@@ -118,7 +80,7 @@ If this is NOT a valid "Job Finished" screen, return:
 { "valid": false }
 `;
 
-    const raw = await callGroqVision(prompt, imageUrl);
+    const raw = await callGeminiVision(prompt, imageUrl);
     if (!raw) return null;
 
     try {

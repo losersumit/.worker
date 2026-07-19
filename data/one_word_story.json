@@ -1,0 +1,40 @@
+{
+  "lastUserId": "user2",
+  "words": [
+    {
+      "word": "dragon",
+      "userId": "user1",
+      "username": "Alice",
+      "displayName": "Alice",
+      "timestamp": "2026-07-19T21:06:24.315Z"
+    },
+    {
+      "word": "sky",
+      "userId": "user2",
+      "username": "Bob",
+      "displayName": "Bob",
+      "timestamp": "2026-07-19T21:06:24.315Z"
+    },
+    {
+      "word": "fire",
+      "userId": "user1",
+      "username": "Alice",
+      "displayName": "Alice",
+      "timestamp": "2026-07-19T21:06:24.315Z"
+    },
+    {
+      "word": "forgotten",
+      "userId": "user3",
+      "username": "Charlie",
+      "displayName": "Charlie",
+      "timestamp": "2026-07-19T21:06:24.315Z"
+    },
+    {
+      "word": "sword",
+      "userId": "user2",
+      "username": "Bob",
+      "displayName": "Bob",
+      "timestamp": "2026-07-19T21:06:24.315Z"
+    }
+  ]
+}

@@ -17,6 +17,7 @@ import { runInactivityScan } from "./.moderation/src/jobs/inactivityScanner.js";
 import { refreshProfilePictures } from "./.moderation/src/jobs/refreshProfilePictures.js";
 import { runWeeklyAwards } from "./.moderation/src/jobs/weeklyAwards.js";
 import { startMilestoneChecker } from "./.moderation/src/jobs/milestoneChecker.js";
+import { scheduleOneWordStoryJob } from "./.moderation/src/features/oneWordStory.js";
 import schedule from "node-schedule";
 
 // AI Integration
@@ -211,6 +212,9 @@ client.once("ready", async () => {
 
   // ── Milestone Checker — event-driven via Supabase Realtime ──
   startMilestoneChecker(client, supabase);
+
+  // ── One Word Story Daily Job ──
+  scheduleOneWordStoryJob(client);
 
   // ── UVS Bot Status & Runs Listener ──
   import("./.moderation/src/systems/uvsStatusMonitor.js")

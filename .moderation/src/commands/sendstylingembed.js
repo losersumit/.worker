@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags, AttachmentBuilder } from 'discord.js';
-import { groqChatCompletion } from '../clients/groq.js';
+import { geminiChatCompletion } from '../clients/gemini.js';
 import config from '../config.js';
 import axios from 'axios';
 
@@ -62,10 +62,10 @@ export default {
           }
         `;
 
-                const modelToUse = config.ai.visionModel || config.ai.fallbackVisionModel || "meta-llama/llama-4-scout-17b-16e-instruct";
-                console.log(`[SendStylingEmbed] Querying Groq vision model (${modelToUse}) for aesthetic color...`);
+                const modelToUse = config.ai.visionModel || config.ai.fallbackVisionModel;
+                console.log(`[SendStylingEmbed] Querying Gemini vision model (${modelToUse}) for aesthetic color...`);
 
-                const completion = await groqChatCompletion({
+                const completion = await geminiChatCompletion({
                     messages: [
                         {
                             role: "user",

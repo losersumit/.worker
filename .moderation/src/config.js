@@ -90,8 +90,8 @@ const config = {
         model: "llama-3.3-70b-versatile",
 
         // Vision model for image moderation
-        visionModel: "meta-llama/llama-4-scout-17b-16e-instruct",
-        fallbackVisionModel: "meta-llama/llama-4-scout-17b-16e-instruct",
+        visionModel: "gemini-3.1-flash-lite",
+        fallbackVisionModel: "gemini-3.5-flash",
 
         // Temperature for AI response (lower = more deterministic)
         temperature: 0.1,

@@ -1,5 +1,6 @@
 import '../utils/loadEnv.js';
 import { groqChatCompletion } from '../clients/groq.js';
+import { geminiChatCompletion } from '../clients/gemini.js';
 import { findFaqAnswer, embed } from '../systems/faq.js';
 import config from '../config.js';
 
@@ -40,63 +41,143 @@ function getImageAttachment(message) {
     return att || null;
 }
 
+const HARDCODED_EMOJIS = [
+    "<:okay_snowman:1450501978726858865>",
+    "<:whatever_ignorance:1450502024251572361>",
+    "<:tiger_shocked:1450502134331084903>",
+    "<:let_him_cook:1450502299389657310>",
+    "<:absolute_cinema:1460633502310596629>",
+    "<:sad_cat:1460633840262578238>",
+    "<:angry_cat:1460633919803359235>",
+    "<:blushing_dog_whining_dog:1460634005807435868>",
+    "<:meowl:1460634181309829204>",
+    "<:goated:1460634282924966043>",
+    "<:monkey_think:1460634610982457415>",
+    "<:suspicious_dexter_doakes:1460634719032049808>",
+    "<:angry_skull:1460634776967843952>",
+    "<:Oh_Brother:1460634947902771341>",
+    "<:killemdeadMER:1460635071617695966>",
+    "<:done:1460635213196693534>",
+    "<:dumb_low_iq:1460635437415792794>",
+    "<:imposter_among_us:1460635541694316605>",
+    "<:terrified:1460635552603967508>",
+    "<:beat_up:1460635555493576704>",
+    "<:shocked:1460635559822102578>",
+    "<:get_a_load_of_this_guy:1460635564373049595>",
+    "<:meeditation:1460635568781393950>",
+    "<:approved:1460635571151179868>",
+    "<:stewei_cute:1460635574472937576>",
+    "<:handshake:1460635577362681977>",
+    "<:hard_disapprove:1460635580680634368>",
+    "<:hard_laugh:1460635584258117632>",
+    "<:watching_you:1460635587676737546>",
+    "<:clueless_what:1460635594446082211>",
+    "<:freaky:1460635670883078309>",
+    "<:monkey_think:1460635783944999159>",
+    "<:what_the_fuck:1460636068654092474>",
+    "<:sideeye:1460637434516607093>",
+    "<:cute_joy:1460637492905640208>",
+    "<a:anime_laugh:1460637570139558040>",
+    "<:serious_stare:1460637631644962837>",
+    "<:cute_happy:1460637685357215804>",
+    "<:cute_angry:1460637738209513736>",
+    "<:cute_confused:1460637794014859346>",
+    "<:anime_shocked:1460637851904381064>",
+    "<:anime_troll:1460637903586594898>",
+    "<:anime_tired_cat:1460638074588495985>",
+    "<:stara:1461426121232093215>",
+    "<:starb:1461426157244121129>",
+    "<:starc:1461426187526996131>",
+    "<:NMC:1465258249442824265>",
+    "<:hehe:1467110850132185204>",
+    "<:really_man:1468147579794493572>",
+    "<:clueless_umm:1488549302203584623>",
+    "<a:freaky_cat:1498698292941422664>",
+    "<:cursed_smile:1526574416434036876>"
+];
+
+const EMOJIS = HARDCODED_EMOJIS.map(emojiStr => {
+    const match = emojiStr.match(/<a?:([^:]+):(\d+)>/);
+    if (match) {
+        return {
+            name: match[1],
+            id: match[2],
+            animated: emojiStr.startsWith('<a:'),
+            raw: emojiStr
+        };
+    }
+    return null;
+}).filter(Boolean);
+
 async function reactToImage(message, imageAttachment) {
     if (!imageAttachment?.url) return;
 
-    // Use the vision model configured in config.js
-    const modelToUse = config.ai.visionModel || config.ai.fallbackVisionModel;
-
     // Get the list of server emojis (name:id) for the model to choose from
-    const guildEmojis = message.guild?.emojis?.cache;
-    const emojiListStr = guildEmojis ? guildEmojis.map(e => `${e.name}:${e.id}`).join(', ') : '';
+    const emojiListStr = EMOJIS.map(e => `${e.name}:${e.id}`).join(', ');
 
     // Build a prompt that asks the model to classify the image and output an emoji name or ID.
     const prompt = `You are an image classifier for a virtual trucking company NMC. Examine the image and decide:
-- If the image contains a truck and is a high‑quality cinematic shot with good lighting/editing, respond with ONLY the word "goated".
-- If the image contains a truck but is a low‑quality, bad lighting, or standard/ugly shot, respond with ONLY the word "meeditation".
-- If the image does NOT contain a truck, you MUST choose the most appropriate existing server emoji from the list below and respond ONLY with its numeric ID.
+you MUST choose the most appropriate existing server emoji from the list below and respond ONLY with its name or numeric ID.
 Here is the list of available server emojis (name:id): ${emojiListStr}
 
 Response requirements:
-- Respond with EXACTLY one word ("goated" or "meeditation") or EXACTLY one numeric emoji ID from the list.
+- Respond with EXACTLY one emoji name (e.g., "absolute_cinema" or "goated") or its numeric ID from the list.
 - Do NOT output any other words, punctuation, markdown formatting, or explanations.`;
 
-    // Call the vision model with the prompt
-    const data = await groqChatCompletion({
-        model: modelToUse,
+    // Call the Gemini vision model with the prompt
+    const data = await geminiChatCompletion({
         messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageAttachment.url } }] }],
         temperature: 0.1,
-        max_tokens: 15,
+        max_tokens: 30,
     });
 
     const rawResponse = data?.choices?.[0]?.message?.content?.trim() || '';
     const response = rawResponse.toLowerCase();
 
     // Determine which emoji to react with
-    let emojiToReact = null;
-    if (guildEmojis) {
-        // Direct matches for the two special cases
-        if (response.includes('goated')) {
-            emojiToReact = guildEmojis.find(e => e.name === 'goated');
-        } else if (response.includes('meeditation')) {
-            emojiToReact = guildEmojis.find(e => e.name === 'meeditation');
-        } else {
-            // Assume the model returned an ID; try to find that emoji
-            const idMatch = response.match(/\d{17,}/);
-            if (idMatch) {
-                const id = idMatch[0];
-                emojiToReact = guildEmojis.get(id);
-            }
-        }
+    let emojiId = null;
 
-        // Guaranteed fallback if we couldn't resolve: it MUST choose a server emoji
-        if (!emojiToReact) {
-            console.warn(`[RAG] Vision response "${rawResponse}" could not be mapped. Guaranteeing choice...`);
-            emojiToReact = guildEmojis.find(e => e.name === 'goated') || 
-                           guildEmojis.find(e => e.name === 'meeditation') || 
-                           guildEmojis.first();
+    // 1. Try to find a match by emoji name (case-insensitive)
+    const cleanedResponse = response.replace(/[^a-z0-9_]/g, '');
+    const exactNameMatch = EMOJIS.find(e => {
+        const nameLower = e.name.toLowerCase();
+        return response === nameLower || cleanedResponse === nameLower;
+    });
+
+    if (exactNameMatch) {
+        emojiId = exactNameMatch.id;
+    } else {
+        const fuzzyNameMatch = EMOJIS.find(e => {
+            const nameLower = e.name.toLowerCase();
+            return response.includes(nameLower) || (cleanedResponse.length > 2 && nameLower.includes(cleanedResponse));
+        });
+        if (fuzzyNameMatch) {
+            emojiId = fuzzyNameMatch.id;
         }
     }
+
+    // 2. Fallback to matching by ID / partial ID
+    if (!emojiId) {
+        const idMatch = response.match(/\d+/);
+        if (idMatch) {
+            const partialId = idMatch[0];
+            const foundById = EMOJIS.find(e => e.id.includes(partialId));
+            if (foundById) {
+                emojiId = foundById.id;
+            }
+        }
+    }
+
+    // Guaranteed fallback if we couldn't resolve: it MUST choose a server emoji
+    if (!emojiId) {
+        console.warn(`[RAG] Vision response "${rawResponse}" could not be mapped. Guaranteeing choice...`);
+        emojiId = EMOJIS.find(e => e.name === 'goated')?.id || 
+                  EMOJIS.find(e => e.name === 'meeditation')?.id || 
+                  EMOJIS[0]?.id;
+    }
+
+    const guildEmojis = message.guild?.emojis?.cache;
+    const emojiToReact = guildEmojis?.get(emojiId) || emojiId;
 
     if (!emojiToReact) {
         console.warn('[RAG] No server emojis available to react with.');
@@ -368,19 +449,27 @@ async function askWithContext(message, client, question) {
     const prompt = buildPrompt(question, context, username, verifiedIdentity, history, rawChannelHistory);
 
     const image = getImageAttachment(message);
-    let modelToUse = CHAT_MODEL;
     let userContent = prompt;
 
     if (image) {
-        modelToUse = config.ai.visionModel || config.ai.fallbackVisionModel;
+        // Image present → use Gemini for multimodal request
         userContent = [
             { type: 'text', text: `${prompt}\n\nAlso analyze the attached image if relevant.` },
             { type: 'image_url', image_url: { url: image.url } }
         ];
+        const data = await geminiChatCompletion({
+            messages: [{ role: 'user', content: userContent }],
+            temperature: CHAT_TEMPERATURE,
+            max_tokens: CHAT_MAX_TOKENS,
+        });
+        const answer = data?.choices?.[0]?.message?.content?.trim() || 'No answer generated.';
+        pushAssistantTurn(key, answer);
+        await message.reply(answer);
+        return;
     }
 
     const data = await groqChatCompletion({
-        model: modelToUse,
+        model: CHAT_MODEL,
         messages: [{ role: 'user', content: userContent }],
         temperature: CHAT_TEMPERATURE,
         max_tokens: CHAT_MAX_TOKENS,
