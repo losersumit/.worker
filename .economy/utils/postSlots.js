@@ -52,8 +52,10 @@ export async function postPermanentSlots(client) {
         const infoMessages = Array.from(
             messages.filter((m) => m.author.id === client.user.id && m.embeds[0] && m.embeds[0].title?.includes('Slots Info')).values()
         );
-        if (infoMessages.length > 0) {
-            await channel.bulkDelete(infoMessages);
+        if (!(oldMachines.length === 2 && infoMessages.length === 1)) {
+            if (infoMessages.length > 0) {
+                await channel.bulkDelete(infoMessages);
+            }
         }
 
         // Create the bottom Info Panel containing occupant statuses and utility buttons

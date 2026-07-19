@@ -41,8 +41,10 @@ export async function postPermanentRouletteTables(client) {
         const infoMessages = Array.from(
             messages.filter((m) => m.author.id === client.user.id && m.embeds[0] && m.embeds[0].title?.includes('Roulette Info')).values()
         );
-        if (infoMessages.length > 0) {
-            await channel.bulkDelete(infoMessages);
+        if (!(oldTables.length === 2 && infoMessages.length === 1)) {
+            if (infoMessages.length > 0) {
+                await channel.bulkDelete(infoMessages);
+            }
         }
 
         // Update/create the bottommost Roulette Info Panel
