@@ -65,13 +65,7 @@ export async function handleEnlistmentApplication(interaction) {
     .eq("discord_id", user.id)
     .maybeSingle();
 
-  if (!playerData) {
-    return interaction.editReply(
-      "❌ You are not registered in the database. Please register first.",
-    );
-  }
-
-  if (playerData.guild_id !== "1448027116074434593") {
+  if (playerData && playerData.guild_id !== "1448027116074434593") {
     let guildName = "Unknown Guild";
     if (playerData.guild_id) {
       const { data: guildData } = await supabase
@@ -321,6 +315,99 @@ Respond ONLY in this JSON format:
       console.error("[App] AI review failed:", aiErr.message);
     }
 
+    // Fetch user's current and previous guilds from member_surveillance table
+    let currentGuildsField = "*None*";
+    let previousGuildsField = "*None*";
+
+    try {
+      const { data: surveillanceData } = await supabase
+        .from("member_surveillance")
+        .select("current_guild, previous_guilds")
+        .eq("discord_id", user.id)
+        .maybeSingle();
+
+      if (surveillanceData) {
+        // Parse current_guild
+        let currentGuilds = [];
+        if (typeof surveillanceData.current_guild === "string") {
+          try {
+            currentGuilds = JSON.parse(surveillanceData.current_guild);
+          } catch (e) {
+            console.error("Failed to parse current_guild JSON string:", e);
+          }
+        } else if (Array.isArray(surveillanceData.current_guild)) {
+          currentGuilds = surveillanceData.current_guild;
+        }
+
+        // Parse previous_guilds
+        let previousGuilds = [];
+        if (typeof surveillanceData.previous_guilds === "string") {
+          try {
+            previousGuilds = JSON.parse(surveillanceData.previous_guilds);
+          } catch (e) {
+            console.error("Failed to parse previous_guilds JSON string:", e);
+          }
+        } else if (Array.isArray(surveillanceData.previous_guilds)) {
+          previousGuilds = surveillanceData.previous_guilds;
+        }
+
+        // Collect all unique tags to fetch names in one query
+        const allTags = new Set();
+        if (Array.isArray(currentGuilds)) {
+          currentGuilds.forEach(cg => { if (cg.tag) allTags.add(cg.tag); });
+        }
+        if (Array.isArray(previousGuilds)) {
+          previousGuilds.forEach(pg => { if (pg.tag) allTags.add(pg.tag); });
+        }
+
+        const tagToNameMap = {};
+        if (allTags.size > 0) {
+          const { data: approvedGuilds } = await supabase
+            .from("approved_guilds")
+            .select("guild_tag, guild_name")
+            .in("guild_tag", Array.from(allTags));
+
+          if (approvedGuilds) {
+            approvedGuilds.forEach(g => {
+              if (g.guild_tag && g.guild_name) {
+                tagToNameMap[g.guild_tag] = g.guild_name;
+              }
+            });
+          }
+        }
+
+        const formatTimestamp = (isoString) => {
+          if (!isoString) return "N/A";
+          const date = new Date(isoString);
+          if (isNaN(date.getTime())) return "N/A";
+          return `<t:${Math.floor(date.getTime() / 1000)}:d>`;
+        };
+
+        // Format current guilds
+        if (Array.isArray(currentGuilds) && currentGuilds.length > 0) {
+          const lines = currentGuilds.map(cg => {
+            const name = tagToNameMap[cg.tag] || "Unknown Guild";
+            const joinedAt = formatTimestamp(cg.joined_at);
+            return `• **${cg.tag}** ${name} (Joined: ${joinedAt})`;
+          });
+          currentGuildsField = lines.join("\n");
+        }
+
+        // Format previous guilds
+        if (Array.isArray(previousGuilds) && previousGuilds.length > 0) {
+          const lines = previousGuilds.map(pg => {
+            const name = tagToNameMap[pg.tag] || "Unknown Guild";
+            const joinedAt = formatTimestamp(pg.joined_at);
+            const leftAt = formatTimestamp(pg.left_at);
+            return `• **${pg.tag}** ${name} (Joined: ${joinedAt} | Left: ${leftAt})`;
+          });
+          previousGuildsField = lines.join("\n");
+        }
+      }
+    } catch (dbErr) {
+      console.error("Failed to query member_surveillance/approved_guilds for cross-check:", dbErr);
+    }
+
     // --- POST APPLICATION EMBED WITH ACCEPT/REJECT BUTTONS ---
     const reviewChannel = await client.channels
       .fetch(REVIEW_CHANNEL_ID)
@@ -332,6 +419,8 @@ Respond ONLY in this JSON format:
         .setColor(aiDecision === "ACCEPT" ? "#00ff00" : "#ff4444")
         .addFields(
           { name: "User", value: `<@${user.id}> (${user.id})` },
+          { name: "Current Guilds", value: currentGuildsField },
+          { name: "Previous Guilds", value: previousGuildsField },
           { name: "1. Active?", value: answers.active },
           { name: "2. Loyal?", value: answers.loyal },
           { name: "3. Introduction", value: answers.intro || "*No answer*" },
