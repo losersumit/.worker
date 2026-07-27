@@ -19,8 +19,6 @@ import { runWeeklyAwards } from "./.moderation/src/jobs/weeklyAwards.js";
 import { startMilestoneChecker } from "./.moderation/src/jobs/milestoneChecker.js";
 import { scheduleOneWordStoryJob } from "./.moderation/src/features/oneWordStory.js";
 import schedule from "node-schedule";
-import { startScavengerScheduler } from "./scavenger/scavengerScheduler.js";
-
 
 // AI Integration
 // Note: AI bot features are now fully integrated via .moderation/src/features/ragChat.js
@@ -225,10 +223,6 @@ client.once("ready", async () => {
       updateUvsEmbed(client); // Initial setup of the embed
     })
     .catch((err) => console.error("Failed to load uvsStatusMonitor:", err));
-
-  // ── Scavenger Hunt Scheduler ──
-  startScavengerScheduler(client);
-
 
   // ── Automatic 6-Hour Restart ( Railway Auto-Restart Trigger ) ──
   const SIX_HOURS_IN_MS = 6 * 60 * 60 * 1000;
