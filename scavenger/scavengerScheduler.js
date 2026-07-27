@@ -100,7 +100,9 @@ async function hasBeenPosted(client, level) {
     }
     const messages = await channel.messages.fetch({ limit: 50 });
     const searchString = `Level ${level}`;
+    const eventStart = new Date('2026-07-26T18:30:00.000Z'); // July 27, 2026 00:00 IST
     for (const [_, msg] of messages) {
+      if (msg.createdAt < eventStart) continue;
       if (msg.content && msg.content.includes(searchString)) return true;
       if (msg.components && JSON.stringify(msg.components).includes(searchString)) return true;
       if (msg.embeds && msg.embeds.some(e => 
