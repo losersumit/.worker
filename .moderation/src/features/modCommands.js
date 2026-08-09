@@ -219,9 +219,9 @@ async function handleUnmute(message, args, client) {
     }
 }
 
-async function handleAssassinate(message, args, client) {
+async function handleMurder(message, args, client) {
     const targetArg = args[0];
-    const reason = args.slice(1).join(' ') || `Assassinated by ${message.author.tag}`;
+    const reason = args.slice(1).join(' ') || `Murdered by ${message.author.tag}`;
 
     const resolved = await resolveUserForBan(message, targetArg, client);
     if (!resolved) return message.reply('❌ Could not find that user. Use a mention, user ID, or username.');
@@ -230,7 +230,7 @@ async function handleAssassinate(message, args, client) {
 
     // If in the guild, check role hierarchy
     if (member && member.roles.highest.position >= message.member.roles.highest.position && message.author.id !== message.guild.ownerId) {
-        return message.reply('❌ I cannot assassinate this user. Check role hierarchy.');
+        return message.reply('❌ I cannot murder this user. Check role hierarchy.');
     }
 
     try {
@@ -241,39 +241,86 @@ async function handleAssassinate(message, args, client) {
 
         await killUser(user.id, user.tag);
 
-        // Call Groq to choose a gun
-        let gun = 'Sniper Rifle';
+        // Fetch last 20 choices to avoid duplicates
+        let lastChoices = [];
         try {
+            const { data } = await supabase
+                .from('murder_choices')
+                .select('choice')
+                .order('id', { ascending: false })
+                .limit(20);
+            if (data) {
+                lastChoices = data.map(r => r.choice);
+            }
+        } catch (dbErr) {
+            console.warn('[Murder] Could not fetch last choices (table might not exist):', dbErr.message);
+        }
+
+        const murdererName = message.member?.displayName || message.author.globalName || message.author.username;
+        const victimName = member?.displayName || user.globalName || user.username;
+
+        // Generate murder scenario
+        let murderScenario = `${victimName} was murdered by ${murdererName}.`;
+        try {
+            const avoidedList = lastChoices.length > 0
+                ? `Avoid using or repeating any of these recent murder methods:\n${lastChoices.map((c, i) => `- ${c}`).join('\n')}`
+                : '';
+
+            const prompt = `You are a dark-humor writer. Write a highly creative, extremely unrealistic, crazy, and funny murder description sentence.
+The murderer/killer is: "${murdererName}"
+The victim is: "${victimName}"
+
+Requirements:
+- Make it extremely unrealistic, crazy, and absurd, but possible (do not use fantasy/magic/dragons/sci-fi tech; it must be possible in the physical world but a totally crazy/absurd thing to do).
+- It must be humoristic and not feel realistic.
+- You can use any type of weapon or death type (especially vulgar, absurd, or high-destruction ones).
+- Examples: 
+  - "${victimName} died while taking 4 at a time in anal"
+  - "${murdererName} bombed ${victimName} with a nuclear bomb"
+- Incorporate both the killer (${murdererName}) and the victim (${victimName}) naturally in the description.
+- ${avoidedList}
+- Return ONLY the final murder description sentence. Do not include any quotes, markdown formatting, explanations, or preamble. Keep it concise (one sentence).`;
+
             const aiResponse = await groqChatCompletion({
                 model: 'llama-3.3-70b-versatile',
-                messages: [{ role: 'user', content: 'Choose a random, cool, realistic or fictional gun or weapon that can be used for assassination. Return only the name of the weapon, nothing else. No punctuation, no quotes, no explanation.' }]
+                messages: [{ role: 'user', content: prompt }]
             });
+
             if (aiResponse?.choices?.[0]?.message?.content) {
-                gun = aiResponse.choices[0].message.content.trim().replace(/["']/g, '');
+                murderScenario = aiResponse.choices[0].message.content.trim().replace(/["']/g, '');
             }
         } catch (aiErr) {
-            console.error('[Assassinate] Groq generation failed:', aiErr);
+            console.error('[Murder] AI generation failed:', aiErr);
+        }
+
+        // Save selection to DB
+        try {
+            await supabase
+                .from('murder_choices')
+                .insert({ choice: murderScenario });
+        } catch (dbErr) {
+            console.warn('[Murder] Could not save choice to DB:', dbErr.message);
         }
 
         const embed = new EmbedBuilder()
             .setColor(0xE74C3C)
-            .setDescription(`💀 **${user.tag}** has been assassinated by **${message.member.displayName}** with a **${gun}**.`)
+            .setDescription(`💀 ${murderScenario}`)
             .addFields({ name: 'Reason', value: reason })
-            .setFooter({ text: `Assassination Request Complete` })
+            .setFooter({ text: `Murder Request Complete` })
             .setTimestamp();
 
         const button = new ButtonBuilder()
-            .setCustomId(`know_more_gun:${gun}`)
-            .setLabel(`Know more about ${gun}.`)
+            .setCustomId(`know_more_gun:${murderScenario.slice(0, 80)}`)
+            .setLabel(`Explain this murder method`)
             .setStyle(ButtonStyle.Primary);
 
         const row = new ActionRowBuilder().addComponents(button);
 
         await message.reply({ embeds: [embed], components: [row] });
-        await logModAction(client, message.guild, 'assassinate', message.author, user, `Reason: ${reason} (Weapon: ${gun})`);
+        await logModAction(client, message.guild, 'murder', message.author, user, `Reason: ${reason} (Method: ${murderScenario})`);
     } catch (err) {
-        console.error('[MOD] Assassinate error:', err);
-        message.reply(`❌ Failed to assassinate: ${err.message}`);
+        console.error('[MOD] Murder error:', err);
+        message.reply(`❌ Failed to murder: ${err.message}`);
     }
 }
 
@@ -561,7 +608,7 @@ async function handleModHelp(message, args, client) {
                 value:
                     '`!mute <@user|ID|username> [duration]`\nTimeout a user. No duration = 28 days.\n' +
                     '`!unmute <@user|ID|username>`\nRemove timeout from a user.\n' +
-                    '`!assassinate <@user|ID|username> [reason]`\nAssassinate a user (strips all roles and restricts autorole).\n' +
+                    '`!murder <@user|ID|username> [reason]`\nMurder a user (strips all roles and restricts autorole).\n' +
                     '`!revive <ID|username>`\nRevive a user (restores autorole capability and Visitor role).\n' +
                     '`!kick <@user|ID|username> [reason]`\nKick a user from the server.\n' +
                     '`!lock [#channel|ID|link]`\nLock a channel. Defaults to current channel if none given.\n' +
@@ -641,7 +688,7 @@ async function resolveChannel(message, input, client) {
 const MOD_COMMANDS = {
     mute: handleMute,
     unmute: handleUnmute,
-    assassinate: handleAssassinate,
+    murder: handleMurder,
     revive: handleRevive,
     kick: handleKick,
     lock: handleLock,
@@ -675,7 +722,7 @@ export async function handleModCommand(message, client) {
         const usages = {
             mute: '`!mute <@user|ID|username> [duration]`',
             unmute: '`!unmute <@user|ID|username>`',
-            assassinate: '`!assassinate <@user|ID|username> [reason]`',
+            murder: '`!murder <@user|ID|username> [reason]`',
             revive: '`!revive <ID|username>`',
             kick: '`!kick <@user|ID|username> [reason]`',
             warns: '`!warns <@user|ID|username>`',
