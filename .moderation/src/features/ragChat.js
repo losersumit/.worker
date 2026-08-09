@@ -362,15 +362,10 @@ function formatVerifiedIdentity(verified) {
     ].join('\n');
 }
 
-function buildPrompt(question, context, username, verifiedIdentity, history, rawChannelHistory) {
+function buildPrompt(question, context, username, verifiedIdentity, dialogueBlock, rawChannelHistory) {
     const contextBlock = context.length
         ? context.map((c, idx) => `[${idx + 1}] (${c.type}) ${c.text}`).join('\n\n')
         : 'No relevant context found in DB.';
-
-    let dialogueBlock = 'No recent conversation.';
-    if (history && history.length > 0) {
-        dialogueBlock = history.map(turn => `${turn.name}: ${turn.text}`).join('\n');
-    }
 
     return `${BASE_PERSONALITY}
 
@@ -397,7 +392,13 @@ function pushConversationTurn(message, promptText) {
     if (!perUserConversations.has(key)) perUserConversations.set(key, []);
     const history = perUserConversations.get(key);
     const userName = message.member?.displayName || message.author.globalName || message.author.username;
-    history.push({ role: 'user', name: userName, text: sanitizeText(promptText) || '[empty]' });
+    const image = getImageAttachment(message);
+    history.push({ 
+        role: 'user', 
+        name: userName, 
+        text: sanitizeText(promptText) || '[empty]',
+        imageUrl: image?.url || null
+    });
     while (history.length > 16) history.shift();
     return { key, history, userName };
 }
@@ -424,6 +425,8 @@ async function askWithContext(message, client, question) {
         await message.channel.sendTyping();
     } catch { }
 
+    const imageUrls = [];
+
     let rawChannelHistory = 'No recent channel messages.';
     try {
         const lastMsgs = await message.channel.messages.fetch({ limit: 15 });
@@ -431,7 +434,15 @@ async function askWithContext(message, client, question) {
         const msgsArray = Array.from(lastMsgs.values()).reverse();
         rawChannelHistory = msgsArray.map(m => {
             const name = m.member?.displayName || m.author.globalName || m.author.username;
-            const text = sanitizeText(m.content) || '[attachment/embed]';
+            let text = sanitizeText(m.content) || '';
+            const img = getImageAttachment(m);
+            if (img?.url) {
+                imageUrls.push(img.url);
+                const placeholder = `[Attachment ${imageUrls.length}]`;
+                text = text ? `${text} ${placeholder}` : placeholder;
+            } else if (!text) {
+                text = '[attachment/embed]';
+            }
             return `${name}: ${text}`;
         }).join('\n');
     } catch (err) {
@@ -446,22 +457,46 @@ async function askWithContext(message, client, question) {
     const username = message.member?.displayName || message.author.globalName || message.author.username;
     const { key, history, userName } = pushConversationTurn(message, question);
 
-    const prompt = buildPrompt(question, context, username, verifiedIdentity, history, rawChannelHistory);
+    let dialogueBlock = 'No recent conversation.';
+    if (history && history.length > 0) {
+        dialogueBlock = history.map(turn => {
+            let turnText = turn.text || '';
+            if (turn.imageUrl) {
+                imageUrls.push(turn.imageUrl);
+                const placeholder = `[Attachment ${imageUrls.length}]`;
+                turnText = turnText ? `${turnText} ${placeholder}` : placeholder;
+            }
+            return `${turn.name}: ${turnText}`;
+        }).join('\n');
+    }
 
-    const image = getImageAttachment(message);
-    let userContent = prompt;
+    let questionText = question;
+    const currentImg = getImageAttachment(message);
+    if (currentImg?.url) {
+        const idx = imageUrls.lastIndexOf(currentImg.url);
+        if (idx !== -1) {
+            const placeholder = `[Attachment ${idx + 1}]`;
+            questionText = questionText ? `${questionText} ${placeholder}` : placeholder;
+        }
+    }
 
-    if (image) {
-        // Image present → use Gemini for multimodal request
-        userContent = [
-            { type: 'text', text: `${prompt}\n\nAlso analyze the attached image if relevant.` },
-            { type: 'image_url', image_url: { url: image.url } }
+    const prompt = buildPrompt(questionText, context, username, verifiedIdentity, dialogueBlock, rawChannelHistory);
+
+    if (imageUrls.length > 0) {
+        const userContent = [
+            { type: 'text', text: prompt }
         ];
+        for (const url of imageUrls) {
+            userContent.push({ type: 'image_url', image_url: { url: url } });
+        }
+
         const data = await geminiChatCompletion({
+            model: 'gemini-3.1-flash-lite',
             messages: [{ role: 'user', content: userContent }],
             temperature: CHAT_TEMPERATURE,
             max_tokens: CHAT_MAX_TOKENS,
         });
+
         const answer = data?.choices?.[0]?.message?.content?.trim() || 'No answer generated.';
         pushAssistantTurn(key, answer);
         await message.reply(answer);
@@ -470,7 +505,7 @@ async function askWithContext(message, client, question) {
 
     const data = await groqChatCompletion({
         model: CHAT_MODEL,
-        messages: [{ role: 'user', content: userContent }],
+        messages: [{ role: 'user', content: prompt }],
         temperature: CHAT_TEMPERATURE,
         max_tokens: CHAT_MAX_TOKENS,
     });

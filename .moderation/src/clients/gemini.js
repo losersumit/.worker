@@ -66,7 +66,7 @@ function isQuotaOrTokenExhaustion(err) {
 
 async function postWithKey(payload, apiKey) {
   // Use visionModel from config; fall back to fallbackVisionModel if needed
-  const modelToUse = config.ai.visionModel || config.ai.fallbackVisionModel || "gemini-1.5-flash";
+  const modelToUse = payload.model || config.ai.visionModel || config.ai.fallbackVisionModel || "gemini-1.5-flash";
   const finalPayload = {
     ...payload,
     model: modelToUse,
@@ -123,6 +123,53 @@ function releaseKey(keyObj) {
   }
 }
 
+async function resolveImageUrls(payload) {
+  if (!payload || !payload.messages) return payload;
+
+  const newMessages = [];
+  for (const message of payload.messages) {
+    if (!message || !message.content) {
+      newMessages.push(message);
+      continue;
+    }
+
+    if (Array.isArray(message.content)) {
+      const newContent = [];
+      for (const item of message.content) {
+        if (item && item.type === "image_url" && item.image_url && typeof item.image_url.url === "string") {
+          const url = item.image_url.url;
+          if (url.startsWith("http://") || url.startsWith("https://")) {
+            try {
+              console.log(`[GeminiClient] Automatically resolving remote image URL to base64: ${url.substring(0, 80)}...`);
+              const imageRes = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 });
+              const contentType = imageRes.headers['content-type'] || 'image/jpeg';
+              const base64Image = Buffer.from(imageRes.data).toString('base64');
+              const dataUri = `data:${contentType};base64,${base64Image}`;
+              
+              newContent.push({
+                ...item,
+                image_url: {
+                  ...item.image_url,
+                  url: dataUri
+                }
+              });
+              continue;
+            } catch (err) {
+              console.error(`[GeminiClient] Failed to resolve image URL to base64: ${url}. Error: ${err.message}`);
+            }
+          }
+        }
+        newContent.push(item);
+      }
+      newMessages.push({ ...message, content: newContent });
+    } else {
+      newMessages.push(message);
+    }
+  }
+
+  return { ...payload, messages: newMessages };
+}
+
 /**
  * Call Gemini Chat Completions with automatic concurrency-aware key routing and failover.
  * Only forwards to free/available keys that aren't processing other requests.
@@ -138,6 +185,9 @@ export async function geminiChatCompletion(payload) {
     );
   }
 
+  // Preprocess payload to convert external image URLs to base64 data URIs
+  const processedPayload = await resolveImageUrls(payload);
+
   let attempts = 0;
   const maxAttempts = keys.length;
   const triedKeyIndices = new Set();
@@ -151,7 +201,7 @@ export async function geminiChatCompletion(payload) {
       console.log(
         `[GeminiClient] Attempting request using key index ${keyObj.index} (Processing status: busy)...`,
       );
-      const result = await postWithKey(payload, keyObj.key);
+      const result = await postWithKey(processedPayload, keyObj.key);
       console.log(
         `[GeminiClient] Request successful using key index ${keyObj.index}.`,
       );
