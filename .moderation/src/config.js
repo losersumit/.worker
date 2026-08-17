@@ -87,7 +87,7 @@ const config = {
     // Advanced AI settings
     ai: {
         // Groq model to use
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-20b",
 
         // Vision model for image moderation
         visionModel: "gemini-3.1-flash-lite",
