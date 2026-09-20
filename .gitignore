@@ -19,4 +19,4 @@ RUN_AI_EMBEDDER.bat
 storage/exports/
 storage/
 context_for_agent
-context_for_agent/
+context_for_agent/.env
