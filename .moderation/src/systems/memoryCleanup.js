@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { groqChatCompletion } from '../clients/groq.js';
+import { geminiChatCompletion } from '../clients/gemini.js';
 import { getMemoryTableName } from './memory.js';
 import config from '../config.js';
 import '../utils/loadEnv.js';
@@ -84,8 +84,8 @@ export async function runMemoryCleanup() {
                 const factListText = memories.map(m => `- ${m.fact}`).join('\n');
 
                 try {
-                    const result = await groqChatCompletion({
-                        model: config.ai.model,
+                    const result = await geminiChatCompletion({
+                        model: config.ai.visionModel || 'gemini-2.0-flash',
                         messages: [
                             { role: 'system', content: CLEANUP_PROMPT },
                             { role: 'user', content: `Current facts for user:\n${factListText}\n\nList the exact facts to delete as a JSON array.` }
@@ -127,7 +127,7 @@ export async function runMemoryCleanup() {
                     console.error(`[Memory Cleanup] Error evaluating user ${userId}:`, err.message);
                 }
 
-                // Small delay to avoid hammering the Groq API
+                // Small delay to avoid hammering the Gemini API
                 await new Promise(r => setTimeout(r, 1000));
             }
         }

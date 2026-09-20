@@ -1,12 +1,12 @@
 import { getCountingState, saveCountingState } from "../systems/storage.js";
-import { groqChatCompletion } from "../clients/groq.js";
+import { geminiChatCompletion } from "../clients/gemini.js";
 import config from "../config.js";
 
 const COUNTING_RESET_TEXT = "Starting again from 1";
 
 async function askCountingAi(prompt, maxTokens = 10) {
-  return groqChatCompletion({
-    model: config.ai.model,
+  return geminiChatCompletion({
+    model: config.ai.visionModel || "gemini-2.0-flash",
     messages: [{ role: "user", content: prompt }],
     temperature: 0,
     max_tokens: maxTokens,

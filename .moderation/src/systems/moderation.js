@@ -10,7 +10,6 @@
 
 import "../utils/loadEnv.js";
 import config from "../config.js";
-import { groqChatCompletion } from "../clients/groq.js";
 import { geminiChatCompletion } from "../clients/gemini.js";
 
 /**
@@ -54,14 +53,14 @@ export async function moderateMessage(messageContent) {
       Strict mode is currently: ${config.moderation.strictMode ? "ENABLED" : "DISABLED"}.
     `;
 
-    const completion = await groqChatCompletion({
+    const completion = await geminiChatCompletion({
       messages: [
         {
           role: "user",
           content: prompt,
         },
       ],
-      model: config.ai.model,
+      model: config.ai.visionModel || "gemini-2.0-flash",
       temperature: config.ai.temperature,
       max_tokens: config.ai.maxTokens,
       top_p: config.ai.topP,

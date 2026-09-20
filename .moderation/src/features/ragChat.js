@@ -1,5 +1,4 @@
 import '../utils/loadEnv.js';
-import { groqChatCompletion } from '../clients/groq.js';
 import { geminiChatCompletion } from '../clients/gemini.js';
 import { findFaqAnswer, embed } from '../systems/faq.js';
 import config from '../config.js';
@@ -503,8 +502,8 @@ async function askWithContext(message, client, question) {
         return;
     }
 
-    const data = await groqChatCompletion({
-        model: CHAT_MODEL,
+    const data = await geminiChatCompletion({
+        model: config.ai.visionModel || 'gemini-2.0-flash',
         messages: [{ role: 'user', content: prompt }],
         temperature: CHAT_TEMPERATURE,
         max_tokens: CHAT_MAX_TOKENS,
@@ -529,8 +528,8 @@ async function buildHourlySummaryForChannel(supabase, channelId, startIso, endIs
     if (!data || data.length === 0) return;
 
     const transcript = data.map(r => `${r.username}: ${r.content}`).join('\n');
-    const resp = await groqChatCompletion({
-        model: CHAT_MODEL,
+    const resp = await geminiChatCompletion({
+        model: config.ai.visionModel || 'gemini-2.0-flash',
         messages: [{ role: 'user', content: `${BASE_PERSONALITY}\n\nSummarize this one-hour server discussion in concise bullets:\n\n${transcript}` }],
         temperature: 0.2,
         max_tokens: 300,

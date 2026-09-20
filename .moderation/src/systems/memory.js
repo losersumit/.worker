@@ -3,7 +3,7 @@
  * Stores and retrieves per-user facts, and provides recent server event awareness.
  */
 
-import { groqChatCompletion } from '../clients/groq.js';
+import { geminiChatCompletion } from '../clients/gemini.js';
 import config from '../config.js';
 
 const MAX_MEMORIES_PER_USER = 20;
@@ -173,8 +173,8 @@ export async function extractAndSaveMemories(supabase, userId, username, convers
             })
             .join('\n');
 
-        const result = await groqChatCompletion({
-            model: config.ai.model,
+        const result = await geminiChatCompletion({
+            model: config.ai.visionModel || 'gemini-2.0-flash',
             messages: [
                 { role: 'system', content: EXTRACTION_PROMPT },
                 { role: 'user', content: `${existingContext}\n\nCONVERSATION:\n${convoText}` }

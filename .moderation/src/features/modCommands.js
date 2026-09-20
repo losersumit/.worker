@@ -2,7 +2,7 @@ import { EmbedBuilder, PermissionsBitField, ButtonBuilder, ButtonStyle, ActionRo
 import { getUserWarnings, resetWarnings, killUser, unkillUser } from '../systems/storage.js';
 import { handleTodoCommand } from './todoCommands.js';
 import { supabase } from '../clients/supabase.js';
-import { groqChatCompletion } from '../clients/groq.js';
+import { geminiChatCompletion } from '../clients/gemini.js';
 
 
 const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
@@ -281,8 +281,8 @@ Requirements:
 - ${avoidedList}
 - Return ONLY the final murder description sentence. Do not include any quotes, markdown formatting, explanations, or preamble. Keep it concise (one sentence).`;
 
-            const aiResponse = await groqChatCompletion({
-                model: 'llama-3.3-70b-versatile',
+            const aiResponse = await geminiChatCompletion({
+                model: config.ai.visionModel || 'gemini-2.0-flash',
                 messages: [{ role: 'user', content: prompt }]
             });
 

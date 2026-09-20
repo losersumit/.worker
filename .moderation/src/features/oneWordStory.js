@@ -138,8 +138,8 @@ Response requirements:
 - Respond with EXACTLY one emoji name (e.g., "goated" or "sad_cat") or its numeric ID from the list.
 - Do NOT output any other words, punctuation, markdown formatting, or explanations.`;
 
-    const data = await groqChatCompletion({
-      model: config.ai.model || "llama-3.3-70b-versatile",
+    const data = await geminiChatCompletion({
+      model: config.ai.visionModel || "gemini-2.0-flash",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
       max_tokens: 20

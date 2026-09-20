@@ -1,7 +1,7 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { supabase } from '../clients/supabase.js';
 import { resolveAttachmentFromLink } from '../utils/discordUtils.js';
-import { groqChatCompletion } from '../clients/groq.js';
+import { geminiChatCompletion } from '../clients/gemini.js';
 import config from '../config.js';
 
 const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID || '1448029016844931143';
@@ -203,8 +203,8 @@ export async function handleTodoCommand(message, args, client) {
             let titleText = taskText.substring(0, 40);
             try {
                 const aiPrompt = `Translate the following task into a very short, concise title (maximum 4-5 words) summarizing it. Return ONLY the title, no extra text, no markdown, no quotes.\n\nTask: ${taskText}`;
-                const aiResponse = await groqChatCompletion({
-                    model: config.ai.model,
+                const aiResponse = await geminiChatCompletion({
+                    model: config.ai.visionModel || 'gemini-2.0-flash',
                     messages: [{ role: 'user', content: aiPrompt }],
                     temperature: 0.1,
                     max_tokens: 30

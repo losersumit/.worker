@@ -87,7 +87,7 @@ const config = {
     // Advanced AI settings
     ai: {
         // Groq model to use
-        model: "openai/gpt-oss-120b",
+        model: "gemini-3.1-flash-lite",
 
         // Vision model for image moderation
         visionModel: "gemini-3.1-flash-lite",
