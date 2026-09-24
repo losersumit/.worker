@@ -241,6 +241,82 @@ async function handleMurder(message, args, client) {
 
         await killUser(user.id, user.tag);
 
+        // Delete target user's messages from the last 24 hours
+        try {
+            const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+            let deletedCount = 0;
+
+            // Get all guild channels that can contain messages
+            const channels = message.guild.channels.cache.filter(channel =>
+                channel.isTextBased() &&
+                channel.viewable &&
+                channel.permissionsFor(message.guild.members.me)?.has('ManageMessages')
+            );
+
+            for (const channel of channels.values()) {
+                let lastId = null;
+
+                while (true) {
+                    const options = { limit: 100 };
+
+                    if (lastId) {
+                        options.before = lastId;
+                    }
+
+                    const messages = await channel.messages.fetch(options);
+
+                    if (messages.size === 0) {
+                        break;
+                    }
+
+                    let reached24Hours = false;
+
+                    for (const msg of messages.values()) {
+                        // Messages are ordered newest -> oldest
+                        if (msg.createdTimestamp < twentyFourHoursAgo) {
+                            reached24Hours = true;
+                            break;
+                        }
+
+                        if (msg.author.id === user.id) {
+                            try {
+                                await msg.delete();
+                                deletedCount++;
+                            } catch (err) {
+                                console.warn(
+                                    `[Murder] Failed to delete message ${msg.id} in #${channel.name}:`,
+                                    err.message
+                                );
+                            }
+                        }
+                    }
+
+                    if (reached24Hours) {
+                        break;
+                    }
+
+                    // Move backwards through channel history
+                    const oldestMessage = messages.last();
+
+                    if (!oldestMessage) {
+                        break;
+                    }
+
+                    lastId = oldestMessage.id;
+                }
+            }
+
+            console.log(
+                `[Murder] Deleted ${deletedCount} messages from ${user.tag} across the server from the last 24 hours.`
+            );
+
+        } catch (deleteErr) {
+            console.error(
+                "[Murder] Failed to delete user's server-wide messages:",
+                deleteErr
+            );
+        }        
+
         // Fetch last 20 choices to avoid duplicates
         let lastChoices = [];
         try {
@@ -266,23 +342,22 @@ async function handleMurder(message, args, client) {
                 ? `Avoid using or repeating any of these recent murder methods:\n${lastChoices.map((c, i) => `- ${c}`).join('\n')}`
                 : '';
 
-            const prompt = `You are a dark-humor writer. Write a highly creative, extremely unrealistic, crazy, and funny murder description sentence.
-The murderer/killer is: "${murdererName}"
-The victim is: "${victimName}"
+            const prompt = `You are a dark-humor writer. Write a brutal murder description sentence.
+                            The murderer/killer is: "${murdererName}"
+                            The victim is: "${victimName}"
 
-Requirements:
-- Make it extremely unrealistic, crazy, and absurd, but possible (do not use fantasy/magic/dragons/sci-fi tech; it must be possible in the physical world but a totally crazy/absurd thing to do).
-- It must be humoristic and not feel realistic.
-- You can use any type of weapon or death type (especially vulgar, absurd, or high-destruction ones).
-- Examples: 
-  - "${victimName} died while taking 4 at a time in anal"
-  - "${murdererName} bombed ${victimName} with a nuclear bomb"
-- Incorporate both the killer (${murdererName}) and the victim (${victimName}) naturally in the description.
-- ${avoidedList}
-- Return ONLY the final murder description sentence. Do not include any quotes, markdown formatting, explanations, or preamble. Keep it concise (one sentence).`;
+                            Requirements:
+                            - Make it brutal, but possible (do not use fantasy/magic/dragons/sci-fi tech; it must be possible in the physical world but a totally crazy/absurd thing to do).
+                            - You can use any type of weapon or death type (especially vulgar, absurd, or high-destruction ones).
+                            - Examples: 
+                            - "${victimName} died while taking 4 at a time in anal"
+                            - "${murdererName} bombed ${victimName} with a nuclear bomb"
+                            - Incorporate both the killer (${murdererName}) and the victim (${victimName}) naturally in the description.
+                            - ${avoidedList}
+                            - Return ONLY the final murder description sentence. Do not include any quotes, markdown formatting, explanations, or preamble. Keep it concise (one sentence).`;
 
             const aiResponse = await geminiChatCompletion({
-                model: config.ai.visionModel || 'gemini-2.0-flash',
+                model: config.ai.visionModel || 'gemini-3.5-flash-lite',
                 messages: [{ role: 'user', content: prompt }]
             });
 
