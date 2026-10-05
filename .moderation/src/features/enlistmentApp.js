@@ -41,8 +41,10 @@ const OFFICER_CRITERIA = {
     criteria: `**<:stara:1461426121232093215><:starb:1461426157244121129><:starc:1461426187526996131> Senior Mobility Operator [SMO]**
         <a:red:1475206357618655372> Minimum in-game level: 50+.
         <a:blue:1475206355592810516> Achieve Milestone of 10 clean runs (no penalties) in UVS.
-        <a:orange:1475206361272029366> Submit a clean run (no penalties) on the Lech <-> Airolo route.
-        <a:purple:1475206374144086026> Park any double trailer.`,
+        <a:orange:1475206361272029366> Submit a **clean run** (no penalties) on the Lech <-> Airolo route using Oversize **5x3** *Mining Truck Chassis* or *Heavy Crane as cargo*.
+        <a:purple:1475206374144086026> Park any double trailer.
+        <a:white:1475206371820441671> Must fully understand and be able to explain the complete enlistment process from a member joining the server through successful enlistment.
+        <a:green:1475206366145806517> Must recruit at least **three** new drivers.`,
   },
 };
 
