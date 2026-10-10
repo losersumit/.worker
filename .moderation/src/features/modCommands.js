@@ -317,6 +317,17 @@ async function handleMurder(message, args, client) {
         }
         await killUser(user.id, user.tag);
 
+        // Acknowledge immediately instead of leaving the command silent during AI generation.
+        const responseMessage = await message.reply({
+            embeds: [
+                new EmbedBuilder()
+                    .setColor(0xE74C3C)
+                    .setDescription(`💀 ${user.tag}'s murder is being processed…`)
+                    .setFooter({ text: 'Generating the final report' })
+                    .setTimestamp()
+            ]
+        });
+
         const purgePromise = purgeRecentMessages().catch(err => {
             console.error('[Murder] Failed to delete recent messages:', err);
         });
@@ -377,7 +388,7 @@ ${avoidedList}`;
             .setLabel('Explain this murder method')
             .setStyle(ButtonStyle.Primary);
 
-        await message.reply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(button)] });
+        await responseMessage.edit({ embeds: [embed], components: [new ActionRowBuilder().addComponents(button)] });
 
         // Do not hold up the visible response on audit logging or database persistence.
         void Promise.allSettled([
