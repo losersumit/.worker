@@ -317,17 +317,6 @@ async function handleMurder(message, args, client) {
 
         // Start both network-bound tasks as soon as the target is resolved.
         // The AI request does not wait for role updates, storage writes, or message cleanup.
-        const choicesPromise = supabase
-            .from('murder_choices')
-            .select('choice')
-            .order('id', { ascending: false })
-            .limit(20)
-            .then(({ data }) => data?.map(r => r.choice) || [])
-            .catch(err => {
-                console.warn('[Murder] Could not fetch last choices:', err.message);
-                return [];
-            });
-
         // Start Gemini immediately; recent-choice history is fetched in parallel rather
         // than making the user wait for Supabase before the AI request even begins.
         const aiPromise = geminiChatCompletion({
@@ -339,6 +328,9 @@ Killer: "${murdererName}"
 Victim: "${victimName}"
 Include both names naturally. Keep it concise and return only the sentence.`
             }]
+        }).catch(err => {
+            console.error('[Murder] AI generation failed:', err);
+            return null;
         });
 
         if (member) {
@@ -363,16 +355,9 @@ Include both names naturally. Keep it concise and return only the sentence.`
 
         let murderScenario = `${victimName} was murdered by ${murdererName}.`;
 
-        try {
-            const aiResponse = await aiPromise;
-            const generated = aiResponse?.choices?.[0]?.message?.content?.trim();
-            if (generated) murderScenario = generated.replace(/["']/g, '');
-        } catch (aiErr) {
-            console.error('[Murder] AI generation failed:', aiErr);
-        }
-
-        // The recent-choice query is deliberately non-blocking; the AI request has already started.
-        void choicesPromise;
+        const aiResponse = await aiPromise;
+        const generated = aiResponse?.choices?.[0]?.message?.content?.trim();
+        if (generated) murderScenario = generated.replace(/["']/g, '');
 
         const savePromise = supabase
             .from('murder_choices')
