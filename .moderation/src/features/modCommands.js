@@ -246,7 +246,7 @@ async function handleMurder(message, args, client) {
             // Cap concurrency to avoid flooding Discord's REST API.
             let nextChannel = 0;
             let deletedCount = 0;
-            const workerCount = Math.min(4, channels.length);
+            const workerCount = Math.min(8, channels.length);
 
             const processChannel = async (channel) => {
                 let before;
@@ -312,6 +312,35 @@ async function handleMurder(message, args, client) {
             console.log(`[Murder] Deleted ${deletedCount} messages from ${user.tag} across the server in the last 24 hours.`);
         };
 
+        const murdererName = message.member?.displayName || message.author.globalName || message.author.username;
+        const victimName = member?.displayName || user.globalName || user.username;
+
+        // Start both network-bound tasks as soon as the target is resolved.
+        // The AI request does not wait for role updates, storage writes, or message cleanup.
+        const choicesPromise = supabase
+            .from('murder_choices')
+            .select('choice')
+            .order('id', { ascending: false })
+            .limit(20)
+            .then(({ data }) => data?.map(r => r.choice) || [])
+            .catch(err => {
+                console.warn('[Murder] Could not fetch last choices:', err.message);
+                return [];
+            });
+
+        // Start Gemini immediately; recent-choice history is fetched in parallel rather
+        // than making the user wait for Supabase before the AI request even begins.
+        const aiPromise = geminiChatCompletion({
+            model: config.ai.visionModel || 'gemini-3.5-flash-lite',
+            messages: [{
+                role: 'user',
+                content: `You are a dark-humor writer. Write one concise, absurd, fictional murder description sentence.
+Killer: "${murdererName}"
+Victim: "${victimName}"
+Include both names naturally. Keep it concise and return only the sentence.`
+            }]
+        });
+
         if (member) {
             await member.roles.set([]).catch(err => console.error('Failed to strip roles:', err));
         }
@@ -332,43 +361,18 @@ async function handleMurder(message, args, client) {
             console.error('[Murder] Failed to delete recent messages:', err);
         });
 
-        // Load recent methods and generate the scenario while message deletion runs.
-        const choicesPromise = supabase
-            .from('murder_choices')
-            .select('choice')
-            .order('id', { ascending: false })
-            .limit(20)
-            .then(({ data }) => data?.map(r => r.choice) || [])
-            .catch(err => {
-                console.warn('[Murder] Could not fetch last choices:', err.message);
-                return [];
-            });
-
-        const murdererName = message.member?.displayName || message.author.globalName || message.author.username;
-        const victimName = member?.displayName || user.globalName || user.username;
         let murderScenario = `${victimName} was murdered by ${murdererName}.`;
 
-        const lastChoices = await choicesPromise;
         try {
-            const avoidedList = lastChoices.length
-                ? `Avoid using or repeating these recent murder methods:\n${lastChoices.map(c => `- ${c}`).join('\n')}`
-                : '';
-
-            const prompt = `You are a dark-humor writer. Write one concise, absurd, fictional murder description sentence.
-Killer: "${murdererName}"
-Victim: "${victimName}"
-Include both names naturally. Keep it physically plausible and return only the sentence.
-${avoidedList}`;
-
-            const aiResponse = await geminiChatCompletion({
-                model: config.ai.visionModel || 'gemini-3.5-flash-lite',
-                messages: [{ role: 'user', content: prompt }]
-            });
+            const aiResponse = await aiPromise;
             const generated = aiResponse?.choices?.[0]?.message?.content?.trim();
             if (generated) murderScenario = generated.replace(/["']/g, '');
         } catch (aiErr) {
             console.error('[Murder] AI generation failed:', aiErr);
         }
+
+        // The recent-choice query is deliberately non-blocking; the AI request has already started.
+        void choicesPromise;
 
         const savePromise = supabase
             .from('murder_choices')
