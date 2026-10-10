@@ -228,174 +228,166 @@ async function handleMurder(message, args, client) {
 
     const { user, member } = resolved;
 
-    // If in the guild, check role hierarchy
     if (member && member.roles.highest.position >= message.member.roles.highest.position && message.author.id !== message.guild.ownerId) {
         return message.reply('❌ I cannot murder this user. Check role hierarchy.');
     }
 
     try {
-        if (member) {
-            // Strip all roles
-            await member.roles.set([]).catch(err => console.error('Failed to strip roles:', err));
-        }
-
-        await killUser(user.id, user.tag);
-
-        // Delete target user's messages from the last 24 hours
-        try {
-            const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
-            let deletedCount = 0;
-
-            // Get all guild channels that can contain messages
-            const channels = message.guild.channels.cache.filter(channel =>
+        // Start the slow, independent work immediately so it overlaps with scenario generation.
+        const purgeRecentMessages = async () => {
+            const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+            const channels = [...message.guild.channels.cache.values()].filter(channel =>
                 channel.isTextBased() &&
+                channel.messages?.fetch &&
                 channel.viewable &&
                 channel.permissionsFor(message.guild.members.me)?.has('ManageMessages')
             );
 
-            for (const channel of channels.values()) {
-                let lastId = null;
+            // Cap concurrency to avoid flooding Discord's REST API.
+            let nextChannel = 0;
+            let deletedCount = 0;
+            const workerCount = Math.min(4, channels.length);
 
+            const processChannel = async (channel) => {
+                let before;
                 while (true) {
-                    const options = { limit: 100 };
+                    const batch = await channel.messages.fetch({ limit: 100, ...(before ? { before } : {}) });
+                    if (batch.size === 0) break;
 
-                    if (lastId) {
-                        options.before = lastId;
-                    }
+                    const messages = [...batch.values()];
+                    const recentMessages = [];
+                    let reachedCutoff = false;
 
-                    const messages = await channel.messages.fetch(options);
-
-                    if (messages.size === 0) {
-                        break;
-                    }
-
-                    let reached24Hours = false;
-
-                    for (const msg of messages.values()) {
-                        // Messages are ordered newest -> oldest
-                        if (msg.createdTimestamp < twentyFourHoursAgo) {
-                            reached24Hours = true;
+                    for (const msg of messages) {
+                        if (msg.createdTimestamp < cutoff) {
+                            reachedCutoff = true;
                             break;
                         }
+                        if (msg.author.id === user.id) recentMessages.push(msg);
+                    }
 
-                        if (msg.author.id === user.id) {
-                            try {
-                                await msg.delete();
-                                deletedCount++;
-                            } catch (err) {
-                                console.warn(
-                                    `[Murder] Failed to delete message ${msg.id} in #${channel.name}:`,
-                                    err.message
-                                );
+                    // Discord bulk delete is much faster, but only works for 2+ messages
+                    // and refuses messages older than 14 days. The 24h cutoff is stricter.
+                    if (recentMessages.length >= 2) {
+                        try {
+                            const deleted = await channel.bulkDelete(recentMessages.map(m => m.id), true);
+                            deletedCount += deleted.size;
+                        } catch (err) {
+                            // Fall back to parallel individual deletes if bulk deletion fails.
+                            const outcomes = await Promise.allSettled(recentMessages.map(m => m.delete()));
+                            deletedCount += outcomes.filter(x => x.status === 'fulfilled').length;
+                            for (const outcome of outcomes) {
+                                if (outcome.status === 'rejected') {
+                                    console.warn(`[Murder] Delete failed in #${channel.name}: ${outcome.reason?.message}`);
+                                }
                             }
+                        }
+                    } else if (recentMessages.length === 1) {
+                        try {
+                            await recentMessages[0].delete();
+                            deletedCount++;
+                        } catch (err) {
+                            console.warn(`[Murder] Delete failed in #${channel.name}: ${err.message}`);
                         }
                     }
 
-                    if (reached24Hours) {
-                        break;
-                    }
-
-                    // Move backwards through channel history
-                    const oldestMessage = messages.last();
-
-                    if (!oldestMessage) {
-                        break;
-                    }
-
-                    lastId = oldestMessage.id;
+                    if (reachedCutoff || messages.length < 100) break;
+                    const oldestMessage = messages[messages.length - 1];
+                    if (!oldestMessage || oldestMessage.id === before) break;
+                    before = oldestMessage.id;
                 }
-            }
+            };
 
-            console.log(
-                `[Murder] Deleted ${deletedCount} messages from ${user.tag} across the server from the last 24 hours.`
-            );
+            const workers = Array.from({ length: workerCount }, async () => {
+                while (nextChannel < channels.length) {
+                    const channel = channels[nextChannel++];
+                    try {
+                        await processChannel(channel);
+                    } catch (err) {
+                        console.warn(`[Murder] Failed to scan #${channel.name}: ${err.message}`);
+                    }
+                }
+            });
+            await Promise.all(workers);
+            console.log(`[Murder] Deleted ${deletedCount} messages from ${user.tag} across the server in the last 24 hours.`);
+        };
 
-        } catch (deleteErr) {
-            console.error(
-                "[Murder] Failed to delete user's server-wide messages:",
-                deleteErr
-            );
-        }        
-
-        // Fetch last 20 choices to avoid duplicates
-        let lastChoices = [];
-        try {
-            const { data } = await supabase
-                .from('murder_choices')
-                .select('choice')
-                .order('id', { ascending: false })
-                .limit(20);
-            if (data) {
-                lastChoices = data.map(r => r.choice);
-            }
-        } catch (dbErr) {
-            console.warn('[Murder] Could not fetch last choices (table might not exist):', dbErr.message);
+        if (member) {
+            await member.roles.set([]).catch(err => console.error('Failed to strip roles:', err));
         }
+        await killUser(user.id, user.tag);
+
+        const purgePromise = purgeRecentMessages().catch(err => {
+            console.error('[Murder] Failed to delete recent messages:', err);
+        });
+
+        // Load recent methods and generate the scenario while message deletion runs.
+        const choicesPromise = supabase
+            .from('murder_choices')
+            .select('choice')
+            .order('id', { ascending: false })
+            .limit(20)
+            .then(({ data }) => data?.map(r => r.choice) || [])
+            .catch(err => {
+                console.warn('[Murder] Could not fetch last choices:', err.message);
+                return [];
+            });
 
         const murdererName = message.member?.displayName || message.author.globalName || message.author.username;
         const victimName = member?.displayName || user.globalName || user.username;
-
-        // Generate murder scenario
         let murderScenario = `${victimName} was murdered by ${murdererName}.`;
+
+        const lastChoices = await choicesPromise;
         try {
-            const avoidedList = lastChoices.length > 0
-                ? `Avoid using or repeating any of these recent murder methods:\n${lastChoices.map((c, i) => `- ${c}`).join('\n')}`
+            const avoidedList = lastChoices.length
+                ? `Avoid using or repeating these recent murder methods:\n${lastChoices.map(c => `- ${c}`).join('\n')}`
                 : '';
 
-            const prompt = `You are a dark-humor writer. Write a brutal murder description sentence.
-                            The murderer/killer is: "${murdererName}"
-                            The victim is: "${victimName}"
-
-                            Requirements:
-                            - Make it brutal, but possible (do not use fantasy/magic/dragons/sci-fi tech; it must be possible in the physical world but a totally crazy/absurd thing to do).
-                            - You can use any type of weapon or death type (especially vulgar, absurd, or high-destruction ones).
-                            - Examples: 
-                            - "${victimName} died while taking 4 at a time in anal"
-                            - "${murdererName} bombed ${victimName} with a nuclear bomb"
-                            - Incorporate both the killer (${murdererName}) and the victim (${victimName}) naturally in the description.
-                            - ${avoidedList}
-                            - Return ONLY the final murder description sentence. Do not include any quotes, markdown formatting, explanations, or preamble. Keep it concise (one sentence).`;
+            const prompt = `You are a dark-humor writer. Write one concise, absurd, fictional murder description sentence.
+Killer: "${murdererName}"
+Victim: "${victimName}"
+Include both names naturally. Keep it physically plausible and return only the sentence.
+${avoidedList}`;
 
             const aiResponse = await geminiChatCompletion({
                 model: config.ai.visionModel || 'gemini-3.5-flash-lite',
                 messages: [{ role: 'user', content: prompt }]
             });
-
-            if (aiResponse?.choices?.[0]?.message?.content) {
-                murderScenario = aiResponse.choices[0].message.content.trim().replace(/["']/g, '');
-            }
+            const generated = aiResponse?.choices?.[0]?.message?.content?.trim();
+            if (generated) murderScenario = generated.replace(/["']/g, '');
         } catch (aiErr) {
             console.error('[Murder] AI generation failed:', aiErr);
         }
 
-        // Save selection to DB
-        try {
-            await supabase
-                .from('murder_choices')
-                .insert({ choice: murderScenario });
-        } catch (dbErr) {
-            console.warn('[Murder] Could not save choice to DB:', dbErr.message);
-        }
+        const savePromise = supabase
+            .from('murder_choices')
+            .insert({ choice: murderScenario })
+            .then(() => {})
+            .catch(dbErr => console.warn('[Murder] Could not save choice:', dbErr.message));
 
         const embed = new EmbedBuilder()
             .setColor(0xE74C3C)
             .setDescription(`💀 ${murderScenario}`)
             .addFields({ name: 'Reason', value: reason })
-            .setFooter({ text: `Murder Request Complete` })
+            .setFooter({ text: 'Murder Request Complete' })
             .setTimestamp();
 
         const button = new ButtonBuilder()
             .setCustomId(`know_more_gun:${murderScenario.slice(0, 80)}`)
-            .setLabel(`Explain this murder method`)
+            .setLabel('Explain this murder method')
             .setStyle(ButtonStyle.Primary);
 
-        const row = new ActionRowBuilder().addComponents(button);
+        await message.reply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(button)] });
 
-        await message.reply({ embeds: [embed], components: [row] });
-        await logModAction(client, message.guild, 'murder', message.author, user, `Reason: ${reason} (Method: ${murderScenario})`);
+        // Do not hold up the visible response on audit logging or database persistence.
+        void Promise.allSettled([
+            savePromise,
+            purgePromise,
+            logModAction(client, message.guild, 'murder', message.author, user, `Reason: ${reason} (Method: ${murderScenario})`)
+        ]);
     } catch (err) {
         console.error('[MOD] Murder error:', err);
-        message.reply(`❌ Failed to murder: ${err.message}`);
+        await message.reply(`❌ Failed to murder: ${err.message}`).catch(() => {});
     }
 }
 
