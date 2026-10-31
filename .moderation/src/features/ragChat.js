@@ -402,7 +402,7 @@ async function fetchRecentMessagesForRag(message, client) {
     const collected = new Map();
     let before;
 
-    // Read additional pages only when needed to find 15 messages between this user and Worker.
+    // Read recent pages until there are enough messages for both channel and user/bot history.
     for (let page = 0; page < HISTORY_FETCH_MAX_PAGES; page += 1) {
         const batch = await message.channel.messages.fetch({
             limit: 100,
@@ -429,6 +429,53 @@ async function fetchRecentMessagesForRag(message, client) {
     return Array.from(collected.values()).sort((a, b) =>
         new Date(messageTimestamp(a)).getTime() - new Date(messageTimestamp(b)).getTime()
     );
+}
+
+function selectOneOnOneMessages(messages, currentMessage, client) {
+    const byId = new Map(messages.map(item => [item.id, item]));
+    const userId = currentMessage.author.id;
+    const botId = client.user?.id;
+    const relevantIds = new Set([currentMessage.id]);
+
+    const isUserMessage = item => item?.author?.id === userId;
+    const isBotMessage = item => item?.author?.id === botId;
+
+    // Seed with messages explicitly addressed to Worker or replying to Worker,
+    // plus bot messages replying to this user or mentioning them.
+    for (const item of messages) {
+        const referenced = byId.get(item.reference?.messageId);
+        if (isUserMessage(item) && (
+            item.id === currentMessage.id ||
+            item.mentions?.users?.has(botId) ||
+            isBotMessage(referenced)
+        )) {
+            relevantIds.add(item.id);
+        }
+        if (isBotMessage(item) && (
+            item.mentions?.users?.has(userId) ||
+            isUserMessage(referenced)
+        )) {
+            relevantIds.add(item.id);
+            if (isUserMessage(referenced)) relevantIds.add(referenced.id);
+        }
+    }
+
+    // Follow reply chains in both directions so a whole back-and-forth is retained.
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const item of messages) {
+            const referenced = byId.get(item.reference?.messageId);
+            if (!referenced || !relevantIds.has(referenced.id)) continue;
+            if ((isUserMessage(item) || isBotMessage(item)) && !relevantIds.has(item.id)) {
+                relevantIds.add(item.id);
+                changed = true;
+            }
+        }
+    }
+
+    return messages.filter(item => relevantIds.has(item.id))
+        .slice(-HISTORY_MESSAGES_PER_SECTION);
 }
 
 function createAttachmentRegistry() {
@@ -552,9 +599,7 @@ async function askWithContext(message, client, question) {
     } catch { }
 
     const allRecentMessages = await fetchRecentMessagesForRag(message, client);
-    const oneOnOneMessages = allRecentMessages
-        .filter(item => item.author?.id === message.author.id || item.author?.id === client.user?.id)
-        .slice(-HISTORY_MESSAGES_PER_SECTION);
+    const oneOnOneMessages = selectOneOnOneMessages(allRecentMessages, message, client);
     const channelMessages = allRecentMessages.slice(-HISTORY_MESSAGES_PER_SECTION);
 
     const [context, verifiedIdentity] = await Promise.all([
