@@ -1,3 +1,4 @@
+import { routeAiPrompt } from '../ai/promptRouter.js';
 import axios from 'axios';
 import crypto from 'crypto';
 import '../utils/loadEnv.js';
@@ -6,7 +7,6 @@ import { supabase } from '../clients/supabase.js';
 import { rebuildPersonnelEmbeds } from '../jobs/inactivityScanner.js';
 import { validateRun } from './anticheat.js';
 
-import { geminiChatCompletion } from '../clients/gemini.js';
 
 // Role Definitions
 const LEVEL_ROLES = [
@@ -25,7 +25,7 @@ const ALL_ROLE_IDS = LEVEL_ROLES.map(r => r.id);
 
 async function callGeminiVision(prompt, imageUrl) {
     try {
-        const response = await geminiChatCompletion({
+        const response = await routeAiPrompt({
             model: config.ai.visionModel || 'gemini-3.1-flash-lite',
             messages: [{
                 role: 'user',
