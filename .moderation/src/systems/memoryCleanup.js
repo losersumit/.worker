@@ -1,5 +1,6 @@
+import { routeAiPrompt } from '../ai/promptRouter.js';
 import { createClient } from '@supabase/supabase-js';
-import { groqChatCompletion } from '../clients/groq.js';
+
 import { getMemoryTableName } from './memory.js';
 import config from '../config.js';
 import '../utils/loadEnv.js';
@@ -84,7 +85,7 @@ export async function runMemoryCleanup() {
                 const factListText = memories.map(m => `- ${m.fact}`).join('\n');
 
                 try {
-                    const result = await groqChatCompletion({
+                    const result = await routeAiPrompt({
                         model: config.ai.model || 'openai/gpt-oss-120b',
                         messages: [
                             { role: 'system', content: CLEANUP_PROMPT },
