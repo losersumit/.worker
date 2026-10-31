@@ -425,8 +425,6 @@ async function askWithContext(message, client, question) {
         await message.channel.sendTyping();
     } catch { }
 
-    const imageUrls = [];
-
     let rawChannelHistory = 'No recent channel messages.';
     try {
         const lastMsgs = await message.channel.messages.fetch({ limit: 15 });
