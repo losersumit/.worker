@@ -1,5 +1,6 @@
+import { routeAiPrompt } from '../../.moderation/src/ai/promptRouter.js';
 import { EmbedBuilder } from 'discord.js';
-import { groqChatCompletion } from '../../.moderation/src/clients/groq.js';
+
 import config from '../../.moderation/src/config.js';
 
 const COOLDOWN_MS = 6 * 60 * 60 * 1000;       // 6 hours
@@ -198,7 +199,7 @@ Requirements:
 - Must mention the exact amount: €${baseReward.toLocaleString()}.
 - Do not include any intro, outro, quotes, markdown formatting, or extra sentences. Only return the one-sentence comment itself.`;
 
-                const aiResponse = await groqChatCompletion({
+                const aiResponse = await routeAiPrompt({
                     model: config.ai.model,
                     messages: [{ role: 'user', content: aiPrompt }],
                     temperature: 0.8,
