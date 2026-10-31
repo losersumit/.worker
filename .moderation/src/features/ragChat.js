@@ -35,7 +35,8 @@ function getImageAttachments(message) {
     if (!message?.attachments?.size) return [];
     return Array.from(message.attachments.values()).filter(a =>
         (a.contentType && a.contentType.startsWith('image/')) ||
-        /\.(apng|avif|bmp|gif|jpe?g|png|svg|tiff?|webp)(?:[?#].*)?$/i.test(a.name || '')
+        /\.(apng|avif|bmp|gif|jpe?g|png|svg|tiff?|webp)(?:[?#].*)?$/i.test(a.name || '') ||
+        /\.(apng|avif|bmp|gif|jpe?g|png|svg|tiff?|webp)(?:[?#].*)?$/i.test(a.url || '')
     );
 }
 
@@ -486,6 +487,7 @@ function createAttachmentRegistry() {
 function formatHistorySection(messages, sectionName, client, registry) {
     const lines = [];
     const includedUrls = new Set();
+    let includedNonImageAttachments = 0;
 
     for (const item of messages) {
         const timestamp = formatIstTimestamp(messageTimestamp(item));
@@ -526,8 +528,10 @@ function formatHistorySection(messages, sectionName, client, registry) {
             lines.push(`${prefix} : ${imageRef.label}`);
         }
 
-        for (const attachment of nonImageAttachments.slice(0, HISTORY_IMAGES_PER_SECTION)) {
+        for (const attachment of nonImageAttachments) {
+            if (includedUrls.size + includedNonImageAttachments >= HISTORY_IMAGES_PER_SECTION) break;
             lines.push(`${prefix} : [file attachment: ${sanitizeText(attachment.name || 'unnamed file').slice(0, 120)}]`);
+            includedNonImageAttachments += 1;
         }
     }
 
