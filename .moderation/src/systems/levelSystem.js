@@ -26,6 +26,7 @@ const ALL_ROLE_IDS = LEVEL_ROLES.map(r => r.id);
 async function callGeminiVision(prompt, imageUrl) {
     try {
         const response = await geminiChatCompletion({
+            model: config.ai.visionModel || 'gemini-3.1-flash-lite',
             messages: [{
                 role: 'user',
                 content: [
