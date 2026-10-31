@@ -5,7 +5,7 @@ import {
   ButtonStyle,
   ComponentType,
 } from "discord.js";
-import { geminiChatCompletion } from "../clients/gemini.js";
+import { groqChatCompletion } from "../clients/groq.js";
 import { supabase } from "../clients/supabase.js";
 import config from "../config.js";
 
@@ -298,8 +298,8 @@ Respond ONLY in this JSON format:
     let aiReason = "Application looks solid.";
 
     try {
-      const data = await geminiChatCompletion({
-        model: config.ai.visionModel || "gemini-2.0-flash",
+      const data = await groqChatCompletion({
+        model: config.ai.model || "openai/gpt-oss-120b",
         messages: [{ role: "user", content: aiPrompt }],
         temperature: 0.3,
         max_tokens: 100,
