@@ -1,9 +1,8 @@
+import { routeAiPrompt } from '../ai/promptRouter.js';
 import { EmbedBuilder, PermissionsBitField, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { getUserWarnings, resetWarnings, killUser, unkillUser } from '../systems/storage.js';
 import { handleTodoCommand } from './todoCommands.js';
 import { supabase } from '../clients/supabase.js';
-import { groqChatCompletion } from '../clients/groq.js';
-
 
 const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
 const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID;
@@ -319,7 +318,7 @@ async function handleMurder(message, args, client) {
         // The AI request does not wait for role updates, storage writes, or message cleanup.
         // Start Groq text generation immediately; recent-choice history is fetched in parallel rather
         // than making the user wait for Supabase before the AI request even begins.
-        const aiPromise = groqChatCompletion({
+        const aiPromise = routeAiPrompt({
             model: config.ai.model || 'openai/gpt-oss-120b',
             messages: [{
                 role: 'user',

@@ -1,3 +1,4 @@
+import { routeAiPrompt } from '../ai/promptRouter.js';
 import { Events, EmbedBuilder } from 'discord.js';
 import config from '../config.js';
 import { supabase } from '../clients/supabase.js';
@@ -7,7 +8,6 @@ import { handleEnlistmentApplication, executeApplicationAccept, executeApplicati
 import { handleSlotMachineInteraction } from '../../../.economy/interactions/slotMachineInteraction.js';
 import { handleRouletteTableInteraction } from '../../../.economy/interactions/rouletteTableInteraction.js';
 import { handleTodoPagination } from '../features/todoCommands.js';
-import { groqChatCompletion } from '../clients/groq.js';
 
 export default {
     name: Events.InteractionCreate,
@@ -375,7 +375,7 @@ async function handleKnowMoreGun(interaction, client) {
     const gun = interaction.customId.slice('know_more_gun:'.length);
 
     try {
-        const aiResponse = await groqChatCompletion({
+        const aiResponse = await routeAiPrompt({
             model: config.ai.model || 'openai/gpt-oss-120b',
             messages: [
                 {

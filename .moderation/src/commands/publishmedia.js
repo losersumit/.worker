@@ -1,5 +1,6 @@
+import { routeAiPrompt } from '../ai/promptRouter.js';
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags, AttachmentBuilder } from 'discord.js';
-import { geminiChatCompletion } from '../clients/gemini.js';
+
 import { supabase } from '../clients/supabase.js';
 import { publishToInstagram } from '../clients/socials.js';
 import config from '../config.js';
@@ -71,7 +72,7 @@ export default {
                     const modelToUse = config.ai.visionModel || config.ai.fallbackVisionModel;
                     console.log(`[PublishMedia] Querying Gemini vision model (${modelToUse}) for aesthetic color...`);
 
-                    const completion = await geminiChatCompletion({
+                    const completion = await routeAiPrompt({
                         messages: [
                             {
                                 role: "user",
