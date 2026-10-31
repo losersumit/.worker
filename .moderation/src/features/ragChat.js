@@ -400,7 +400,7 @@ function getRoleNames(member, guild) {
 }
 
 async function fetchRecentMessagesForRag(message, client) {
-    const collected = new Map();
+    const collected = new Map([[message.id, message]]);
     let before;
 
     // Read recent pages until there are enough messages for both channel and user/bot history.
@@ -416,12 +416,14 @@ async function fetchRecentMessagesForRag(message, client) {
         if (!batch?.size) break;
         for (const item of batch.values()) collected.set(item.id, item);
 
-        const pairCount = Array.from(collected.values()).filter(item =>
-            item.author?.id === message.author.id || item.author?.id === client.user?.id
+        const relevantPairCount = selectOneOnOneMessages(
+            Array.from(collected.values()),
+            message,
+            client,
         ).length;
 
         const oldest = batch.last();
-        if (pairCount >= HISTORY_MESSAGES_PER_SECTION && collected.size >= HISTORY_MESSAGES_PER_SECTION) break;
+        if (relevantPairCount >= HISTORY_MESSAGES_PER_SECTION && collected.size >= HISTORY_MESSAGES_PER_SECTION) break;
         if (!oldest?.id || oldest.id === before) break;
         before = oldest.id;
     }
