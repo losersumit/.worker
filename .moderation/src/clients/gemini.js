@@ -2,227 +2,150 @@ import "../utils/loadEnv.js";
 import axios from "axios";
 import config from "../config.js";
 
-export const api_key_one = process.env.GEMINI_API_KEY_ONE || "";
-export const api_key_two = process.env.GEMINI_API_KEY_TWO || "";
-export const api_key_three = process.env.GEMINI_API_KEY_THREE || "";
-export const api_key_four = process.env.GEMINI_API_KEY_FOUR || "";
-export const api_key_five = process.env.GEMINI_API_KEY_FIVE || "";
-export const api_key_six = process.env.GEMINI_API_KEY_SIX || "";
-export const api_key_seven = process.env.GEMINI_API_KEY_SEVEN || "";
-export const api_key_eight = process.env.GEMINI_API_KEY_EIGHT || "";
+const envKeys = [
+  process.env.GEMINI_API_KEY_ONE,
+  process.env.GEMINI_API_KEY_TWO,
+  process.env.GEMINI_API_KEY_THREE,
+  process.env.GEMINI_API_KEY_FOUR,
+  process.env.GEMINI_API_KEY_FIVE,
+  process.env.GEMINI_API_KEY_SIX,
+  process.env.GEMINI_API_KEY_SEVEN,
+  process.env.GEMINI_API_KEY_EIGHT,
+].filter((key) => typeof key === "string" && key.trim());
 
 const GEMINI_ENDPOINT =
   process.env.GEMINI_ENDPOINT ||
-  "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions";
+  "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
-const rawKeys = [
-  api_key_one,
-  api_key_two,
-  api_key_three,
-  api_key_four,
-  api_key_five,
-  api_key_six,
-  api_key_seven,
-  api_key_eight,
-].filter((k) => k);
-
-// Represent key list with processing states
-const keys = rawKeys.map((key, index) => ({
-  key,
-  index,
-  isProcessing: false,
-}));
-
-const waiterQueue = [];
-
-function normalizeErrorMessage(err) {
-  const status = err?.response?.status;
-  const data = err?.response?.data;
-  const code = data?.error?.code || data?.error?.type || "";
-  const message = data?.error?.message || err?.message || "";
-  return { status, code: String(code), message: String(message) };
-}
-
-function isQuotaOrTokenExhaustion(err) {
-  const { status, code, message } = normalizeErrorMessage(err);
-  const haystack = `${code} ${message}`.toLowerCase();
-
-  const looksLikeQuota =
-    haystack.includes("insufficient_quota") ||
-    haystack.includes("quota") ||
-    haystack.includes("exceeded") ||
-    haystack.includes("token") ||
-    haystack.includes("billing") ||
-    haystack.includes("credits") ||
-    haystack.includes("rate limit") ||
-    status === 401 ||
-    status === 403;
-
-  return (
-    (status === 429 || status === 402 || status === 401 || status === 403) &&
-    looksLikeQuota
-  );
-}
-
-async function postWithKey(payload, apiKey) {
-  // Use visionModel from config; fall back to fallbackVisionModel if needed
-  const modelToUse = payload.model || config.ai.visionModel || config.ai.fallbackVisionModel || "gemini-1.5-flash";
-  const finalPayload = {
-    ...payload,
-    model: modelToUse,
+function getErrorDetails(err) {
+  return {
+    status: err?.response?.status,
+    code: String(err?.response?.data?.error?.code || err?.response?.data?.error?.status || ""),
+    message: String(err?.response?.data?.error?.message || err?.message || ""),
   };
+}
 
-  const res = await axios.post(GEMINI_ENDPOINT, finalPayload, {
+function isCredentialError(err) {
+  const { status, code, message } = getErrorDetails(err);
+  return status === 401 || status === 403 ||
+    /api key not valid|invalid api key|unauthenticated|permission denied/i.test(`${code} ${message}`);
+}
+
+function isRetryableKeyError(err) {
+  const { status, code, message } = getErrorDetails(err);
+  const text = `${code} ${message}`.toLowerCase();
+  return status === 429 || status === 402 ||
+    text.includes("quota") || text.includes("rate limit") ||
+    text.includes("resource_exhausted") || text.includes("billing");
+}
+
+function makeApiError(err) {
+  const { status, code, message } = getErrorDetails(err);
+  const details = status ? `Gemini API returned HTTP ${status}` : "Gemini API request failed";
+  const hint = isCredentialError(err)
+    ? " Check that the GEMINI_API_KEY_* value is a valid Google AI Studio key, that it has not been revoked, and that GEMINI_ENDPOINT points to Google's Gemini API."
+    : status === 404
+      ? " Check the model ID and Gemini endpoint."
+      : "";
+  const safe = new Error(`${details}${code ? ` (${code})` : ""}: ${message || "No error message returned."}${hint}`);
+  safe.status = status;
+  safe.code = code;
+  safe.cause = err;
+  return safe;
+}
+
+function normalizePayload(payload) {
+  const model = payload?.model || config.ai.geminiModel || config.ai.visionModel || "gemini-3.1-flash-lite";
+  return { ...payload, model };
+}
+
+async function resolveImageUrls(payload) {
+  if (!Array.isArray(payload?.messages)) return payload;
+  const messages = [];
+  for (const message of payload.messages) {
+    if (!Array.isArray(message?.content)) {
+      messages.push(message);
+      continue;
+    }
+    const content = [];
+    for (const item of message.content) {
+      const url = item?.type === "image_url" ? item?.image_url?.url : null;
+      if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
+        content.push(item);
+        continue;
+      }
+      try {
+        const response = await axios.get(url, {
+          responseType: "arraybuffer",
+          timeout: 15000,
+          maxContentLength: 20 * 1024 * 1024,
+        });
+        const mime = String(response.headers["content-type"] || "image/jpeg").split(";")[0];
+        if (!mime.startsWith("image/")) {
+          throw new Error("Remote attachment did not return an image content type.");
+        }
+        content.push({
+          ...item,
+          image_url: {
+            ...item.image_url,
+            url: `data:${mime};base64,${Buffer.from(response.data).toString("base64")}`,
+          },
+        });
+      } catch (err) {
+        // Keep provider errors and image-download failures separate; never log signed attachment URLs.
+        console.warn("[GeminiClient] Could not inline remote image attachment:", err.message);
+        content.push(item);
+      }
+    }
+    messages.push({ ...message, content });
+  }
+  return { ...payload, messages };
+}
+
+async function requestWithKey(payload, apiKey) {
+  return axios.post(GEMINI_ENDPOINT, payload, {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
     timeout: 30000,
-  });
-  return res.data;
+  }).then((response) => response.data);
 }
 
 /**
- * Acquires an available and free key that hasn't been tried for the current request.
- * If none are free, returns a promise that resolves when one becomes free.
- * @param {Set<number>} triedKeyIndices
- * @returns {Promise<Object>}
- */
-async function acquireFreeKey(triedKeyIndices) {
-  // Find a key that is free and not tried yet
-  const keyObj = keys.find((k) => !k.isProcessing && !triedKeyIndices.has(k.index));
-  if (keyObj) {
-    keyObj.isProcessing = true;
-    return keyObj;
-  }
-
-  // Wait until an untried key is released
-  return new Promise((resolve) => {
-    waiterQueue.push({
-      triedKeyIndices,
-      resolve: (selectedKey) => {
-        selectedKey.isProcessing = true;
-        resolve(selectedKey);
-      },
-    });
-  });
-}
-
-/**
- * Releases a key, marking it as not processing and handing it over to the first matching waiter in the queue.
- * @param {Object} keyObj
- */
-function releaseKey(keyObj) {
-  keyObj.isProcessing = false;
-
-  // Find a waiter that hasn't tried this key yet
-  const waiterIndex = waiterQueue.findIndex((w) => !w.triedKeyIndices.has(keyObj.index));
-  if (waiterIndex !== -1) {
-    const waiter = waiterQueue.splice(waiterIndex, 1)[0];
-    waiter.resolve(keyObj);
-  }
-}
-
-async function resolveImageUrls(payload) {
-  if (!payload || !payload.messages) return payload;
-
-  const newMessages = [];
-  for (const message of payload.messages) {
-    if (!message || !message.content) {
-      newMessages.push(message);
-      continue;
-    }
-
-    if (Array.isArray(message.content)) {
-      const newContent = [];
-      for (const item of message.content) {
-        if (item && item.type === "image_url" && item.image_url && typeof item.image_url.url === "string") {
-          const url = item.image_url.url;
-          if (url.startsWith("http://") || url.startsWith("https://")) {
-            try {
-              console.log(`[GeminiClient] Automatically resolving remote image URL to base64: ${url.substring(0, 80)}...`);
-              const imageRes = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 });
-              const contentType = imageRes.headers['content-type'] || 'image/jpeg';
-              const base64Image = Buffer.from(imageRes.data).toString('base64');
-              const dataUri = `data:${contentType};base64,${base64Image}`;
-              
-              newContent.push({
-                ...item,
-                image_url: {
-                  ...item.image_url,
-                  url: dataUri
-                }
-              });
-              continue;
-            } catch (err) {
-              console.error(`[GeminiClient] Failed to resolve image URL to base64: ${url}. Error: ${err.message}`);
-            }
-          }
-        }
-        newContent.push(item);
-      }
-      newMessages.push({ ...message, content: newContent });
-    } else {
-      newMessages.push(message);
-    }
-  }
-
-  return { ...payload, messages: newMessages };
-}
-
-/**
- * Call Gemini Chat Completions with automatic concurrency-aware key routing and failover.
- * Only forwards to free/available keys that aren't processing other requests.
- * 
- * @param {Object} payload - Chat completion request payload (model parameter is auto-mapped to Gemini model)
- * @returns {Promise<Object>} API response
+ * Uses Google Gemini's OpenAI-compatible endpoint. Authentication failures stop immediately:
+ * retrying the same bad credential against every configured key only adds noise and latency.
  */
 export async function geminiChatCompletion(payload) {
-  if (keys.length === 0) {
-    console.error("[GeminiClient] No API keys found!");
-    throw new Error(
-      "Missing Gemini API key(s). Set GEMINI_API_KEY_ONE (and optionally others).",
-    );
+  if (envKeys.length === 0) {
+    throw new Error("Missing Gemini API key(s). Set GEMINI_API_KEY_ONE in the hosting environment.");
   }
 
-  // Preprocess payload to convert external image URLs to base64 data URIs
-  const processedPayload = await resolveImageUrls(payload);
+  const processedPayload = await resolveImageUrls(normalizePayload(payload));
+  let lastError;
 
-  let attempts = 0;
-  const maxAttempts = keys.length;
-  const triedKeyIndices = new Set();
-
-  while (attempts < maxAttempts) {
-    const keyObj = await acquireFreeKey(triedKeyIndices);
-    triedKeyIndices.add(keyObj.index);
-    attempts++;
-
+  for (let index = 0; index < envKeys.length; index += 1) {
     try {
-      console.log(
-        `[GeminiClient] Attempting request using key index ${keyObj.index} (Processing status: busy)...`,
-      );
-      const result = await postWithKey(processedPayload, keyObj.key);
-      console.log(
-        `[GeminiClient] Request successful using key index ${keyObj.index}.`,
-      );
-      releaseKey(keyObj);
-      return result;
+      console.info(`[GeminiClient] Sending request using configured key slot ${index + 1}.`);
+      return await requestWithKey(processedPayload, envKeys[index]);
     } catch (err) {
-      console.error(
-        `[GeminiClient] Request failed using key index ${keyObj.index}.`,
-      );
-      releaseKey(keyObj);
+      lastError = err;
+      const { status, code, message } = getErrorDetails(err);
+      console.error(`[GeminiClient] Request failed (key slot ${index + 1}, HTTP ${status || "network"}, code ${code || "unknown"}): ${message}`);
 
-      if (attempts >= maxAttempts) {
-        console.error(
-          "[GeminiClient] All available keys were tried and failed for this request.",
-        );
-        throw err;
+      if (isCredentialError(err)) {
+        // A 401 is usually a wrong/revoked key or wrong endpoint, not quota. Stop
+        // rotating so operators see the real configuration problem quickly.
+        throw makeApiError(err);
       }
 
-      console.warn(
-        `[GeminiClient] Key index ${keyObj.index} failed. Retrying request with another available and free key...`,
-      );
+      if (isRetryableKeyError(err) && index < envKeys.length - 1) continue;
+
+      // Model errors, malformed requests and network failures are not solved by changing keys.
+      if (status && status !== 429 && status !== 402 && status < 500) throw makeApiError(err);
+      if (index === envKeys.length - 1) throw makeApiError(err);
     }
   }
+
+  throw makeApiError(lastError || new Error("No Gemini key available."));
 }
