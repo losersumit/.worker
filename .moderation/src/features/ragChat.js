@@ -592,10 +592,7 @@ async function askWithContext(message, client, question) {
     const oneOnOneMessages = selectOneOnOneMessages(allRecentMessages, message, client);
     const channelMessages = allRecentMessages.slice(-HISTORY_MESSAGES_PER_SECTION);
 
-    const [context, verifiedIdentity] = await Promise.all([
-        retrieveContext(client.supabase, question, message.channel.id),
-        getVerifiedIdentity(client.supabase, message.guild?.id, message.author.id),
-    ]);
+    const context = await retrieveContext(client.supabase, question, message.channel.id);
 
     const faqEntry = context.find(entry => entry.type === 'faq');
     const relatedContext = context.filter(entry => entry.type !== 'faq');
