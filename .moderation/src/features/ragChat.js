@@ -126,6 +126,7 @@ Response requirements:
 
     // Call the Gemini vision model with the prompt
     const data = await geminiChatCompletion({
+        model: config.ai.visionModel || 'gemini-3.1-flash-lite',
         messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageAttachment.url } }] }],
         temperature: 0.1,
         max_tokens: 30,
