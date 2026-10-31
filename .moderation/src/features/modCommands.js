@@ -317,7 +317,7 @@ async function handleMurder(message, args, client) {
 
         // Start both network-bound tasks as soon as the target is resolved.
         // The AI request does not wait for role updates, storage writes, or message cleanup.
-        // Start Gemini immediately; recent-choice history is fetched in parallel rather
+        // Start Groq text generation immediately; recent-choice history is fetched in parallel rather
         // than making the user wait for Supabase before the AI request even begins.
         const aiPromise = groqChatCompletion({
             model: config.ai.model || 'openai/gpt-oss-120b',
