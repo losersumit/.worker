@@ -1,7 +1,8 @@
+import { routeAiPrompt } from '../ai/promptRouter.js';
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { supabase } from '../clients/supabase.js';
 import { resolveAttachmentFromLink } from '../utils/discordUtils.js';
-import { groqChatCompletion } from '../clients/groq.js';
+
 import config from '../config.js';
 
 const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID || '1448029016844931143';
@@ -203,7 +204,7 @@ export async function handleTodoCommand(message, args, client) {
             let titleText = taskText.substring(0, 40);
             try {
                 const aiPrompt = `Translate the following task into a very short, concise title (maximum 4-5 words) summarizing it. Return ONLY the title, no extra text, no markdown, no quotes.\n\nTask: ${taskText}`;
-                const aiResponse = await groqChatCompletion({
+                const aiResponse = await routeAiPrompt({
                     model: config.ai.model || 'openai/gpt-oss-120b',
                     messages: [{ role: 'user', content: aiPrompt }],
                     temperature: 0.1,
