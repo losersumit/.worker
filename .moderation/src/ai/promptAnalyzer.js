@@ -7,7 +7,7 @@ const IMAGE_EXTENSIONS = /\.(apng|avif|bmp|gif|jpe?g|png|svg|tiff?|webp)(?:[?#].
 function isImageAttachment(item) {
   if (!item || typeof item !== "object") return false;
   const mime = String(item.contentType || item.content_type || item.mimeType || item.mime_type || "").toLowerCase();
-  const name = String(item.name || item.filename || item.fileName || "");
+  const name = String(item.name || item.filename || item.fileName || item.url || item.proxyURL || item.proxy_url || "");
   return mime.startsWith("image/") || IMAGE_EXTENSIONS.test(name);
 }
 
