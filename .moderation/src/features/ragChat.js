@@ -450,6 +450,7 @@ function selectOneOnOneMessages(messages, currentMessage, client) {
             isBotMessage(referenced)
         )) {
             relevantIds.add(item.id);
+            if (isBotMessage(referenced)) relevantIds.add(referenced.id);
         }
         if (isBotMessage(item) && (
             item.mentions?.users?.has(userId) ||
@@ -609,7 +610,8 @@ async function askWithContext(message, client, question) {
 
     const faqEntry = context.find(entry => entry.type === 'faq');
     const relatedContext = context.filter(entry => entry.type !== 'faq');
-    const roleNames = getRoleNames(message.member, message.guild);
+    const currentMember = message.member || message.guild?.members?.cache?.get(message.author.id);
+    const roleNames = getRoleNames(currentMember, message.guild);
     const serverNickname = message.member?.nickname?.trim() || message.author.username;
 
     // Use a shared registry so an image present in both sections is only transmitted once,
