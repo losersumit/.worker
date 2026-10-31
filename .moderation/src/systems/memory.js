@@ -3,7 +3,8 @@
  * Stores and retrieves per-user facts, and provides recent server event awareness.
  */
 
-import { groqChatCompletion } from '../clients/groq.js';
+
+import { routeAiPrompt } from '../ai/promptRouter.js';
 import config from '../config.js';
 
 const MAX_MEMORIES_PER_USER = 20;
@@ -173,7 +174,7 @@ export async function extractAndSaveMemories(supabase, userId, username, convers
             })
             .join('\n');
 
-        const result = await groqChatCompletion({
+        const result = await routeAiPrompt({
             model: config.ai.model || 'openai/gpt-oss-120b',
             messages: [
                 { role: 'system', content: EXTRACTION_PROMPT },
