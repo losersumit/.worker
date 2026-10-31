@@ -38,7 +38,7 @@ const config = {
         fallbackVisionModel: process.env.GEMINI_FALLBACK_VISION_MODEL || "gemini-3.5-flash-lite",
 
         // Groq has a separate model namespace; this is used only by groqChatCompletion.
-        model: process.env.GROQ_MODEL || "openai/gpt-oss-20b",
+        model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
         temperature: 0.1,
         maxTokens: 500,
         topP: 0.9
