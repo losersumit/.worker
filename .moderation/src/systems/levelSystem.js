@@ -38,8 +38,9 @@ async function callGeminiVision(prompt, imageUrl) {
 
         return response.choices[0].message.content;
     } catch (error) {
-        console.error(`[LevelSystem] Gemini API error: ${error.message}`);
-        return null;
+        // Distinguish provider/authentication failures from a genuine invalid screenshot.
+        console.error(`[LevelSystem] Gemini vision request failed: ${error.message}`);
+        return { valid: null, apiError: true, errorMessage: error.message };
     }
 }
 
@@ -236,7 +237,11 @@ export async function processLevelScreenshot(message) {
     // ── Gate 2: AI validation ─────────────────────────────────────────────
     console.log(`[LevelSystem] Validating screenshot from ${message.author.username}...`);
     const ocrResult = await extractStatsFromImage(targetImage.url);
-    if (!ocrResult || ocrResult.valid === false) {
+    if (ocrResult?.apiError) {
+        console.warn(`[LevelSystem] Screenshot from ${message.author.username} was not evaluated because Gemini vision failed. This is an API/configuration failure, not a validity verdict.`);
+        return;
+    }
+    if (!ocrResult || ocrResult.valid !== true) {
         console.log(`[LevelSystem] Screenshot rejected (not a valid job completion) from ${message.author.username}.`);
         return;
     }
