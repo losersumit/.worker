@@ -11,6 +11,7 @@
 import "../utils/loadEnv.js";
 import config from "../config.js";
 import { geminiChatCompletion } from "../clients/gemini.js";
+import { groqChatCompletion } from "../clients/groq.js";
 
 /**
  * Moderates a message using Groq's AI
@@ -53,14 +54,14 @@ export async function moderateMessage(messageContent) {
       Strict mode is currently: ${config.moderation.strictMode ? "ENABLED" : "DISABLED"}.
     `;
 
-    const completion = await geminiChatCompletion({
+    const completion = await groqChatCompletion({
       messages: [
         {
           role: "user",
           content: prompt,
         },
       ],
-      model: config.ai.visionModel || "gemini-2.0-flash",
+      model: config.ai.model || "openai/gpt-oss-120b",
       temperature: config.ai.temperature,
       max_tokens: config.ai.maxTokens,
       top_p: config.ai.topP,
@@ -112,7 +113,7 @@ export async function moderateMessage(messageContent) {
 }
 
 /**
- * Moderates an image using Groq's Vision AI
+ * Moderates an image using Google's Gemini vision model
  * @param {string} imageUrl - The URL of the image to moderate
  * @returns {Object} - Moderation result with isFlagged, reason, and severity
  */
@@ -146,6 +147,7 @@ export async function moderateImage(imageUrl) {
     );
 
     const completion = await geminiChatCompletion({
+      model: config.ai.visionModel || "gemini-3.1-flash-lite",
       messages: [
         {
           role: "user",

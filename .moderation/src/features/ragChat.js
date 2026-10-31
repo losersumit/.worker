@@ -1,5 +1,6 @@
 import '../utils/loadEnv.js';
 import { geminiChatCompletion } from '../clients/gemini.js';
+import { groqChatCompletion } from '../clients/groq.js';
 import { findFaqAnswer, embed } from '../systems/faq.js';
 import config from '../config.js';
 
@@ -125,6 +126,7 @@ Response requirements:
 
     // Call the Gemini vision model with the prompt
     const data = await geminiChatCompletion({
+        model: config.ai.visionModel || 'gemini-3.1-flash-lite',
         messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageAttachment.url } }] }],
         temperature: 0.1,
         max_tokens: 30,
@@ -424,8 +426,6 @@ async function askWithContext(message, client, question) {
         await message.channel.sendTyping();
     } catch { }
 
-    const imageUrls = [];
-
     let rawChannelHistory = 'No recent channel messages.';
     try {
         const lastMsgs = await message.channel.messages.fetch({ limit: 15 });
@@ -436,9 +436,8 @@ async function askWithContext(message, client, question) {
             let text = sanitizeText(m.content) || '';
             const img = getImageAttachment(m);
             if (img?.url) {
-                imageUrls.push(img.url);
-                const placeholder = `[Attachment ${imageUrls.length}]`;
-                text = text ? `${text} ${placeholder}` : placeholder;
+                // Keep channel history textual; only the current user's image prompt goes to Gemini.
+                text = text ? `${text} [image attachment]` : '[image attachment]';
             } else if (!text) {
                 text = '[attachment/embed]';
             }
@@ -461,9 +460,8 @@ async function askWithContext(message, client, question) {
         dialogueBlock = history.map(turn => {
             let turnText = turn.text || '';
             if (turn.imageUrl) {
-                imageUrls.push(turn.imageUrl);
-                const placeholder = `[Attachment ${imageUrls.length}]`;
-                turnText = turnText ? `${turnText} ${placeholder}` : placeholder;
+                // Preserve conversational context without turning a text-only follow-up into a vision request.
+                turnText = turnText ? `${turnText} [image attached in an earlier message]` : '[image attached in an earlier message]';
             }
             return `${turn.name}: ${turnText}`;
         }).join('\n');
@@ -472,42 +470,31 @@ async function askWithContext(message, client, question) {
     let questionText = question;
     const currentImg = getImageAttachment(message);
     if (currentImg?.url) {
-        const idx = imageUrls.lastIndexOf(currentImg.url);
-        if (idx !== -1) {
-            const placeholder = `[Attachment ${idx + 1}]`;
-            questionText = questionText ? `${questionText} ${placeholder}` : placeholder;
-        }
+        questionText = questionText ? `${questionText} [image attached]` : '[image attached]';
     }
 
     const prompt = buildPrompt(questionText, context, username, verifiedIdentity, dialogueBlock, rawChannelHistory);
 
-    if (imageUrls.length > 0) {
-        const userContent = [
-            { type: 'text', text: prompt }
-        ];
-        for (const url of imageUrls) {
-            userContent.push({ type: 'image_url', image_url: { url: url } });
-        }
-
-        const data = await geminiChatCompletion({
-            model: 'gemini-3.1-flash-lite',
-            messages: [{ role: 'user', content: userContent }],
+    // Strict provider routing: requests that include an image use Gemini; text-only requests use Groq.
+    const data = currentImg?.url
+        ? await geminiChatCompletion({
+            model: config.ai.visionModel || 'gemini-3.1-flash-lite',
+            messages: [{
+                role: 'user',
+                content: [
+                    { type: 'text', text: prompt },
+                    { type: 'image_url', image_url: { url: currentImg.url } },
+                ],
+            }],
+            temperature: CHAT_TEMPERATURE,
+            max_tokens: CHAT_MAX_TOKENS,
+        })
+        : await groqChatCompletion({
+            model: config.ai.model || 'openai/gpt-oss-120b',
+            messages: [{ role: 'user', content: prompt }],
             temperature: CHAT_TEMPERATURE,
             max_tokens: CHAT_MAX_TOKENS,
         });
-
-        const answer = data?.choices?.[0]?.message?.content?.trim() || 'No answer generated.';
-        pushAssistantTurn(key, answer);
-        await message.reply(answer);
-        return;
-    }
-
-    const data = await geminiChatCompletion({
-        model: config.ai.visionModel || 'gemini-2.0-flash',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: CHAT_TEMPERATURE,
-        max_tokens: CHAT_MAX_TOKENS,
-    });
 
     const answer = data?.choices?.[0]?.message?.content?.trim() || 'No answer generated.';
     pushAssistantTurn(key, answer);
@@ -528,8 +515,8 @@ async function buildHourlySummaryForChannel(supabase, channelId, startIso, endIs
     if (!data || data.length === 0) return;
 
     const transcript = data.map(r => `${r.username}: ${r.content}`).join('\n');
-    const resp = await geminiChatCompletion({
-        model: config.ai.visionModel || 'gemini-2.0-flash',
+    const resp = await groqChatCompletion({
+        model: config.ai.model || 'openai/gpt-oss-120b',
         messages: [{ role: 'user', content: `${BASE_PERSONALITY}\n\nSummarize this one-hour server discussion in concise bullets:\n\n${transcript}` }],
         temperature: 0.2,
         max_tokens: 300,

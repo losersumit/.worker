@@ -2,7 +2,7 @@ import { EmbedBuilder, PermissionsBitField, ButtonBuilder, ButtonStyle, ActionRo
 import { getUserWarnings, resetWarnings, killUser, unkillUser } from '../systems/storage.js';
 import { handleTodoCommand } from './todoCommands.js';
 import { supabase } from '../clients/supabase.js';
-import { geminiChatCompletion } from '../clients/gemini.js';
+import { groqChatCompletion } from '../clients/groq.js';
 
 
 const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
@@ -317,10 +317,10 @@ async function handleMurder(message, args, client) {
 
         // Start both network-bound tasks as soon as the target is resolved.
         // The AI request does not wait for role updates, storage writes, or message cleanup.
-        // Start Gemini immediately; recent-choice history is fetched in parallel rather
+        // Start Groq text generation immediately; recent-choice history is fetched in parallel rather
         // than making the user wait for Supabase before the AI request even begins.
-        const aiPromise = geminiChatCompletion({
-            model: config.ai.visionModel || 'gemini-3.5-flash-lite',
+        const aiPromise = groqChatCompletion({
+            model: config.ai.model || 'openai/gpt-oss-120b',
             messages: [{
                 role: 'user',
                 content: `You are a dark-humor writer. Write one concise, absurd, fictional murder description sentence.

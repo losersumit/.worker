@@ -50,7 +50,7 @@ export default {
             const isVideo = VIDEO_EXTS.some(ext => filename.endsWith(ext)) || (mediaAttachment.contentType && mediaAttachment.contentType.startsWith('video/'));
             const mediaType = isVideo ? 'video' : 'image';
 
-            // 2. Groq Vision for aesthetic color (Only for images)
+            // 2. Gemini Vision for aesthetic color (images only)
             let embedColor = 0x9B59B6; // Elegant default purple
             let aiColorChoiceReason = 'Default theme color';
 

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { geminiChatCompletion } from '../clients/gemini.js';
+import { groqChatCompletion } from '../clients/groq.js';
 import { getMemoryTableName } from './memory.js';
 import config from '../config.js';
 import '../utils/loadEnv.js';
@@ -84,8 +84,8 @@ export async function runMemoryCleanup() {
                 const factListText = memories.map(m => `- ${m.fact}`).join('\n');
 
                 try {
-                    const result = await geminiChatCompletion({
-                        model: config.ai.visionModel || 'gemini-2.0-flash',
+                    const result = await groqChatCompletion({
+                        model: config.ai.model || 'openai/gpt-oss-120b',
                         messages: [
                             { role: 'system', content: CLEANUP_PROMPT },
                             { role: 'user', content: `Current facts for user:\n${factListText}\n\nList the exact facts to delete as a JSON array.` }
