@@ -45,7 +45,7 @@ export default {
 
             const imageUrl = imageAttachment.url;
 
-            // 2. Ask Groq Vision for the best matching/dominant color palette for premium HSL aesthetics
+            // 2. Ask Gemini Vision for the best matching/dominant color palette for premium HSL aesthetics
             let embedColor = 0x9B59B6; // Default to elegant purple
             let aiColorChoiceReason = 'Fallback default';
 
