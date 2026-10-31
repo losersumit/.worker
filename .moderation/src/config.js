@@ -33,12 +33,12 @@ const config = {
     },
     ai: {
         // All Google Gemini calls use Gemini's API endpoint and GEMINI_API_KEY_* keys.
-        geminiModel: process.env.GEMINI_MODEL || "gemini-3.1-flash-lite",
-        visionModel: process.env.GEMINI_VISION_MODEL || process.env.GEMINI_MODEL || "gemini-3.1-flash-lite",
-        fallbackVisionModel: process.env.GEMINI_FALLBACK_VISION_MODEL || "gemini-3.5-flash-lite",
+        geminiModel: "gemini-3.1-flash-lite",
+        visionModel: "gemini-3.1-flash-lite",
+        fallbackVisionModel: "gemini-3.1-flash-lite",
 
         // Groq has a separate model namespace; this is used only by groqChatCompletion.
-        model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
+        model: "openai/gpt-oss-120b",
         temperature: 0.1,
         maxTokens: 500,
         topP: 0.9
