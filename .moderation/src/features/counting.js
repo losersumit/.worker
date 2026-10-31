@@ -1,11 +1,12 @@
+import { routeAiPrompt } from '../ai/promptRouter.js';
 import { getCountingState, saveCountingState } from "../systems/storage.js";
-import { groqChatCompletion } from "../clients/groq.js";
+
 import config from "../config.js";
 
 const COUNTING_RESET_TEXT = "Starting again from 1";
 
 async function askCountingAi(prompt, maxTokens = 10) {
-  return groqChatCompletion({
+  return routeAiPrompt({
     model: config.ai.model || "openai/gpt-oss-120b",
     messages: [{ role: "user", content: prompt }],
     temperature: 0,
