@@ -113,7 +113,7 @@ export async function moderateMessage(messageContent) {
 }
 
 /**
- * Moderates an image using Groq's Vision AI
+ * Moderates an image using Google's Gemini vision model
  * @param {string} imageUrl - The URL of the image to moderate
  * @returns {Object} - Moderation result with isFlagged, reason, and severity
  */
