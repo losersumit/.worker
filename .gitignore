@@ -20,3 +20,4 @@ storage/exports/
 storage/
 context_for_agent
 context_for_agent/.env
+roles.json

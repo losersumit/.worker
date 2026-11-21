@@ -4,9 +4,9 @@ import config from "../config.js";
 
 const COUNTING_RESET_TEXT = "Starting again from 1";
 
-async function askCountingAi(prompt, maxTokens = 10) {
+async function askCountingAi(prompt, maxTokens = 60) {
   return geminiChatCompletion({
-    model: config.ai.visionModel || "gemini-2.0-flash",
+    model: config.ai.visionModel || "gemini-3.1-flash-lite",
     messages: [{ role: "user", content: prompt }],
     temperature: 0,
     max_tokens: maxTokens,
@@ -25,17 +25,25 @@ Does the user input represent the expected number?
 - Accept number words (e.g. "five").
 
 If it is complex mathematical expression, solve it using BODMAS rules.
-It can also be higher mathematics (e.g. "e^πi+1" for 0). or integral or derivatives. Simplify them.
-The number can also be related to normal general knowlege.
+It can also be higher mathematics (e.g. "e^πi+1" for 0) or integral or derivatives. Simplify them.
+The number can also be related to normal general knowledge.
 
 Reply strictly with "YES" if it evaluates to ${expected}.
 Reply strictly with "NO" if it evaluates to a different number.
 `;
 
-  const aiResponse = await askCountingAi(prompt);
-  return (
-    aiResponse?.choices?.[0]?.message?.content?.trim().toUpperCase() || "NO"
-  );
+  try {
+    const aiResponse = await askCountingAi(prompt, 60);
+    const text =
+      aiResponse?.choices?.[0]?.message?.content?.trim() || "";
+    // Check if response contains YES or NO
+    if (/\bYES\b/i.test(text)) return "YES";
+    if (/\bNO\b/i.test(text)) return "NO";
+    return text.toUpperCase();
+  } catch (err) {
+    console.error("[Counting] Error in judgeCountingMessage:", err);
+    throw err;
+  }
 }
 
 export async function extractCountFromContent(content) {
@@ -135,14 +143,24 @@ export async function handleCounting(message) {
   }
 
   // 2. Optimization: Check if it's a simple number first to save AI calls
-  const simpleNum = parseFloat(message.content);
-  if (!isNaN(simpleNum) && Math.abs(simpleNum - expected) < 0.001) {
-    await message.react("✅");
-    await saveCountingState({
-      currentCount: expected,
-      lastUserId: message.author.id,
-    });
-    return;
+  // Note: /^[+-]?\d+(?:\.0+)?$/ ensures full string match and avoids parseFloat("1487 words") matching 1487
+  const trimmed = message.content.trim();
+  if (/^[+-]?\d+(?:\.0+)?$/.test(trimmed)) {
+    const simpleNum = Number.parseInt(trimmed, 10);
+    if (simpleNum === expected) {
+      await message.react("✅");
+      await saveCountingState({
+        currentCount: expected,
+        lastUserId: message.author.id,
+      });
+      return;
+    } else {
+      await message.react("❌");
+      await message.reply(
+        `Wrong value! The next number is **${expected}**. Try again!`,
+      );
+      return;
+    }
   }
 
   // 3. AI Evaluation for complex inputs
