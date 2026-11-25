@@ -3,6 +3,7 @@ import {
     BET, MIN_GUILD_INCOME, SPIN_EMOJI,
     randomColor, spinReel, evaluateResult, getEmoji, sleep, processPayout
 } from '../commands/slot.js';
+import config from "../../.moderation/src/config/index.js";
 
 const EMOJI_SEVEN = '<:Seven:1482721411779924029>';
 const EMOJI_SLOT = '\u{1F3B0}';
@@ -395,7 +396,7 @@ async function handleLeaveInteraction(interaction, machineId) {
 // Export block placeholder
 
 async function getSlotMachineOccupants(client, guildId) {
-    const channelId = process.env.SLOTS_CHANNEL_ID;
+    const channelId = config.channels.SLOTS;
     if (!channelId) return { 1: null, 2: null };
     try {
         const channel = await client.channels.fetch(channelId);
@@ -422,7 +423,7 @@ async function getSlotMachineOccupants(client, guildId) {
 }
 
 export async function updateInfoPanelOccupants(client, guildId) {
-    const channelId = process.env.SLOTS_CHANNEL_ID;
+    const channelId = config.channels.SLOTS;
     if (!channelId) return;
 
     try {

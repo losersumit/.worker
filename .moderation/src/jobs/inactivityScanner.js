@@ -17,18 +17,19 @@
  */
 
 import { WebhookClient } from 'discord.js';
+import config from "../config/index.js";
 
-const TARGET_GUILD_ID = process.env.GUILD_ID || '1448027116074434593';
+const TARGET_GUILD_ID = config.guild.id || '1448027116074434593';
 
 // ─── Roles ───────────────────────────────────────────────────────────────────
-const ENLISTED_TAG_ROLE_ID = process.env.ENLISTED_ROLE_ID || '1482386008376086598';
-const AP_ROLE_ID            = process.env.AP_ROLE_ID       || '1463184412937289973';
-const RP_ROLE_ID            = process.env.RP_ROLE_ID       || '1482059608536387795';
-const RTD_ROLE_ID           = process.env.RTD_ROLE_ID      || '1499413282279129139';
+const ENLISTED_TAG_ROLE_ID = config.roles.ENLISTED || '1482386008376086598';
+const AP_ROLE_ID            = config.roles.AP       || '1463184412937289973';
+const RP_ROLE_ID            = config.roles.RP       || '1482059608536387795';
+const RTD_ROLE_ID           = config.roles.RTD      || '1499413282279129139';
 
-const SMO_ROLE_ID           = process.env.SMO_ROLE_ID      || '1475314856184778835';
-const FO_ROLE_ID            = process.env.FO_ROLE_ID       || '1475314865878077603';
-const O_ROLE_ID             = process.env.O_ROLE_ID        || '1475314870802055421';
+const SMO_ROLE_ID           = config.roles.SMO      || '1475314856184778835';
+const FO_ROLE_ID            = config.roles.FO       || '1475314865878077603';
+const O_ROLE_ID             = config.roles.O        || '1475314870802055421';
 
 const RANK_ROLE_IDS = [SMO_ROLE_ID, FO_ROLE_ID, O_ROLE_ID];
 
@@ -78,7 +79,7 @@ async function rebuildRegistryEmbed(webhookUrl, messageId, sortedMembers) {
         const webhook = new WebhookClient({ url: webhookUrl });
 
         let headerText = '# Active Personnel';
-        if (messageId === process.env.RP_EMBED_MESSAGE_ID) {
+        if (messageId === config.channels.EMBEDS.RP) {
             headerText = '# Reserved Personnel';
         }
 
@@ -135,12 +136,12 @@ export async function rebuildPersonnelEmbeds(client, supabase) {
     console.log(`[INACTIVITY] Rebuilding embeds. AP: ${apMembers.length}, RP: ${rpMembers.length}`);
     await rebuildRegistryEmbed(
         process.env.OFFICERS_CHANNEL_WEBHOOK,
-        process.env.AP_EMBED_MESSAGE_ID,
+        config.channels.EMBEDS.AP,
         apMembers
     );
     await rebuildRegistryEmbed(
         process.env.OFFICERS_CHANNEL_WEBHOOK,
-        process.env.RP_EMBED_MESSAGE_ID,
+        config.channels.EMBEDS.RP,
         rpMembers
     );
 
@@ -157,7 +158,7 @@ export async function rebuildPersonnelEmbeds(client, supabase) {
         sortRtdMembers(rtdMembers);
         await rebuildRtdEmbed(
             process.env.OFFICERS_CHANNEL_WEBHOOK,
-            process.env.RTD_EMBED_MESSAGE_ID,
+            config.channels.EMBEDS.RTD,
             rtdMembers
         );
         console.log(`[INACTIVITY] RTD embed rebuilt in rebuildPersonnelEmbeds with ${rtdMembers.length} member(s).`);
@@ -210,7 +211,7 @@ async function fetchRegistryMembers(client, supabase) {
 // ─── Notification helper ──────────────────────────────────────────────────────
 
 async function notifyRetirement(client, member) {
-    const channelId = process.env.BONDS_CABIN_CHANNEL_ID;
+    const channelId = config.channels.BONDS_CABIN;
     if (!channelId) return;
     try {
         const channel = await client.channels.fetch(channelId).catch(() => null);
@@ -342,12 +343,12 @@ export async function runInactivityScan(client, supabase) {
 
         await rebuildRegistryEmbed(
             process.env.OFFICERS_CHANNEL_WEBHOOK,
-            process.env.AP_EMBED_MESSAGE_ID,
+            config.channels.EMBEDS.AP,
             apMembers
         );
         await rebuildRegistryEmbed(
             process.env.OFFICERS_CHANNEL_WEBHOOK,
-            process.env.RP_EMBED_MESSAGE_ID,
+            config.channels.EMBEDS.RP,
             rpMembers
         );
 
@@ -496,7 +497,7 @@ export async function runInactivityScan(client, supabase) {
         sortRtdMembers(rtdMembers);
         await rebuildRtdEmbed(
             process.env.OFFICERS_CHANNEL_WEBHOOK,
-            process.env.RTD_EMBED_MESSAGE_ID,
+            config.channels.EMBEDS.RTD,
             rtdMembers
         );
 
@@ -506,7 +507,7 @@ export async function runInactivityScan(client, supabase) {
             console.log(`[INACTIVITY] Rebuilding RP embed after RTD removals. RP: ${updatedRpMembers.length} (removed ${retiredInPhase2.size} retired)`);
             await rebuildRegistryEmbed(
                 process.env.OFFICERS_CHANNEL_WEBHOOK,
-                process.env.RP_EMBED_MESSAGE_ID,
+                config.channels.EMBEDS.RP,
                 updatedRpMembers
             );
         }

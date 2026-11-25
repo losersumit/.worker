@@ -34,6 +34,7 @@ import "./.moderation/src/utils/loadEnv.js";
 // Load moderation commands and events
 import { commands as modCommands } from "./.moderation/src/commands/index.js";
 import { loadEvents } from "./.moderation/src/handlers/eventHandler.js";
+import config from "./.moderation/src/config/index.js";
 
 // Basic env validation
 if (!process.env.DISCORD_TOKEN) {
@@ -104,13 +105,13 @@ client.once("ready", async () => {
 
   // Economy Init
 
-  if (process.env.GUILD_INCOME_CHANNEL_ID) {
+  if (config.channels.GUILD_INCOME) {
     console.log(`[REALTIME] Initializing guild income channel listener...`);
     setupGuildIncomeListener(
       client,
       supabase,
-      process.env.GUILD_ID,
-      process.env.GUILD_INCOME_CHANNEL_ID,
+      config.guild.id,
+      config.channels.GUILD_INCOME,
     );
   }
 
@@ -230,10 +231,10 @@ client.once("ready", async () => {
     console.log(
       `⏰ [AUTO-RESTART] Scheduled 6-hour automatic restart triggered. Exiting process...`,
     );
-    if (process.env.LOG_CHANNEL_ID) {
+    if (config.channels.LOG) {
       try {
         const logChannel = await client.channels.fetch(
-          process.env.LOG_CHANNEL_ID,
+          config.channels.LOG,
         );
         if (logChannel) {
           await logChannel.send(

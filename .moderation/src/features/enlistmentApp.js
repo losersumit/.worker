@@ -8,17 +8,17 @@ import {
 } from "discord.js";
 
 import { supabase } from "../clients/supabase.js";
-import config from "../config.js";
+import config from "../config/index.js";
 
-const TRAINING_ROLE_ID = process.env.TRAINEE_ROLE_ID || "1475196328303792138";
+const TRAINING_ROLE_ID = config.roles.TRAINEE || "1475196328303792138";
 const TRAINING_CHANNEL_ID =
-  process.env.TRAINING_CHANNEL_ID || "1475325604873113713";
+  config.channels.TRAINING || "1475325604873113713";
 const REJECTION_CHANNEL_ID =
-  process.env.REJECTION_CHANNEL_ID || "1448038019755151391";
+  config.channels.REJECTION || "1448038019755151391";
 const REVIEW_CHANNEL_ID =
-  process.env.REVIEW_CHANNEL_ID || "1462797901305745509";
-const O_ROLE_ID = process.env.O_ROLE_ID || "1475314870802055421";
-const FO_ROLE_ID = process.env.FO_ROLE_ID || "1475314865878077603";
+  config.channels.REVIEW || "1462797901305745509";
+const O_ROLE_ID = config.roles.O || "1475314870802055421";
+const FO_ROLE_ID = config.roles.FO || "1475314865878077603";
 
 const OFFICER_CRITERIA = {
   operator: {
@@ -81,7 +81,7 @@ export async function handleEnlistmentApplication(interaction) {
       }
     }
 
-    const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
+    const LOG_CHANNEL_ID = config.channels.LOG;
     if (LOG_CHANNEL_ID) {
       try {
         const logChannel = await interaction.client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
@@ -101,8 +101,8 @@ export async function handleEnlistmentApplication(interaction) {
   }
 
   const BLOCKED_ROLES = [
-    process.env.TRAINEE_ROLE_ID || "1475196328303792138",
-    process.env.ENLISTED_ROLE_ID || "1482386008376086598",
+    config.roles.TRAINEE || "1475196328303792138",
+    config.roles.ENLISTED || "1482386008376086598",
   ];
   const member = interaction.member;
 

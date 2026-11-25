@@ -4,13 +4,14 @@
  */
 
 import { trackTransaction } from './economyTracker.js';
+import config from "../../.moderation/src/config/index.js";
 
 async function applyDailyTax(client) {
   try {
     console.log('🏦 Applying daily 1% tax to player wallets...');
 
-    const TARGET_GUILD_ID = process.env.GUILD_ID;
-    const ENLISTED_ROLE_ID = process.env.ENLISTED_ROLE_ID || '1482386008376086598';
+    const TARGET_GUILD_ID = config.guild.id;
+    const ENLISTED_ROLE_ID = config.roles.ENLISTED || '1482386008376086598';
 
     const guildObj = await client.guilds.fetch(TARGET_GUILD_ID).catch(() => null);
     if (!guildObj) {
@@ -66,7 +67,7 @@ async function applyDailyTax(client) {
     const { data: guild, error: guildError } = await client.supabase
       .from('approved_guilds')
       .select('guild_id, guild_income')
-      .eq('guild_id', process.env.GUILD_ID)
+      .eq('guild_id', config.guild.id)
       .single();
 
     if (guildError || !guild) {
@@ -85,7 +86,7 @@ async function applyDailyTax(client) {
     console.log(`✅ Tax complete. Collected: €${totalTaxCollected}`);
 
     // Send embed summary
-    const channelId = process.env.GENERAL_CHANNEL;
+    const channelId = config.channels.GENERAL;
     if (!channelId) return;
 
     const channel = await client.channels.fetch(channelId);

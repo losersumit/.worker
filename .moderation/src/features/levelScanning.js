@@ -1,11 +1,12 @@
 import { processLevelScreenshot } from '../systems/levelSystem.js';
+import config from "../config/index.js";
 
 /**
  * Handles level scanning scans from job logs
  * @param {Message} message - The Discord message
  */
 export async function handleLevelScanning(message) {
-    const jobLogChannelId = process.env.JOB_LOG_CHANNEL_ID;
+    const jobLogChannelId = config.channels.JOB_LOG;
     if (jobLogChannelId && message.channel.id === jobLogChannelId) {
         // Process in background so RP->AP reactivation happens on every job log,
         // while screenshot-based level scanning still runs when an image is attached.

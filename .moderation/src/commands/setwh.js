@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import config from "../config/index.js";
 
 export default {
     data: new SlashCommandBuilder()
@@ -16,8 +17,8 @@ export default {
 
         const targetChannel = interaction.options.getChannel('channel');
 
-        const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
-        const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID;
+        const COMMANDER_ROLE_ID = config.roles.COMMANDER;
+        const PARTNER_ROLE_ID = config.roles.PARTNER;
 
         const isCommander = COMMANDER_ROLE_ID && interaction.member.roles.cache.has(COMMANDER_ROLE_ID);
         const isPartner = PARTNER_ROLE_ID && interaction.member.roles.cache.has(PARTNER_ROLE_ID);

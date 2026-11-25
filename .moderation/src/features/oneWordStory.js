@@ -3,7 +3,7 @@ import schedule from "node-schedule";
 import { EmbedBuilder } from "discord.js";
 import { supabase } from "../clients/supabase.js";
 
-import config from "../config.js";
+import config from "../config/index.js";
 
 
 // ── Hardcoded server emoji list (mirrored from ragChat.js) ──
@@ -204,7 +204,7 @@ Response requirements:
  * @param {import("discord.js").Message} message
  */
 export async function handleOneWordStory(message) {
-  const ONE_WORD_STORY_CHANNEL_ID = process.env.ONE_WORD_STORY_CHANNEL_ID;
+  const ONE_WORD_STORY_CHANNEL_ID = config.channels.ONE_WORD_STORY;
   if (message.channelId !== ONE_WORD_STORY_CHANNEL_ID) return;
 
   // Ignore bots
@@ -449,14 +449,14 @@ ${wordsText}`;
       .setTimestamp();
 
     // Post to Rant Channel
-    const rantChannel = await client.channels.fetch(process.env.RANT_CHANNEL_ID);
+    const rantChannel = await client.channels.fetch(config.channels.RANT);
     if (!rantChannel) throw new Error("Rant channel not found");
 
     const storyMessage = await rantChannel.send({ embeds: [embed] });
     console.log(`[ONE-WORD-STORY] Story posted! Message ID: ${storyMessage.id}`);
 
     // Notify in One Word Story Channel
-    const oneWordChannel = await client.channels.fetch(process.env.ONE_WORD_STORY_CHANNEL_ID);
+    const oneWordChannel = await client.channels.fetch(config.channels.ONE_WORD_STORY);
     if (oneWordChannel) {
       await oneWordChannel.send(
         `📖 **A new story has been posted!**\nCheck it out here: ${storyMessage.url}\n\n` +

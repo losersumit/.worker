@@ -1,5 +1,5 @@
 import { Events, EmbedBuilder } from 'discord.js';
-import config from '../config.js';
+import config from '../config/index.js';
 import { createModLogsChannel } from '../utils/moderationUtils.js';
 
 export default {
@@ -40,11 +40,11 @@ export default {
         }
 
         // Check if we should create a mod-logs channel
-        if (config.logging.createLogChannel) {
+        if (config.moderation.logging.createLogChannel) {
             // Check if a mod-logs channel already exists
             let logChannelExists = false;
 
-            for (const channelName of config.logging.modLogChannels) {
+            for (const channelName of config.moderation.logging.modLogChannels) {
                 const existingChannel = guild.channels.cache.find(
                     ch => ch.name.toLowerCase() === channelName && ch.isTextBased()
                 );

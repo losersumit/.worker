@@ -1,6 +1,6 @@
 import { EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import { getUserWarnings } from '../systems/storage.js';
-import config from '../config.js';
+import config from '../config/index.js';
 
 /**
  * Take a moderation action against a member
@@ -52,7 +52,7 @@ export async function logModAction(client, guild, member, action, reason) {
     // Try to find a channel for mod logs
     let logChannel;
 
-    for (const channelName of config.logging.modLogChannels) {
+    for (const channelName of config.moderation.logging.modLogChannels) {
         const channel = guild.channels.cache.find(
             ch => ch.name.toLowerCase() === channelName && ch.isTextBased()
         );
@@ -63,19 +63,19 @@ export async function logModAction(client, guild, member, action, reason) {
     }
 
     // If no log channel is found, create a private one if configured to do so
-    if (!logChannel && config.logging.createLogChannel) {
+    if (!logChannel && config.moderation.logging.createLogChannel) {
         logChannel = await createModLogsChannel(client, guild, 'Created for AI moderation logs');
 
         // If channel creation failed, log to console and exit
         if (!logChannel) {
-            if (config.logging.consoleLog) {
+            if (config.moderation.logging.consoleLog) {
                 console.log(`Action: ${action.toUpperCase()} against ${member.user.tag} for: ${reason}`);
             }
             return;
         }
     } else if (!logChannel) {
         // No log channel and not configured to create one
-        if (config.logging.consoleLog) {
+        if (config.moderation.logging.consoleLog) {
             console.log(`No log channel found. Action: ${action.toUpperCase()} against ${member.user.tag} for: ${reason}`);
         }
         return;
@@ -139,7 +139,7 @@ export async function logModAction(client, guild, member, action, reason) {
 
     try {
         await logChannel.send({ embeds: [logEmbed] });
-        if (config.logging.consoleLog) {
+        if (config.moderation.logging.consoleLog) {
             console.log(`Successfully logged moderation action in ${logChannel.name}`);
         }
     } catch (sendError) {
@@ -298,7 +298,7 @@ export async function logMessageModeration(client, guild, member, channel, modRe
     // Find the mod logs channel
     let logChannel;
 
-    for (const channelName of config.logging.modLogChannels) {
+    for (const channelName of config.moderation.logging.modLogChannels) {
         const foundChannel = guild.channels.cache.find(
             ch => ch.name.toLowerCase() === channelName && ch.isTextBased()
         );
@@ -309,7 +309,7 @@ export async function logMessageModeration(client, guild, member, channel, modRe
     }
 
     // If no log channel is found, create a private one if configured to do so
-    if (!logChannel && config.logging.createLogChannel) {
+    if (!logChannel && config.moderation.logging.createLogChannel) {
         logChannel = await createModLogsChannel(client, guild, 'Created for AI moderation logs');
 
         // If channel creation failed, exit
@@ -350,11 +350,11 @@ export async function logMessageModeration(client, guild, member, channel, modRe
         .setTimestamp();
 
     // Include message content if configured
-    if (config.logging.includeMessageContent && messageContent) {
+    if (config.moderation.logging.includeMessageContent && messageContent) {
         let contentToShow = messageContent;
 
         // Censor content if configured
-        if (config.logging.censorMessageContent) {
+        if (config.moderation.logging.censorMessageContent) {
             // Simple censoring by replacing potentially offensive words with asterisks
             // In a real implementation, use a more sophisticated filter
             contentToShow = contentToShow.replace(/(\w{1})(\w+)/g, (match, first, rest) => {
@@ -363,7 +363,7 @@ export async function logMessageModeration(client, guild, member, channel, modRe
         }
 
         // Truncate if too long
-        const maxLength = config.logging.maxContentLength || 1024;
+        const maxLength = config.moderation.logging.maxContentLength || 1024;
         if (contentToShow.length > maxLength) {
             contentToShow = contentToShow.substring(0, maxLength - 3) + '...';
         }
@@ -386,7 +386,7 @@ export async function logMessageModeration(client, guild, member, channel, modRe
 
     try {
         await logChannel.send({ embeds: [logEmbed] });
-        if (config.logging.consoleLog) {
+        if (config.moderation.logging.consoleLog) {
             console.log(`Message moderation logged to ${logChannel.name}`);
         }
     } catch (error) {

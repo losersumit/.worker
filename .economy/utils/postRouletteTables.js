@@ -3,12 +3,13 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { defaultRouletteEmbed, defaultRouletteRows } from '../interactions/rouletteTableInteraction.js';
+import config from "../../.moderation/src/config/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export async function postPermanentRouletteTables(client) {
-    const channelId = process.env.ROULETTE_CHANNEL_ID;
+    const channelId = config.channels.ROULETTE;
     if (!channelId) {
         console.error('ROULETTE_CHANNEL_ID is not defined in .env');
         return;

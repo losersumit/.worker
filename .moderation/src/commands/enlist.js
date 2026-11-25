@@ -3,6 +3,7 @@ import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, WebhookClient }
 import { supabase } from '../clients/supabase.js'; // Updated import
 import { rebuildPersonnelEmbeds } from '../jobs/inactivityScanner.js';
 import dotenv from 'dotenv';
+import config from "../config/index.js";
 
 dotenv.config();
 
@@ -28,8 +29,8 @@ export default {
 
         try {
             // 1. Check Roles
-            const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
-            const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID;
+            const COMMANDER_ROLE_ID = config.roles.COMMANDER;
+            const PARTNER_ROLE_ID = config.roles.PARTNER;
 
             const isCommander = COMMANDER_ROLE_ID && interaction.member.roles.cache.has(COMMANDER_ROLE_ID);
             const isPartner = PARTNER_ROLE_ID && interaction.member.roles.cache.has(PARTNER_ROLE_ID);
@@ -48,7 +49,7 @@ export default {
             }
 
             // Ensure target user has the Trainee role before enlisting
-            const TRAINEE_ROLE_ID = process.env.TRAINEE_ROLE_ID || '1475196328303792138';
+            const TRAINEE_ROLE_ID = config.roles.TRAINEE || '1475196328303792138';
             const targetMemberCheck = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
             if (!targetMemberCheck) {
                 return interaction.editReply({ content: '❌ That user is not in this server.' });
@@ -205,8 +206,8 @@ export default {
             let embedMsg = "";
             try {
                 const webhookUrl = process.env.OFFICERS_CHANNEL_WEBHOOK;
-                const messageId = process.env.AP_EMBED_MESSAGE_ID;
-                const channelId = process.env.ENLISTED_CHANNEL_ID;
+                const messageId = config.channels.EMBEDS.AP;
+                const channelId = config.channels.ENLISTED;
 
                 if (webhookUrl && messageId) {
                     const webhook = new WebhookClient({ url: webhookUrl });
@@ -323,11 +324,11 @@ export default {
             // 7. Assign Enlisted Driver Role, optionally an Officer Role, and remove Unregistered / Retired Roles
             let roleMsg = "";
             try {
-                const ENLISTED_ROLE_ID = process.env.AP_ROLE_ID || '1463184412937289973';
-                const ENLISTED_TAG_ROLE_ID = process.env.ENLISTED_ROLE_ID || '1482386008376086598';
-                const UNREGISTERED_ROLE_ID = process.env.TRAINEE_ROLE_ID || '1475196328303792138';
-                const RTD_ROLE_ID = process.env.RTD_ROLE_ID || '1499413282279129139';
-                const officerRoleId = process.env.O_ROLE_ID || '1475314870802055421';
+                const ENLISTED_ROLE_ID = config.roles.AP || '1463184412937289973';
+                const ENLISTED_TAG_ROLE_ID = config.roles.ENLISTED || '1482386008376086598';
+                const UNREGISTERED_ROLE_ID = config.roles.TRAINEE || '1475196328303792138';
+                const RTD_ROLE_ID = config.roles.RTD || '1499413282279129139';
+                const officerRoleId = config.roles.O || '1475314870802055421';
                 const member = await interaction.guild.members.fetch(targetUser.id);
                 if (member) {
                     await member.roles.add(ENLISTED_ROLE_ID);
@@ -362,9 +363,9 @@ export default {
                             await member.roles.add(officerRoleId);
                             
                             const initialsMap = {
-                                [process.env.SMO_ROLE_ID || '1475314856184778835']: '[SMO]',
-                                [process.env.FO_ROLE_ID || '1475314865878077603']: '[FO]',
-                                [process.env.O_ROLE_ID || '1475314870802055421']: '[O]'
+                                [config.roles.SMO || '1475314856184778835']: '[SMO]',
+                                [config.roles.FO || '1475314865878077603']: '[FO]',
+                                [config.roles.O || '1475314870802055421']: '[O]'
                             };
                             const initial = initialsMap[officerRoleId] || '[O]';
                             
@@ -399,7 +400,7 @@ export default {
                     }
 
                     // Send Milestone embed
-                    const milestoneChannelId = process.env.MILESTONES_CHANNEL_ID;
+                    const milestoneChannelId = config.channels.MILESTONES;
                     if (milestoneChannelId) {
                         try {
                             const mChannel = await interaction.client.channels.fetch(milestoneChannelId).catch(() => null);

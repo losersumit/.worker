@@ -1,10 +1,10 @@
 import '../utils/loadEnv.js';
 import { routeAiPrompt } from '../ai/promptRouter.js';
 import { findFaqAnswer, embed } from '../systems/faq.js';
-import config from '../config.js';
+import config from '../config/index.js';
 
-const CHAT_TEMPERATURE = Number(process.env.CHAT_TEMPERATURE || 0.6);
-const CHAT_MAX_TOKENS = Number(process.env.CHAT_MAX_TOKENS || 512);
+const CHAT_TEMPERATURE = Number(config.features.chat.temperature || 0.6);
+const CHAT_MAX_TOKENS = Number(config.features.chat.maxTokens || 512);
 const AUTO_REPLY_COOLDOWN_MS = Number(process.env.RAG_AUTO_REPLY_COOLDOWN_MS || 25000);
 
 const CHUNK_MIN = 5;
@@ -715,8 +715,8 @@ export async function handleRagChat(message, client) {
     if (!client.supabase) return;
 
     // Check if channel is ignored for chat
-    const ignoredChannels = process.env.IGNORED_CHAT_CHANNELS
-        ? process.env.IGNORED_CHAT_CHANNELS.split(',').map(id => id.trim())
+    const ignoredChannels = config.channels.CHAT_IGNORED
+        ? config.channels.CHAT_IGNORED.split(',').map(id => id.trim())
         : [];
 
     if (ignoredChannels.includes(message.channel.id)) {

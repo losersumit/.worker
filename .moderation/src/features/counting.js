@@ -5,11 +5,11 @@ import {
   saveCountingState,
 } from "../systems/storage.js";
 
-import config from "../config.js";
+import config from "../config/index.js";
 
 const COUNTING_RESET_TEXT = "Starting again from 1";
 
-async function askCountingAi(prompt, maxTokens = 10) {
+async function askCountingAi(prompt, maxTokens = 120) {
   return routeAiPrompt({
     model: config.ai.model || "openai/gpt-oss-120b",
     messages: [{ role: "user", content: prompt }],
@@ -18,29 +18,100 @@ async function askCountingAi(prompt, maxTokens = 10) {
   });
 }
 
+/**
+ * Deterministically resolves simple integers, basic arithmetic, and natural language
+ * successor/predecessor phrases before calling AI.
+ * Returns the resolved integer or null if complex AI evaluation is needed.
+ */
+export function tryDeterministicNumber(content) {
+  if (typeof content !== "string") return null;
+  const trimmed = content.trim();
+  if (!trimmed) return null;
+
+  // 1. Plain integer (e.g. "1504", "+1504", "1504.0")
+  if (/^[+-]?\d+(?:\.0+)?$/.test(trimmed)) {
+    return Number.parseInt(trimmed, 10);
+  }
+
+  // 2. Simple integer with punctuation or symbols (e.g. "1504!", "1504.", "#1504")
+  const punctMatch = trimmed.match(/^[#]?\s*([+-]?\d+)\s*[.!?:)]*$/);
+  if (punctMatch) {
+    return Number.parseInt(punctMatch[1], 10);
+  }
+
+  // 3. Successor phrases (e.g. "number after 1503", "next number after 1503", "successor of 1503")
+  const afterMatch =
+    trimmed.match(/^(?:the\s+)?(?:next\s+)?(?:number\s+)?(?:after|following)\s+([+-]?\d+)$/i) ||
+    trimmed.match(/^(?:the\s+)?successor(?:\s+of)?\s+([+-]?\d+)$/i) ||
+    trimmed.match(/^(?:one\s+)?more\s+than\s+([+-]?\d+)$/i) ||
+    trimmed.match(/^([+-]?\d+)\s+plus\s+one$/i);
+  if (afterMatch) {
+    return Number.parseInt(afterMatch[1], 10) + 1;
+  }
+
+  // 4. Predecessor phrases (e.g. "number before 1505", "predecessor of 1505", "one less than 1505")
+  const beforeMatch =
+    trimmed.match(/^(?:the\s+)?(?:previous\s+)?(?:number\s+)?before\s+([+-]?\d+)$/i) ||
+    trimmed.match(/^(?:the\s+)?predecessor(?:\s+of)?\s+([+-]?\d+)$/i) ||
+    trimmed.match(/^(?:one\s+)?less\s+than\s+([+-]?\d+)$/i) ||
+    trimmed.match(/^([+-]?\d+)\s+minus\s+one$/i);
+  if (beforeMatch) {
+    return Number.parseInt(beforeMatch[1], 10) - 1;
+  }
+
+  // 5. Basic arithmetic like "1503 + 1", "1505 - 1", "752 * 2", "3008 / 2"
+  const mathMatch = trimmed.match(/^([+-]?\d+)\s*([\+\-\*\/])\s*([+-]?\d+)$/);
+  if (mathMatch) {
+    const a = Number.parseInt(mathMatch[1], 10);
+    const op = mathMatch[2];
+    const b = Number.parseInt(mathMatch[3], 10);
+    if (op === "+") return a + b;
+    if (op === "-") return a - b;
+    if (op === "*") return a * b;
+    if (op === "/" && b !== 0 && a % b === 0) return a / b;
+  }
+
+  return null;
+}
+
 export async function judgeCountingMessage(content, expected) {
   const prompt = `
-You are a math judge for a counting game.
-The expected number is: ${expected}.
+You are an ultra-knowledgeable, dynamic judge for a counting game.
+The expected number in the sequence is: ${expected}.
 The user input is: "${content}".
 
-Does the user input represent the expected number?
-- Accept mathematical expressions (e.g. "2+2" for 4, "sin^2(x)+cos^2(x)" for 1).
-- Accept riddles or word problems if they clearly resolve to the number.
-- Accept number words (e.g. "five").
+The user input can be ANYTHING that can lead to or resolve to a number:
+- General knowledge, history, dates, pop culture, trivia (e.g. "Hitler death year" -> 1945, "AB de Villiers jersey number" -> 17, "atomic number of Gold" -> 79, "year Titanic sank" -> 1912, "number of bones in adult human body" -> 206)
+- Sports jersey numbers, records, titles, player numbers
+- Natural language descriptions, sequences, successors, predecessors (e.g. "number after 1503" -> 1504, "next number after 1503" -> 1504, "successor of 1503" -> 1504, "number before 1505" -> 1504, "one more than 1503" -> 1504)
+- Mathematical expressions using BODMAS rules (e.g. "1500+4", "1503+1", "2*752")
+- Higher mathematics (e.g. "e^πi+1" for 0, "sin^2(x)+cos^2(x)" for 1), integrals, derivatives, physics constants
+- Number words in any language (e.g. "one thousand five hundred four", "seventeen"), Roman numerals (e.g. "MDIV"), ASCII, hex
+- Riddles, word puzzles, facts, or any creative hint leading to a number
 
-If it is a complex mathematical expression, solve it using BODMAS rules.
-It can also be higher mathematics (e.g. "e^πi+1" for 0) or integrals or derivatives. Simplify them.
-The number can also be related to normal general knowledge.
+Step 1: Identify what integer the user input resolves to. If there are multiple valid interpretations (e.g. a player wore multiple jersey numbers across teams/careers or an event has alternate conventions), check if any valid interpretation matches ${expected}.
+Step 2: Compare that integer with ${expected}.
 
-Reply strictly with "YES" if it evaluates to ${expected}.
-Reply strictly with "NO" if it evaluates to a different number.
+Format your response strictly as:
+RESOLVED: <integer or UNKNOWN>
+MATCH: YES (if it resolves to ${expected}) or NO (if it evaluates to a different number or is not a number)
 `;
 
   try {
-    const aiResponse = await askCountingAi(prompt, 60);
+    const aiResponse = await askCountingAi(prompt, 120);
     const text =
       aiResponse?.choices?.[0]?.message?.content?.trim() || "";
+
+    const match = text.match(/MATCH:\s*(YES|NO)/i);
+    if (match) {
+      return match[1].toUpperCase();
+    }
+
+    const resolvedMatch = text.match(/RESOLVED:\s*(-?\d+)/i);
+    if (resolvedMatch) {
+      const resolvedInt = Number.parseInt(resolvedMatch[1], 10);
+      return resolvedInt === expected ? "YES" : "NO";
+    }
 
     if (/\bYES\b/i.test(text)) return "YES";
     if (/\bNO\b/i.test(text)) return "NO";
@@ -56,35 +127,43 @@ export async function extractCountFromContent(content) {
   const trimmed = content.trim();
   if (!trimmed) return null;
 
-  if (/^[+-]?\d+(?:\.0+)?$/.test(trimmed)) {
-    return Number.parseInt(trimmed, 10);
+  const deterministic = tryDeterministicNumber(trimmed);
+  if (Number.isInteger(deterministic)) {
+    return deterministic;
   }
 
   const prompt = `
-You are extracting the intended counting-game number from a message.
-Message: "${content}"
+You are an ultra-knowledgeable counting-game evaluator.
+The user input is: "${content}".
 
-Return strictly one of these formats:
-- an integer like 554 if the message clearly represents exactly one count number
-- INVALID if it looks like a counting attempt but you cannot confidently resolve it to one integer
+Determine what single integer number this message evaluates to, references, or describes.
+It can be ANYTHING that leads to a number:
+- General knowledge, history, dates, pop culture, trivia (e.g. "Hitler death year" -> 1945, "AB de Villiers jersey number" -> 17, "atomic number of Gold" -> 79, "year Titanic sank" -> 1912)
+- Sports stats, jersey numbers, player numbers, championship years
+- Natural language descriptions, sequences, successors, predecessors (e.g. "number after 1503" -> 1504, "successor of 1503" -> 1504, "number before 10" -> 9, "one more than 100" -> 101)
+- Mathematical expressions, BODMAS rules, calculus, equations
+- Number words in any language, Roman numerals, ASCII, binary, hex
+- Riddles, word problems, science facts
 
-If it is a complex mathematical expression, solve it using BODMAS rules.
-It can also be higher mathematics (e.g. "e^πi+1" for 0), integrals or derivatives. Simplify them.
-The number can also be related to normal general knowledge.
-Accept mathematical expressions, riddles, and number words when they clearly resolve to one integer.
+Format your response strictly as:
+RESOLVED: <integer or UNKNOWN>
 `;
 
-  const aiResponse = await askCountingAi(prompt, 20);
+  const aiResponse = await askCountingAi(prompt, 60);
   const answer =
-    aiResponse?.choices?.[0]?.message?.content?.trim().toUpperCase() ||
-    "INVALID";
+    aiResponse?.choices?.[0]?.message?.content?.trim() || "";
 
-  if (answer === "INVALID") {
+  const match = answer.match(/RESOLVED:\s*(-?\d+)/i);
+  if (match) {
+    return Number.parseInt(match[1], 10);
+  }
+
+  if (/UNKNOWN|INVALID/i.test(answer)) {
     return null;
   }
 
-  const matchedInteger = answer.match(/-?\d+/);
-  return matchedInteger ? Number.parseInt(matchedInteger[0], 10) : null;
+  const fallbackMatch = answer.match(/-?\d+$/m) || answer.match(/-?\d+/);
+  return fallbackMatch ? Number.parseInt(fallbackMatch[0], 10) : null;
 }
 
 export async function recoverCountingState(channel) {
@@ -133,7 +212,7 @@ export async function recoverCountingState(channel) {
  * @param {Message} message - The Discord message object
  */
 export async function handleCounting(message) {
-  const countingChannelId = process.env.COUNTING_CHANNEL_ID;
+  const countingChannelId = config.channels.COUNTING;
   if (message.channel.id !== countingChannelId) return;
 
   const state = getCountingState();
@@ -148,13 +227,10 @@ export async function handleCounting(message) {
     return;
   }
 
-  // 2. Check simple numbers first to save AI calls
-  const trimmed = message.content.trim();
-
-  if (/^[+-]?\d+(?:\.0+)?$/.test(trimmed)) {
-    const simpleNum = Number.parseInt(trimmed, 10);
-
-    if (simpleNum === expected) {
+  // 2. Check deterministic numbers and common expressions first (saves AI latency & quota)
+  const deterministicNum = tryDeterministicNumber(message.content);
+  if (deterministicNum !== null) {
+    if (deterministicNum === expected) {
       await message.react("✅");
 
       await saveCountingState({

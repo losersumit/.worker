@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
 import { supabase } from '../clients/supabase.js';
+import config from "../config/index.js";
 
 export default {
     data: new SlashCommandBuilder()
@@ -29,8 +30,8 @@ export default {
     async execute(interaction) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-        const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
-        const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID;
+        const COMMANDER_ROLE_ID = config.roles.COMMANDER;
+        const PARTNER_ROLE_ID = config.roles.PARTNER;
 
         const isCommander = COMMANDER_ROLE_ID && interaction.member.roles.cache.has(COMMANDER_ROLE_ID);
         const isPartner = PARTNER_ROLE_ID && interaction.member.roles.cache.has(PARTNER_ROLE_ID);

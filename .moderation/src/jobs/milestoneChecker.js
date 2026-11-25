@@ -11,9 +11,10 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
+import config from "../config/index.js";
 
-const GUILD_ID         = process.env.GUILD_ID;
-const ANNOUNCE_CHANNEL = process.env.MILESTONES_CHANNEL_ID;
+const GUILD_ID         = config.guild.id;
+const ANNOUNCE_CHANNEL = config.channels.MILESTONES;
 
 // ── Milestone definitions ─────────────────────────────────────
 const MILESTONES = [

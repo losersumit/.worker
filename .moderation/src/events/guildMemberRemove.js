@@ -1,10 +1,11 @@
 import { Events } from 'discord.js';
+import config from "../config/index.js";
 
 export default {
     name: Events.GuildMemberRemove,
     async execute(member, client) {
         try {
-            const logChannelId = process.env.LOG_CHANNEL_ID;
+            const logChannelId = config.channels.LOG;
             if (logChannelId) {
                 const logChannel = member.guild.channels.cache.get(logChannelId);
                 if (logChannel && logChannel.isTextBased()) {

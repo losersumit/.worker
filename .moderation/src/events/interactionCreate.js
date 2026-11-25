@@ -1,6 +1,6 @@
 import { routeAiPrompt } from '../ai/promptRouter.js';
 import { Events, EmbedBuilder } from 'discord.js';
-import config from '../config.js';
+import config from '../config/index.js';
 import { supabase } from '../clients/supabase.js';
 import { trackTransaction } from '../utils/economyUtils.js';
 import { resolveMessageFromLink } from '../utils/discordUtils.js';
@@ -139,7 +139,7 @@ async function handleBuySkin(interaction, client) {
         }
 
         // Retired Personnel cannot buy skins
-        const RTD_ROLE_ID = process.env.RTD_ROLE_ID || '1499413282279129139';
+        const RTD_ROLE_ID = config.roles.RTD || '1499413282279129139';
         if (interaction.member.roles.cache.has(RTD_ROLE_ID)) {
             return interaction.editReply('❌ **Retired Personnel** cannot purchase skins.');
         }
@@ -188,9 +188,9 @@ async function handleBuySkin(interaction, client) {
             const rolesStr = typeof skin.roles_allowed === 'string' ? skin.roles_allowed : JSON.stringify(skin.roles_allowed);
             const requiredRoleIds = rolesStr.match(/\d+/g) || [];
 
-            const SMO_ROLE_ID = process.env.SMO_ROLE_ID || '1475314856184778835';
-            const FO_ROLE_ID = process.env.FO_ROLE_ID || '1475314865878077603';
-            const O_ROLE_ID = process.env.O_ROLE_ID || '1475314870802055421';
+            const SMO_ROLE_ID = config.roles.SMO || '1475314856184778835';
+            const FO_ROLE_ID = config.roles.FO || '1475314865878077603';
+            const O_ROLE_ID = config.roles.O || '1475314870802055421';
 
             const userIsSMO = interaction.member.roles.cache.has(SMO_ROLE_ID);
             const userIsFO = interaction.member.roles.cache.has(FO_ROLE_ID);

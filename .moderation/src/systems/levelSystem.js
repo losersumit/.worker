@@ -2,7 +2,7 @@ import { routeAiPrompt } from '../ai/promptRouter.js';
 import axios from 'axios';
 import crypto from 'crypto';
 import '../utils/loadEnv.js';
-import config from '../config.js';
+import config from '../config/index.js';
 import { supabase } from '../clients/supabase.js';
 import { rebuildPersonnelEmbeds } from '../jobs/inactivityScanner.js';
 import { validateRun } from './anticheat.js';
@@ -10,13 +10,13 @@ import { validateRun } from './anticheat.js';
 
 // Role Definitions
 const LEVEL_ROLES = [
-    { min: 100, max: Infinity, id: process.env.LEVEL_ROLE_ELITE        || '1469958213997821952' },
-    { min: 75,  max: 100,      id: process.env.LEVEL_ROLE_SPECIALIST   || '1469958222420119715' },
-    { min: 50,  max: 75,       id: process.env.LEVEL_ROLE_MASTER       || '1448029023530913946' },
-    { min: 30,  max: 50,       id: process.env.LEVEL_ROLE_TACTICAL     || '1448029024948326472' },
-    { min: 12,  max: 30,       id: process.env.LEVEL_ROLE_PROFESSIONAL || '1448029028970664088' },
-    { min: 5,   max: 12,       id: process.env.LEVEL_ROLE_QUALIFIED    || '1448029030283477074' },
-    { min: 1,   max: 5,        id: process.env.LEVEL_ROLE_ROOKIE       || '1469956018908823716' }
+    { min: 100, max: Infinity, id: config.roles.LEVEL.ELITE        || '1469958213997821952' },
+    { min: 75,  max: 100,      id: config.roles.LEVEL.SPECIALIST   || '1469958222420119715' },
+    { min: 50,  max: 75,       id: config.roles.LEVEL.MASTER       || '1448029023530913946' },
+    { min: 30,  max: 50,       id: config.roles.LEVEL.TACTICAL     || '1448029024948326472' },
+    { min: 12,  max: 30,       id: config.roles.LEVEL.PROFESSIONAL || '1448029028970664088' },
+    { min: 5,   max: 12,       id: config.roles.LEVEL.QUALIFIED    || '1448029030283477074' },
+    { min: 1,   max: 5,        id: config.roles.LEVEL.ROOKIE       || '1469956018908823716' }
 ];
 
 const ALL_ROLE_IDS = LEVEL_ROLES.map(r => r.id);
@@ -155,7 +155,7 @@ async function reactivateReservedMember(message, member, enlistedRoleId, rpRoleI
 
     console.log(`[RP Reactivation] ${message.author.username} posted valid job log while RP. Reactivating...`);
 
-    const apRoleId = process.env.AP_ROLE_ID || '1448029015947346042';
+    const apRoleId = config.roles.AP || '1448029015947346042';
 
     await member.roles.remove(rpRoleId);
     await member.roles.add(enlistedRoleId);
@@ -197,9 +197,9 @@ async function reactivateReservedMember(message, member, enlistedRoleId, rpRoleI
 export async function processLevelScreenshot(message) {
     if (message.author.bot) return;
 
-    const enlistedRoleId = process.env.ENLISTED_ROLE_ID;
-    const rpRoleId       = process.env.RP_ROLE_ID;
-    const rtdRoleId      = process.env.RTD_ROLE_ID || '1499413282279129139';
+    const enlistedRoleId = config.roles.ENLISTED;
+    const rpRoleId       = config.roles.RP;
+    const rtdRoleId      = config.roles.RTD || '1499413282279129139';
 
     // Fetch member
     let member = message.member;

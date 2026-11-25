@@ -1,5 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, EmbedBuilder } from 'discord.js';
 import { trackTransaction } from '../utils/economyTracker.js';
+import config from "../../.moderation/src/config/index.js";
 
 export default {
     name: 'rr',
@@ -32,7 +33,7 @@ export default {
             if (isNaN(amount) || amount <= 0) return message.reply('Enter a valid amount.');
             if (cStats.wallet < amount) return message.reply('You have insufficient balance.');
 
-            const COMPANY_ID = process.env.COMPANY_ID || '1453737415318573280';
+            const COMPANY_ID = config.guild.companyId || '1453737415318573280';
             const rawTarget = args[1].toLowerCase();
 
             // Determine target

@@ -1,4 +1,5 @@
 import { trackTransaction } from '../utils/economyTracker.js';
+import config from "../../.moderation/src/config/index.js";
 
 export default {
     name: 'gift',
@@ -7,7 +8,7 @@ export default {
         await message.channel.sendTyping();
 
         // Check permissions
-        const bossRoleId = process.env.COMMANDER_ROLE_ID;
+        const bossRoleId = config.roles.COMMANDER;
         if (!bossRoleId) {
             return message.reply('❌ COMMANDER_ROLE_ID is not configured in .env');
         }

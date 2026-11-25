@@ -1,5 +1,5 @@
 import { Events, REST, Routes, EmbedBuilder } from 'discord.js';
-import config from '../config.js';
+import config from '../config/index.js';
 import { commands } from '../commands/index.js';
 import { initStorage, saveCountingState, getServerStatistics } from '../systems/storage.js';
 import { setupStatusRotation } from '../utils/statusRotation.js';
@@ -48,7 +48,7 @@ export default {
         }
 
         // Check for mod-logs channels in all guilds if configured to create them
-        if (config.logging.createLogChannel) {
+        if (config.moderation.logging.createLogChannel) {
             console.log(`Checking for mod-logs channels in all servers...`);
 
             client.guilds.cache.forEach(async (guild) => {
@@ -56,7 +56,7 @@ export default {
                     // Check if a mod-logs channel already exists
                     let logChannelExists = false;
 
-                    for (const channelName of config.logging.modLogChannels) {
+                    for (const channelName of config.moderation.logging.modLogChannels) {
                         const existingChannel = guild.channels.cache.find(
                             ch => ch.name.toLowerCase() === channelName && ch.isTextBased()
                         );
@@ -106,7 +106,7 @@ export default {
         }
 
         // ===== Counting Channel Persistence =====
-        const countingChannelId = process.env.COUNTING_CHANNEL_ID;
+        const countingChannelId = config.channels.COUNTING;
         if (countingChannelId) {
             try {
                 const channel = await client.channels.fetch(countingChannelId);

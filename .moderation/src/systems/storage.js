@@ -78,7 +78,7 @@ export async function addWarning(userId, reason, severity, config) {
             // but for now we just return it so index.js can execute it.
         }
 
-        if (config.logging.consoleLog) {
+        if (config.moderation.logging.consoleLog) {
             console.log(`Warning added for user ${userId}. Total warnings: ${warningCount}`);
         }
 
@@ -136,7 +136,7 @@ export async function resetWarnings(userId, config) {
 
         if (error) throw error;
 
-        if (config.logging.consoleLog) {
+        if (config.moderation.logging.consoleLog) {
             console.log(`Warnings reset for user ${userId}`);
         }
     } catch (error) {
@@ -301,7 +301,7 @@ export async function unkillUser(userId) {
  * Determine what action to take based on warning count
  */
 function determineAction(warningCount, config) {
-    const thresholds = config.warnings.actionThresholds;
+    const thresholds = config.moderation.warnings.actionThresholds;
 
     if (warningCount >= thresholds.ban) {
         return 'ban';

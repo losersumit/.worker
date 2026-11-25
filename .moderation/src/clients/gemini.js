@@ -1,6 +1,6 @@
 import "../utils/loadEnv.js";
 import axios from "axios";
-import config from "../config.js";
+import config from "../config/index.js";
 
 const envKeys = [
   process.env.GEMINI_API_KEY_ONE,

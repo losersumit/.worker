@@ -3,7 +3,7 @@ import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags, A
 
 import { supabase } from '../clients/supabase.js';
 import { publishToInstagram } from '../clients/socials.js';
-import config from '../config.js';
+import config from '../config/index.js';
 import axios from 'axios';
 import schedule from 'node-schedule';
 
@@ -33,8 +33,8 @@ export default {
 
         try {
             // 1. Role Check (Admins, Commanders, Partners)
-            const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
-            const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID;
+            const COMMANDER_ROLE_ID = config.roles.COMMANDER;
+            const PARTNER_ROLE_ID = config.roles.PARTNER;
 
             const isCommander = COMMANDER_ROLE_ID && interaction.member.roles.cache.has(COMMANDER_ROLE_ID);
             const isPartner = PARTNER_ROLE_ID && interaction.member.roles.cache.has(PARTNER_ROLE_ID);
@@ -105,7 +105,7 @@ export default {
             }
 
             // 3. Post styling embed to STYLING_CHANNEL_ID
-            const STYLING_CHANNEL_ID = process.env.STYLING_CHANNEL_ID || '1457066114176520254';
+            const STYLING_CHANNEL_ID = config.channels.STYLING || '1457066114176520254';
             const stylingChannel = await interaction.client.channels.fetch(STYLING_CHANNEL_ID).catch(() => null);
 
             if (!stylingChannel) {

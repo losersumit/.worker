@@ -1,6 +1,7 @@
 
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
 import dotenv from 'dotenv';
+import config from "../config/index.js";
 
 dotenv.config();
 
@@ -12,7 +13,7 @@ export default {
 
     async execute(interaction, config) {
         // Permission check
-        const allowedRolesEnv = process.env.ENLISTEMENT_ALLOWED_ROLES || '';
+        const allowedRolesEnv = config.roles.ENLISTMENT_ALLOWED_ROLES[0] || '';
         const allowedRoles = allowedRolesEnv.split(',').map(r => r.trim()).filter(Boolean);
 
         const hasPermission = allowedRoles.some(roleId => interaction.member.roles.cache.has(roleId)) ||

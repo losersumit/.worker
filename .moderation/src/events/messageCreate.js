@@ -1,5 +1,5 @@
 import { Events, EmbedBuilder } from 'discord.js';
-import config from '../config.js';
+import config from '../config/index.js';
 import { moderateMessage, moderateImage } from '../systems/moderation.js';
 import { addWarning } from '../systems/storage.js';
 import { handleLevelScanning } from '../features/levelScanning.js';
@@ -24,7 +24,7 @@ export default {
 
         // Hook for legacy economy commands (prefix '?')
         if (message.content.startsWith('?')) {
-            const financeChannelId = process.env.FINANCE_CHANNEL_ID;
+            const financeChannelId = config.channels.FINANCE;
             if (financeChannelId && message.channelId !== financeChannelId) {
                 return;
             }
@@ -37,8 +37,8 @@ export default {
             if (command) {
                 // Block Reserved Personnel from all economy commands except allowed ones (?help, ?me, ?gamestats, ?my, ?guild, ?donate, ?transfer)
                 // NOTE: Retired Personnel (RTD) have full economy access — skin-buy block is at the button layer.
-                const RP_ROLE_ID = process.env.RP_ROLE_ID || '1482059608536387795';
-                const RTD_ROLE_ID = process.env.RTD_ROLE_ID || '1499413282279129139';
+                const RP_ROLE_ID = config.roles.RP || '1482059608536387795';
+                const RTD_ROLE_ID = config.roles.RTD || '1499413282279129139';
                 const ALLOWED_FOR_RP = ['help', 'me', 'gamestats', 'my', 'guild', 'donate', 'transfer'];
                 const isRTD = message.member?.roles?.cache?.has(RTD_ROLE_ID);
                 if (
@@ -63,7 +63,7 @@ export default {
 
         // Level Scanning (Job Logs)
         await handleLevelScanning(message);
-        const jobLogChannelId = process.env.JOB_LOG_CHANNEL_ID;
+        const jobLogChannelId = config.channels.JOB_LOG;
         if (jobLogChannelId && message.channel.id === jobLogChannelId) {
             // Return if we want to skip other moderation/logic for job logs
             return;
@@ -71,13 +71,13 @@ export default {
 
         // Counting Channel
         await handleCounting(message);
-        const countingChannelId = process.env.COUNTING_CHANNEL_ID;
+        const countingChannelId = config.channels.COUNTING;
         if (message.channel.id === countingChannelId) {
             return;
         }
 
         // One Word Story Channel
-        const oneWordStoryChannelId = process.env.ONE_WORD_STORY_CHANNEL_ID;
+        const oneWordStoryChannelId = config.channels.ONE_WORD_STORY;
         if (oneWordStoryChannelId && message.channel.id === oneWordStoryChannelId) {
             await handleOneWordStory(message);
             return;
@@ -133,7 +133,7 @@ export default {
 
                     // Log the action to console
                     const channelMessage = `A message from ${message.author.tag} was removed for violating community guidelines.`;
-                    if (config.logging.consoleLog) {
+                    if (config.moderation.logging.consoleLog) {
                         console.log(channelMessage);
                     }
 

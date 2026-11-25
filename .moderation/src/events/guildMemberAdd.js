@@ -2,6 +2,7 @@ import { Events, EmbedBuilder, AttachmentBuilder } from 'discord.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { isUserKilled } from '../systems/storage.js';
+import config from "../config/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,7 +15,7 @@ export default {
             if (isKilled) {
                 console.log(`[JOIN] User ${member.user.tag} (${member.id}) is marked as killed. Skipping auto-role.`);
             } else {
-                const roleId = process.env.VISITOR_ROLE_ID || process.env.AUTO_ROLE_ID;
+                const roleId = config.roles.VISITOR || config.roles.AUTO;
                 if (roleId) {
                     const role = member.guild.roles.cache.get(roleId);
                     if (role) await member.roles.add(role);
@@ -22,7 +23,7 @@ export default {
             }
 
             // Welcome Message
-            const welcomeChannelId = process.env.WELCOME_CHANNEL_ID;
+            const welcomeChannelId = config.channels.WELCOME;
             if (welcomeChannelId) {
                 const welcomeChannel = member.guild.channels.cache.get(welcomeChannelId);
                 if (welcomeChannel && welcomeChannel.isTextBased()) {
@@ -44,7 +45,7 @@ export default {
                 }
             }
 
-            const logChannelId = process.env.LOG_CHANNEL_ID;
+            const logChannelId = config.channels.LOG;
             if (logChannelId) {
                 const logChannel = member.guild.channels.cache.get(logChannelId);
                 if (logChannel && logChannel.isTextBased()) {

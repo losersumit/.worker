@@ -1,13 +1,14 @@
 import { Events, EmbedBuilder } from 'discord.js';
 import { supabase } from '../clients/supabase.js';
+import config from "../config/index.js";
 
-const RTD_ANNOUNCE_CHANNEL_ID = process.env.RTD_ANNOUNCE_CHANNEL_ID;
+const RTD_ANNOUNCE_CHANNEL_ID = config.channels.RTD_ANNOUNCE;
 
-const ENLISTED_ROLE_ID = process.env.ENLISTED_ROLE_ID || '1482386008376086598';
-const AP_ROLE_ID       = process.env.AP_ROLE_ID       || '1463184412937289973';
-const RP_ROLE_ID       = process.env.RP_ROLE_ID       || '1482059608536387795';
-const RTD_ROLE_ID      = process.env.RTD_ROLE_ID      || '1499413282279129139';
-const TARGET_GUILD_ID  = process.env.GUILD_ID         || '1448027116074434593';
+const ENLISTED_ROLE_ID = config.roles.ENLISTED || '1482386008376086598';
+const AP_ROLE_ID       = config.roles.AP       || '1463184412937289973';
+const RP_ROLE_ID       = config.roles.RP       || '1482059608536387795';
+const RTD_ROLE_ID      = config.roles.RTD      || '1499413282279129139';
+const TARGET_GUILD_ID  = config.guild.id         || '1448027116074434593';
 
 export default {
     name: Events.GuildMemberUpdate,

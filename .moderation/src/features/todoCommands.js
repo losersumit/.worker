@@ -3,10 +3,10 @@ import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'disc
 import { supabase } from '../clients/supabase.js';
 import { resolveAttachmentFromLink } from '../utils/discordUtils.js';
 
-import config from '../config.js';
+import config from '../config/index.js';
 
-const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID || '1448029016844931143';
-const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID || '1455251260763541731';
+const COMMANDER_ROLE_ID = config.roles.COMMANDER || '1448029016844931143';
+const PARTNER_ROLE_ID = config.roles.PARTNER || '1455251260763541731';
 
 function hasModPermission(member) {
     if (!member) return false;
@@ -114,7 +114,7 @@ export async function generateTodoEmbed(page = 0, client) {
 }
 
 export async function handleTodoPagination(interaction, client) {
-    const BONDS_CABIN_CHANNEL_ID = process.env.BONDS_CABIN_CHANNEL_ID || '1448038019755151391';
+    const BONDS_CABIN_CHANNEL_ID = config.channels.BONDS_CABIN || '1448038019755151391';
     if (interaction.channelId !== BONDS_CABIN_CHANNEL_ID) {
         return interaction.reply({ content: `❌ This interaction is only allowed in <#${BONDS_CABIN_CHANNEL_ID}>.`, ephemeral: true });
     }
@@ -132,7 +132,7 @@ export async function handleTodoPagination(interaction, client) {
 }
 
 export async function handleTodoCommand(message, args, client) {
-    const BONDS_CABIN_CHANNEL_ID = process.env.BONDS_CABIN_CHANNEL_ID || '1448038019755151391';
+    const BONDS_CABIN_CHANNEL_ID = config.channels.BONDS_CABIN || '1448038019755151391';
     if (message.channelId !== BONDS_CABIN_CHANNEL_ID) {
         return message.reply(`❌ The \`!todo\` command can only be used in Bond's Cabin (<#${BONDS_CABIN_CHANNEL_ID}>).`);
     }
@@ -317,7 +317,7 @@ export async function handleTodoCommand(message, args, client) {
 }
 
 export async function handleTodoView(message, args, client) {
-    const BONDS_CABIN_CHANNEL_ID = process.env.BONDS_CABIN_CHANNEL_ID || '1448038019755151391';
+    const BONDS_CABIN_CHANNEL_ID = config.channels.BONDS_CABIN || '1448038019755151391';
     if (message.channelId !== BONDS_CABIN_CHANNEL_ID) {
         return message.reply(`❌ The \`!todo\` command can only be used in Bond's Cabin (<#${BONDS_CABIN_CHANNEL_ID}>).`);
     }

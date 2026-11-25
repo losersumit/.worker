@@ -1,5 +1,5 @@
 import { ActivityType } from 'discord.js';
-import config from '../config.js';
+import config from '../config/index.js';
 import { recentActivity } from './activityState.js';
 
 /**
@@ -92,7 +92,7 @@ export function setupStatusRotation(client) {
  */
 function updateStatus(client, status) {
     client.user.setActivity(status.text, { type: status.type });
-    // if (config.logging.consoleLog) {
+    // if (config.moderation.logging.consoleLog) {
     //     console.log(`Status updated: ${status.text} (${ActivityType[status.type]})`);
     // }
 }

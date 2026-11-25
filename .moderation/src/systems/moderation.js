@@ -10,7 +10,7 @@
 
 import { routeAiPrompt } from '../ai/promptRouter.js';
 import "../utils/loadEnv.js";
-import config from "../config.js";
+import config from "../config/index.js";
 
 
 /**
@@ -87,7 +87,7 @@ export async function moderateMessage(messageContent) {
     }
 
     // Log decision if enabled
-    if (config.logging.logAllDecisions && config.logging.consoleLog) {
+    if (config.moderation.logging.logAllDecisions && config.moderation.logging.consoleLog) {
       console.log(
         `Moderation decision for message: ${messageContent.substring(0, 30)}...`,
       );
@@ -197,7 +197,7 @@ export async function moderateImage(imageUrl) {
     console.log(`[Moderation] Image check complete. Flagged: ${shouldFlag}`);
 
     // Log decision if enabled
-    if (config.logging.logAllDecisions && config.logging.consoleLog) {
+    if (config.moderation.logging.logAllDecisions && config.moderation.logging.consoleLog) {
       console.log(
         `Moderation decision for image: ${imageUrl.substring(0, 50)}...`,
       );

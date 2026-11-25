@@ -2,7 +2,7 @@ import { routeAiPrompt } from '../ai/promptRouter.js';
 import { createClient } from '@supabase/supabase-js';
 
 import { getMemoryTableName } from './memory.js';
-import config from '../config.js';
+import config from '../config/index.js';
 import '../utils/loadEnv.js';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY);

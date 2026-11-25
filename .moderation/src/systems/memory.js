@@ -5,7 +5,7 @@
 
 
 import { routeAiPrompt } from '../ai/promptRouter.js';
-import config from '../config.js';
+import config from '../config/index.js';
 
 const MAX_MEMORIES_PER_USER = 20;
 

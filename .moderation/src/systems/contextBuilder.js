@@ -1,3 +1,4 @@
+import config from "../config/index.js";
 /**
  * Context Builder
  * Assembles a lightweight context packet from a Discord message for the
@@ -39,8 +40,8 @@ function stripBotMention(content, botId) {
 
 // ─── Role-based env IDs ─────────────────────────────────────────────
 
-const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID || '';
-const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID || '';
+const COMMANDER_ROLE_ID = config.roles.COMMANDER || '';
+const PARTNER_ROLE_ID = config.roles.PARTNER || '';
 
 // ─── Public API ─────────────────────────────────────────────────────
 

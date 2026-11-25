@@ -1,3 +1,4 @@
+import config from "../../.moderation/src/config/index.js";
 /**
  * Economy Tracker Utility
  * Handles logging transactions to player_economy_data and player_economy_history
@@ -95,9 +96,9 @@ async function trackTransaction(client, playerId, transactionType, amount, detai
     }
 
     // Only log skin buy transactions to #economy-logs
-    if (transactionType === 'buy' && process.env.ECONOMY_LOGS_CHANNEL_ID) {
+    if (transactionType === 'buy' && config.channels.ECONOMY_LOGS) {
       try {
-        const logChannel = await client.channels.fetch(process.env.ECONOMY_LOGS_CHANNEL_ID).catch(() => null);
+        const logChannel = await client.channels.fetch(config.channels.ECONOMY_LOGS).catch(() => null);
         if (logChannel) {
           const { data: pData } = await supabase.from('players').select('discord_id, display_name').eq('id', playerId).single();
           const pMention = pData?.discord_id ? `<@${pData.discord_id}>` : String(playerId);

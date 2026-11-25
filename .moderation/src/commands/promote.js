@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } from 'discord.js';
 import { supabase } from '../clients/supabase.js';
+import config from "../config/index.js";
 
 export default {
     data: new SlashCommandBuilder()
@@ -17,8 +18,8 @@ export default {
 
         try {
             // Check roles/permissions
-            const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
-            const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID;
+            const COMMANDER_ROLE_ID = config.roles.COMMANDER;
+            const PARTNER_ROLE_ID = config.roles.PARTNER;
 
             const isCommander = COMMANDER_ROLE_ID && interaction.member.roles.cache.has(COMMANDER_ROLE_ID);
             const isPartner = PARTNER_ROLE_ID && interaction.member.roles.cache.has(PARTNER_ROLE_ID);
@@ -35,10 +36,10 @@ export default {
                 return interaction.editReply({ content: '❌ That user is not in this server.' });
             }
 
-            const TRAINING_ROLE_ID = process.env.TRAINEE_ROLE_ID || '1475196328303792138';
-            const O_ROLE_ID = process.env.O_ROLE_ID || '1475314870802055421';
-            const FO_ROLE_ID = process.env.FO_ROLE_ID || '1475314865878077603';
-            const SMO_ROLE_ID = process.env.SMO_ROLE_ID || '1475314856184778835';
+            const TRAINING_ROLE_ID = config.roles.TRAINEE || '1475196328303792138';
+            const O_ROLE_ID = config.roles.O || '1475314870802055421';
+            const FO_ROLE_ID = config.roles.FO || '1475314865878077603';
+            const SMO_ROLE_ID = config.roles.SMO || '1475314856184778835';
 
             // Ensure target user has the Trainee role before promoting
             if (!member.roles.cache.has(TRAINING_ROLE_ID)) {
@@ -185,7 +186,7 @@ export default {
             }
 
             // Send Milestone embed
-            const milestoneChannelId = process.env.MILESTONES_CHANNEL_ID;
+            const milestoneChannelId = config.channels.MILESTONES;
             if (milestoneChannelId) {
                 try {
                     const mChannel = await interaction.client.channels.fetch(milestoneChannelId).catch(() => null);

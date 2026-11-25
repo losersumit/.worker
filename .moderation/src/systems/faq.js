@@ -8,6 +8,7 @@
 import '../utils/loadEnv.js';
 import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
+import config from "../config/index.js";
 
 let warnedMissingEnv = false;
 let supabase = null;
@@ -21,7 +22,7 @@ function isConfigured() {
 }
 
 function getThreshold() {
-    return Number.parseFloat(process.env.FAQ_SIMILARITY_THRESHOLD || '0.4');
+    return Number.parseFloat(config.faq.similarityThreshold || '0.4');
 }
 
 export function getSupabase() {

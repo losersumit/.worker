@@ -1,7 +1,7 @@
 import { routeAiPrompt } from '../../.moderation/src/ai/promptRouter.js';
 import { EmbedBuilder } from 'discord.js';
 
-import config from '../../.moderation/src/config.js';
+import config from '../../.moderation/src/config/index.js';
 
 const COOLDOWN_MS = 6 * 60 * 60 * 1000;       // 6 hours
 const BONUS_AMOUNT = 20000;

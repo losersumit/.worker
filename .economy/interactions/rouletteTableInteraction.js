@@ -1,5 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags } from 'discord.js';
 import { trackTransaction } from '../utils/economyTracker.js';
+import config from "../../.moderation/src/config/index.js";
 
 // --- Constants ---
 const ROULETTE_IMG = 'https://cdn.discordapp.com/attachments/1464745553559687393/1471034895295053896/vector-realistic-casino-roulette-table-wheel-chips-top-view-isolated-green-background.png?ex=698d7781&is=698c2601&hm=ce262a71c66a2a11c1f85a380943780f979c93e0d1312eb317a9fd2dbdb10f57';
@@ -806,7 +807,7 @@ function sleep(ms) {
 
 // Helper to query table states and build occupant lists
 async function getRouletteTableOccupants(client, guildId) {
-    const channelId = process.env.ROULETTE_CHANNEL_ID;
+    const channelId = config.channels.ROULETTE;
     if (!channelId) return { 1: [], 2: [] };
     try {
         const channel = await client.channels.fetch(channelId);
@@ -831,7 +832,7 @@ async function getRouletteTableOccupants(client, guildId) {
 }
 
 export async function updateRouletteInfoPanel(client, guildId) {
-    const channelId = process.env.ROULETTE_CHANNEL_ID;
+    const channelId = config.channels.ROULETTE;
     if (!channelId) return;
 
     try {

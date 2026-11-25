@@ -3,12 +3,13 @@ import { EmbedBuilder, PermissionsBitField, ButtonBuilder, ButtonStyle, ActionRo
 import { getUserWarnings, resetWarnings, killUser, unkillUser } from '../systems/storage.js';
 import { handleTodoCommand } from './todoCommands.js';
 import { supabase } from '../clients/supabase.js';
+import config from "../config/index.js";
 
-const COMMANDER_ROLE_ID = process.env.COMMANDER_ROLE_ID;
-const PARTNER_ROLE_ID = process.env.PARTNER_ROLE_ID;
-const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
-const VISITOR_ROLE_ID = process.env.VISITOR_ROLE_ID;
-const ENLISTED_ROLE_ID = process.env.ENLISTED_ROLE_ID;
+const COMMANDER_ROLE_ID = config.roles.COMMANDER;
+const PARTNER_ROLE_ID = config.roles.PARTNER;
+const LOG_CHANNEL_ID = config.channels.LOG;
+const VISITOR_ROLE_ID = config.roles.VISITOR;
+const ENLISTED_ROLE_ID = config.roles.ENLISTED;
 
 // Discord max timeout: 28 days in milliseconds
 const MAX_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000;
@@ -442,7 +443,7 @@ async function handleRevive(message, args, client) {
         // If the user is in the server, give them the Visitor role
         let roleMsg = '';
         if (member) {
-            const visitorRoleId = process.env.VISITOR_ROLE_ID || process.env.AUTO_ROLE_ID;
+            const visitorRoleId = config.roles.VISITOR || config.roles.AUTO;
             if (visitorRoleId) {
                 const role = message.guild.roles.cache.get(visitorRoleId);
                 if (role) {
