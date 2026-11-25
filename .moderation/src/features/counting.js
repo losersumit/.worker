@@ -1,12 +1,17 @@
-import { getCountingState, saveCountingState } from "../systems/storage.js";
-import { geminiChatCompletion } from "../clients/gemini.js";
+
+import { routeAiPrompt } from "../ai/promptRouter.js";
+import {
+  getCountingState,
+  saveCountingState,
+} from "../systems/storage.js";
+
 import config from "../config.js";
 
 const COUNTING_RESET_TEXT = "Starting again from 1";
 
-async function askCountingAi(prompt, maxTokens = 60) {
-  return geminiChatCompletion({
-    model: config.ai.visionModel || "gemini-3.1-flash-lite",
+async function askCountingAi(prompt, maxTokens = 10) {
+  return routeAiPrompt({
+    model: config.ai.model || "openai/gpt-oss-120b",
     messages: [{ role: "user", content: prompt }],
     temperature: 0,
     max_tokens: maxTokens,
@@ -24,8 +29,8 @@ Does the user input represent the expected number?
 - Accept riddles or word problems if they clearly resolve to the number.
 - Accept number words (e.g. "five").
 
-If it is complex mathematical expression, solve it using BODMAS rules.
-It can also be higher mathematics (e.g. "e^πi+1" for 0) or integral or derivatives. Simplify them.
+If it is a complex mathematical expression, solve it using BODMAS rules.
+It can also be higher mathematics (e.g. "e^πi+1" for 0) or integrals or derivatives. Simplify them.
 The number can also be related to normal general knowledge.
 
 Reply strictly with "YES" if it evaluates to ${expected}.
@@ -36,9 +41,10 @@ Reply strictly with "NO" if it evaluates to a different number.
     const aiResponse = await askCountingAi(prompt, 60);
     const text =
       aiResponse?.choices?.[0]?.message?.content?.trim() || "";
-    // Check if response contains YES or NO
+
     if (/\bYES\b/i.test(text)) return "YES";
     if (/\bNO\b/i.test(text)) return "NO";
+
     return text.toUpperCase();
   } catch (err) {
     console.error("[Counting] Error in judgeCountingMessage:", err);
@@ -62,9 +68,9 @@ Return strictly one of these formats:
 - an integer like 554 if the message clearly represents exactly one count number
 - INVALID if it looks like a counting attempt but you cannot confidently resolve it to one integer
 
-If it is complex mathematical expression, solve it using BODMAS rules.
-It can also be higher mathematics (e.g. "e^πi+1" for 0). or integral or derivatives. Simplify them.
-The number can also be related to normal general knowlege.
+If it is a complex mathematical expression, solve it using BODMAS rules.
+It can also be higher mathematics (e.g. "e^πi+1" for 0), integrals or derivatives. Simplify them.
+The number can also be related to normal general knowledge.
 Accept mathematical expressions, riddles, and number words when they clearly resolve to one integer.
 `;
 
@@ -89,6 +95,7 @@ export async function recoverCountingState(channel) {
       limit: 100,
       ...(before ? { before } : {}),
     });
+
     if (messages.size === 0) return null;
 
     for (const message of messages.values()) {
@@ -105,6 +112,7 @@ export async function recoverCountingState(channel) {
       }
 
       const extractedCount = await extractCountFromContent(message.content);
+
       if (Number.isInteger(extractedCount)) {
         return {
           currentCount: extractedCount,
@@ -134,41 +142,44 @@ export async function handleCounting(message) {
   // 1. No user can count twice in a row
   if (message.author.id === state.lastUserId) {
     await message.react("❌");
-    // Optional: Delete the message to keep channel clean?
-    // await message.delete();
     await message.reply(
       "You cannot count twice in a row! Wait for someone else.",
     );
     return;
   }
 
-  // 2. Optimization: Check if it's a simple number first to save AI calls
-  // Note: /^[+-]?\d+(?:\.0+)?$/ ensures full string match and avoids parseFloat("1487 words") matching 1487
+  // 2. Check simple numbers first to save AI calls
   const trimmed = message.content.trim();
+
   if (/^[+-]?\d+(?:\.0+)?$/.test(trimmed)) {
     const simpleNum = Number.parseInt(trimmed, 10);
+
     if (simpleNum === expected) {
       await message.react("✅");
+
       await saveCountingState({
         currentCount: expected,
         lastUserId: message.author.id,
       });
+
       return;
     } else {
       await message.react("❌");
       await message.reply(
         `Wrong value! The next number is **${expected}**. Try again!`,
       );
+
       return;
     }
   }
 
-  // 3. AI Evaluation for complex inputs
+  // 3. AI evaluation for complex inputs
   try {
     const answer = await judgeCountingMessage(message.content, expected);
 
     if (answer.includes("YES")) {
       await message.react("✅");
+
       await saveCountingState({
         currentCount: expected,
         lastUserId: message.author.id,
@@ -181,7 +192,5 @@ export async function handleCounting(message) {
     }
   } catch (err) {
     console.error("Error in AI counting:", err);
-    // Fallback: If AI fails, maybe standard check? Or just ignore?
-    // Let's ignore to prevent breaking streak on API error.
   }
 }

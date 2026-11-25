@@ -1,0 +1,36 @@
+name: AI routing validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, "feat/central-ai-router-rag-context"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test prompt analyzer
+        run: node --test .moderation/src/ai/promptAnalyzer.test.js
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          while IFS= read -r file; do
+            node --check "$file"
+          done < <(git ls-files '*.js')
+      - name: Ensure all provider calls pass through the router
+        shell: bash
+        run: |
+          violations=$(grep -R -nE 'geminiChatCompletion\(|groqChatCompletion\(' . --include='*.js' \
+            | grep -vE '^\./\.moderation/src/(clients/(gemini|groq)\.js|ai/promptRouter\.js):' || true)
+          if [ -n "$violations" ]; then
+            echo "Direct provider calls bypass the central prompt router:"
+            echo "$violations"
+            exit 1
+          fi

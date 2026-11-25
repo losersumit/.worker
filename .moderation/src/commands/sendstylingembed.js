@@ -1,5 +1,6 @@
+import { routeAiPrompt } from '../ai/promptRouter.js';
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags, AttachmentBuilder } from 'discord.js';
-import { geminiChatCompletion } from '../clients/gemini.js';
+
 import config from '../config.js';
 import axios from 'axios';
 
@@ -45,7 +46,7 @@ export default {
 
             const imageUrl = imageAttachment.url;
 
-            // 2. Ask Groq Vision for the best matching/dominant color palette for premium HSL aesthetics
+            // 2. Ask Gemini Vision for the best matching/dominant color palette for premium HSL aesthetics
             let embedColor = 0x9B59B6; // Default to elegant purple
             let aiColorChoiceReason = 'Fallback default';
 
@@ -65,7 +66,7 @@ export default {
                 const modelToUse = config.ai.visionModel || config.ai.fallbackVisionModel;
                 console.log(`[SendStylingEmbed] Querying Gemini vision model (${modelToUse}) for aesthetic color...`);
 
-                const completion = await geminiChatCompletion({
+                const completion = await routeAiPrompt({
                     messages: [
                         {
                             role: "user",

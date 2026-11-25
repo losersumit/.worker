@@ -1,8 +1,8 @@
+import { routeAiPrompt } from '../ai/promptRouter.js';
 import schedule from "node-schedule";
 import { EmbedBuilder } from "discord.js";
 import { supabase } from "../clients/supabase.js";
-import { groqChatCompletion } from "../clients/groq.js";
-import { geminiChatCompletion } from "../clients/gemini.js";
+
 import config from "../config.js";
 
 
@@ -91,7 +91,8 @@ function getImageAttachment(message) {
  */
 async function describeImageWithGemini(imageUrl) {
   try {
-    const data = await geminiChatCompletion({
+    const data = await routeAiPrompt({
+      model: config.ai.visionModel || "gemini-3.1-flash-lite",
       messages: [{
         role: "user",
         content: [
@@ -138,8 +139,8 @@ Response requirements:
 - Respond with EXACTLY one emoji name (e.g., "goated" or "sad_cat") or its numeric ID from the list.
 - Do NOT output any other words, punctuation, markdown formatting, or explanations.`;
 
-    const data = await geminiChatCompletion({
-      model: config.ai.visionModel || "gemini-2.0-flash",
+    const data = await routeAiPrompt({
+      model: config.ai.model || "openai/gpt-oss-120b",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
       max_tokens: 20
@@ -371,8 +372,8 @@ ${wordsText}`;
 
     console.log(`[ONE-WORD-STORY] Groq generating story for ${totalWords} entries (${textCount} words, ${imageCount} images)...`);
 
-    const aiResponse = await groqChatCompletion({
-      model: config.ai.model || "llama-3.3-70b-versatile",
+    const aiResponse = await routeAiPrompt({
+      model: config.ai.model || "openai/gpt-oss-120b",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 1000

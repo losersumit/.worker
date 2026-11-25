@@ -1,3 +1,4 @@
+import { routeAiPrompt } from '../ai/promptRouter.js';
 import { Events, EmbedBuilder } from 'discord.js';
 import config from '../config.js';
 import { supabase } from '../clients/supabase.js';
@@ -7,7 +8,6 @@ import { handleEnlistmentApplication, executeApplicationAccept, executeApplicati
 import { handleSlotMachineInteraction } from '../../../.economy/interactions/slotMachineInteraction.js';
 import { handleRouletteTableInteraction } from '../../../.economy/interactions/rouletteTableInteraction.js';
 import { handleTodoPagination } from '../features/todoCommands.js';
-import { geminiChatCompletion } from '../clients/gemini.js';
 
 export default {
     name: Events.InteractionCreate,
@@ -375,8 +375,8 @@ async function handleKnowMoreGun(interaction, client) {
     const gun = interaction.customId.slice('know_more_gun:'.length);
 
     try {
-        const aiResponse = await geminiChatCompletion({
-            model: config.ai.visionModel || 'gemini-2.0-flash',
+        const aiResponse = await routeAiPrompt({
+            model: config.ai.model || 'openai/gpt-oss-120b',
             messages: [
                 {
                     role: 'user',

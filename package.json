@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node runner.js",
-    "dev": "nodemon runner.js"
+    "dev": "nodemon runner.js",
+    "test": "node --test .moderation/src/ai/promptAnalyzer.test.js"
   },
   "author": "Friday | Cortex Realm",
   "license": "MIT",
