@@ -63,9 +63,9 @@ function doesBetWin(betId, resultNum) {
 }
 
 function getColorEmoji(color) {
-    if (color === 'red') return '??';
-    if (color === 'black') return '?';
-    return '??';
+    if (color === 'red') return '🔴';
+    if (color === 'black') return '⚫';
+    return '🟢';
 }
 
 function getBetLabel(betId) {
@@ -194,7 +194,7 @@ function defaultRouletteEmbed(tableId) {
         .setTitle(tableTitle(tableId))
         .setDescription('**Players at table:** None\n\n*No players seated. Press **Sit** to join.*')
         .setImage(ROULETTE_IMG)
-        .setFooter({ text: 'Permanent roulette table ? Player vs House' })
+        .setFooter({ text: 'Permanent roulette table • Player vs House' })
         .setTimestamp(new Date());
 }
 
@@ -233,13 +233,13 @@ function buildTableEmbed(state, tableId) {
 
         let line = `**${p.username}**`;
         if (p.amount > 0) {
-            line += ` ? Bet: ?${p.amount.toLocaleString()}`;
+            line += ` 💰 Bet: €${p.amount.toLocaleString()}`;
             if (p.choice) {
-                line += ` ? ${getBetLabel(p.choice)}`;
+                line += ` ▶ ${getBetLabel(p.choice)}`;
             }
-            line += p.ready ? ' ?' : ' ?';
+            line += p.ready ? ' ✅' : ' ⏳';
         } else {
-            line += ' ? *waiting to place bet*';
+            line += ' ❓ *waiting to place bet*';
         }
         playerLines.push(line);
     }
@@ -255,10 +255,10 @@ function buildTableEmbed(state, tableId) {
         .setDescription(
             `**Players at table:** ${playersAtTable}\n\n` +
             playerLines.join('\n') +
-            `\n\n?? **Game History**\n${historyText}`,
+            `\n\n📖 **Game History**\n${historyText}`,
         )
         .setImage(ROULETTE_IMG)
-        .setFooter({ text: `Up to ${MAX_PLAYERS} players ? Player vs House` })
+        .setFooter({ text: `Up to ${MAX_PLAYERS} players • Player vs House` })
         .setTimestamp(new Date());
 
     return embed;
@@ -490,7 +490,7 @@ async function handleAddBet(interaction, client, tableId) {
     }
 
     waitingForAmount.add(key);
-    await interaction.reply({ content: `Type your **bet amount** below (you have ?${Math.floor(balance).toLocaleString()}):`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: `Type your **bet amount** below (you have €${Math.floor(balance).toLocaleString()}):`, flags: MessageFlags.Ephemeral });
 
     const filter = (m) => m.author.id === userId && m.channel.id === message.channel.id;
     const collector = interaction.channel.createMessageCollector({ filter, time: 30000, max: 1 });
@@ -508,7 +508,7 @@ async function handleAddBet(interaction, client, tableId) {
             return interaction.followUp({ content: 'Invalid amount.', flags: MessageFlags.Ephemeral }).catch(() => {});
         }
         if (freshBalance < amount) {
-            return interaction.followUp({ content: `Insufficient balance! You have ?${Math.floor(freshBalance).toLocaleString()}.`, flags: MessageFlags.Ephemeral }).catch(() => {});
+            return interaction.followUp({ content: `Insufficient balance! You have €${Math.floor(freshBalance).toLocaleString()}.`, flags: MessageFlags.Ephemeral }).catch(() => {});
         }
 
         // Check house can afford potential payout (3x for 12-bets is the max)
@@ -519,7 +519,7 @@ async function handleAddBet(interaction, client, tableId) {
         const maxPayout = amount * 3; // Worst case: 12-bet wins 3x
         const houseBalance = parseFloat(guild.guild_income || 0);
         if (houseBalance < maxPayout) {
-            return interaction.followUp({ content: `The house cannot afford the max potential payout! House balance: ?${Math.floor(houseBalance).toLocaleString()}`, flags: MessageFlags.Ephemeral }).catch(() => {});
+            return interaction.followUp({ content: `The house cannot afford the max potential payout! House balance: €${Math.floor(houseBalance).toLocaleString()}`, flags: MessageFlags.Ephemeral }).catch(() => {});
         }
 
         // Refund previous bet if any
@@ -670,11 +670,11 @@ async function executeTableSpin(client, message, state, tableId) {
     const playerNames = bettingPlayers.map((p) => p.username).join(', ');
     const spinEmbed = new EmbedBuilder()
         .setColor(0xFFFF00)
-        .setTitle(`${tableTitle(tableId)} ? ?? Spinning...`)
+        .setTitle(`${tableTitle(tableId)} 🎡 🔄 Spinning...`)
         .setDescription(
             buildPlayersDescription(state) +
             `\n\n*Spinning the wheel for **${playerNames}**...*` +
-            `\n\n?? **Game History**\n${state.history.length > 0 ? state.history.slice(-MAX_HISTORY_LINES).join('\n') : '*No games played yet.*'}`,
+            `\n\n📖 **Game History**\n${state.history.length > 0 ? state.history.slice(-MAX_HISTORY_LINES).join('\n') : '*No games played yet.*'}`,
         )
         .setImage(SPINNING_GIF)
         .setFooter({ text: 'The wheel is spinning...' })
@@ -714,15 +714,15 @@ async function executeTableSpin(client, message, state, tableId) {
                     updatePromises.push(addCompany(client.supabase, guildId, tax));
                     updatePromises.push(trackTransaction(client, p.player_id, 'tax', tax, 'Roulette Winnings Tax'));
                 }
-                updatePromises.push(trackTransaction(client, p.player_id, 'gamble_win', netProfit - tax, `Won Roulette ? ${resultNum} ${resultColor}`));
+                updatePromises.push(trackTransaction(client, p.player_id, 'gamble_win', netProfit - tax, `Won Roulette • ${resultNum} ${resultColor}`));
 
-                roundHistoryLines.push(`${p.username} | ${resultEmoji} ${resultNum} ${resultColor.toUpperCase()} | ? +?${(netProfit - tax).toLocaleString()} [-?${tax.toLocaleString()} tax]`);
+                roundHistoryLines.push(`${p.username} | ${resultEmoji} ${resultNum} ${resultColor.toUpperCase()} | ✅ +€${(netProfit - tax).toLocaleString()} [-€${tax.toLocaleString()} tax]`);
             } else {
                 // Player loses ? house keeps the bet
                 updatePromises.push(addCompany(client.supabase, guildId, p.amount));
-                updatePromises.push(trackTransaction(client, p.player_id, 'gamble_loss', p.amount, `Lost Roulette ? ${resultNum} ${resultColor}`));
+                updatePromises.push(trackTransaction(client, p.player_id, 'gamble_loss', p.amount, `Lost Roulette • ${resultNum} ${resultColor}`));
 
-                roundHistoryLines.push(`${p.username} | ${resultEmoji} ${resultNum} ${resultColor.toUpperCase()} | ? -?${p.amount.toLocaleString()}`);
+                roundHistoryLines.push(`${p.username} | ${resultEmoji} ${resultNum} ${resultColor.toUpperCase()} | ❌ -€${p.amount.toLocaleString()}`);
             }
         }
 
@@ -789,11 +789,11 @@ function buildPlayersDescription(state) {
     for (const [userId, p] of state.players) {
         let line = `**${p.username}**`;
         if (p.amount > 0) {
-            line += ` ? Bet: ?${p.amount.toLocaleString()}`;
-            if (p.choice) line += ` ? ${getBetLabel(p.choice)}`;
-            line += p.ready ? ' ?' : ' ?';
+            line += ` 💰 Bet: €${p.amount.toLocaleString()}`;
+            if (p.choice) line += ` ▶ ${getBetLabel(p.choice)}`;
+            line += p.ready ? ' ✅' : ' ⏳';
         } else {
-            line += ' ? *waiting to place bet*';
+            line += ' ❓ *waiting to place bet*';
         }
         playerLines.push(line);
     }

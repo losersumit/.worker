@@ -75,13 +75,13 @@ function createDefaultSlotEmbed(machineId) {
 
 ${EMOJI_SEVEN} | ${EMOJI_SEVEN} | ${EMOJI_SEVEN}
 
-? **This Session**
+✨ **This Session**
 Spins: 0  
-Won: ?0  
-Lost: ?0  
-Net: ?0
+Won: €0  
+Lost: €0  
+Net: €0
 
-Bet: ?${BET} | Status: Free | ` 
+Bet: €${BET} | Status: Free | ` 
         )
         .setTimestamp(new Date());
 }
@@ -109,7 +109,7 @@ function calculateSessionStats(historyLines) {
             totalWon += Number(winMatch[1].replace(/,/g, ''));
         }
 
-        if (line.includes(`-${'?'}${BET}`)) {
+        if (line.includes(`-${'€'}${BET}`)) {
             totalLost += BET;
         }
     }
@@ -171,7 +171,7 @@ function addHistoryAndSessionFields(embed, historyLines) {
     embed.addFields(...safeHistoryFields);
     embed.addFields({
         name: `${EMOJI_BONUS} This Session`,
-        value: `Spins: **${stats.paidSpins}**\nWon: **?${stats.totalWon.toLocaleString()}**\nLost: **?${stats.totalLost.toLocaleString()}**\nNet: **?${stats.net >= 0 ? '+' : ''}${stats.net.toLocaleString()}** ${stats.net >= 0 ? '??' : '??'}`,
+        value: `Spins: **${stats.paidSpins}**\nWon: **€${stats.totalWon.toLocaleString()}**\nLost: **€${stats.totalLost.toLocaleString()}**\nNet: **€${stats.net >= 0 ? '+' : ''}${stats.net.toLocaleString()}** ${stats.net >= 0 ? '🟢' : '🔴'}`,
         inline: false
     });
 }
@@ -244,7 +244,7 @@ async function runPermanentSpinAnimation(interaction, message, machineId, curren
             .setColor(color)
             .setTitle(title)
             .setDescription(`*Machine currently occupied by:* <@${currentOccupier}>\n\n>>> ## ${spinText}\n*Spinning the reels...*`)
-            .setFooter({ text: isFree ? 'Bonus Round - No bet deducted | Status: In use' : `Bet: ?${BET} | Status: In use` })
+            .setFooter({ text: isFree ? 'Bonus Round - No bet deducted | Status: In use' : `Bet: €${BET} | Status: In use` })
             .setTimestamp(new Date());
 
         addHistoryAndSessionFields(embed, historyLines);
@@ -275,16 +275,16 @@ async function runPermanentSpinAnimation(interaction, message, machineId, curren
             resultLine = `\n${EMOJI_PARTY} BONUS! Triple ${getEmoji(result.matchSymbol)} - 5 FREE SPINS UNLOCKED!`;
             break;
         case 'triple':
-            historyLine = `${prefix} | ${reelStr} | ${EMOJI_TROPHY} +?${result.payout.toLocaleString()}`;
-            resultLine = `\n${EMOJI_TROPHY} JACKPOT! Triple ${getEmoji(result.matchSymbol)} - Won ?${result.payout.toLocaleString()}!`;
+            historyLine = `${prefix} | ${reelStr} | ${EMOJI_TROPHY} +€${result.payout.toLocaleString()}`;
+            resultLine = `\n${EMOJI_TROPHY} JACKPOT! Triple ${getEmoji(result.matchSymbol)} - Won €${result.payout.toLocaleString()}!`;
             break;
         case 'double':
-            historyLine = `${prefix} | ${reelStr} | ${EMOJI_CHECK} +?${result.payout.toLocaleString()}`;
-            resultLine = `\n${EMOJI_CHECK} Double ${getEmoji(result.matchSymbol)} - Won ?${result.payout.toLocaleString()}!`;
+            historyLine = `${prefix} | ${reelStr} | ${EMOJI_CHECK} +€${result.payout.toLocaleString()}`;
+            resultLine = `\n${EMOJI_CHECK} Double ${getEmoji(result.matchSymbol)} - Won €${result.payout.toLocaleString()}!`;
             break;
         default:
-            historyLine = `${prefix} | ${reelStr} | ${EMOJI_CROSS} -?${BET}`;
-            resultLine = `\n${EMOJI_CROSS} No match - Lost ?${BET}`;
+            historyLine = `${prefix} | ${reelStr} | ${EMOJI_CROSS} -€${BET}`;
+            resultLine = `\n${EMOJI_CROSS} No match - Lost €${BET}`;
             break;
     }
 
@@ -292,14 +292,14 @@ async function runPermanentSpinAnimation(interaction, message, machineId, curren
         historyLine = result.type === 'loss' ? `${prefix} | ${reelStr} | ${EMOJI_FREE} FREE` : historyLine;
         resultLine = result.type === 'loss'
             ? `\n${EMOJI_FREE} Free Spin - No loss!`
-            : `\n${EMOJI_FREE} Free Spin - Won ?${result.payout.toLocaleString()}!`;
+            : `\n${EMOJI_FREE} Free Spin - Won €${result.payout.toLocaleString()}!`;
     }
 
     const finalEmbed = new EmbedBuilder()
         .setColor(color)
         .setTitle(title)
         .setDescription(`*Machine currently occupied by:* <@${currentOccupier}>\n\n>>> ## ${getEmoji(r1)}  |  ${getEmoji(r2)}  |  ${getEmoji(r3)}\n${resultLine}`)
-        .setFooter({ text: isFree ? 'Bonus Round - No bet deducted | Status: In use' : `Bet: ?${BET} | Status: In use` })
+        .setFooter({ text: isFree ? 'Bonus Round - No bet deducted | Status: In use' : `Bet: €${BET} | Status: In use` })
         .setTimestamp(new Date());
 
     const updatedHistoryLines = [...historyLines, historyLine];
@@ -352,10 +352,10 @@ async function runPermanentBonusRound(interaction, message, machineId, playerId,
         .setDescription(
             `*Machine currently occupied by:* <@${currentOccupier}>\n\n` +
             (totalBonusWin > 0
-                ? `**${EMOJI_FREE} Bonus Round Complete!**\nYou won **?${totalBonusWin.toLocaleString()}** from 5 free spins!\n\nPress **Spin** to play again or **Leave** to free the machine.`
+                ? `**${EMOJI_FREE} Bonus Round Complete!**\nYou won **€${totalBonusWin.toLocaleString()}** from 5 free spins!\n\nPress **Spin** to play again or **Leave** to free the machine.`
                 : `**${EMOJI_FREE} Bonus Round Complete!**\nNo wins from the bonus round.\n\nPress **Spin** to play again or **Leave** to free the machine.`)
         )
-        .setFooter({ text: `Bet: ?${BET} | Status: In use` })
+        .setFooter({ text: `Bet: €${BET} | Status: In use` })
         .setTimestamp(new Date());
 
     addHistoryAndSessionFields(summaryEmbed, historyLines);
@@ -644,7 +644,7 @@ export async function handleSlotMachineInteraction(interaction, client) {
     const { data: stats } = await client.supabase.from('player_stats').select('wallet').eq('player_id', player.id).single();
     if (stats.wallet < BET) {
         return interaction.followUp({
-            content: `Insufficient balance. You need **?${BET}**. Your balance: **?${Math.floor(stats.wallet).toLocaleString()}**`,
+            content: `Insufficient balance. You need **€${BET}**. Your balance: **€${Math.floor(stats.wallet).toLocaleString()}**`,
             ephemeral: true
         });
     }
@@ -652,7 +652,7 @@ export async function handleSlotMachineInteraction(interaction, client) {
     const { data: guild } = await client.supabase.from('approved_guilds').select('guild_income').eq('guild_id', message.guildId).single();
     if (parseFloat(guild?.guild_income || 0) < MIN_GUILD_INCOME) {
         return interaction.followUp({
-            content: `The guild treasury needs at least **?${MIN_GUILD_INCOME.toLocaleString()}** to run the slots.`,
+            content: `The guild treasury needs at least **€${MIN_GUILD_INCOME.toLocaleString()}** to run the slots.`,
             ephemeral: true
         });
     }

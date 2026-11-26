@@ -78,17 +78,30 @@ async function rebuildRegistryEmbed(webhookUrl, messageId, sortedMembers) {
     try {
         const webhook = new WebhookClient({ url: webhookUrl });
 
-        let headerText = '# Active Personnel';
-        if (messageId === config.channels.EMBEDS.RP) {
-            headerText = '# Reserved Personnel';
-        }
+        const isReserved = messageId === config.channels.EMBEDS.RP;
+        const headerText = isReserved
+            ? `# 🟡 Reserved Personnel\n-# National Mobility Command • ${sortedMembers.length} reserved member(s)`
+            : `# 🟢 Active Personnel\n-# National Mobility Command • ${sortedMembers.length} active member(s)`;
+        const accentColor = isReserved ? 0xF39C12 : 0x2ECC71;
+        const footerText = isReserved
+            ? '-# Inactive > 7 days • Post a valid job log to return to Active'
+            : '-# Updated automatically • Post a job log to stay active';
 
         const entryLines = sortedMembers.map(item => `<@${item.member.id}> — \`${item.regNumber}\``);
         const textContent = entryLines.length > 0 ? entryLines.join('\n') : '*No personnel currently.*';
 
         const updatedComponents = [
-            { type: 17, components: [{ type: 10, content: headerText }] },
-            { type: 17, components: [{ type: 10, content: textContent }], accent_color: 10181046 }
+            {
+                type: 17,
+                accent_color: accentColor,
+                components: [
+                    { type: 10, content: headerText },
+                    { type: 14, divider: true, spacing: 1 },
+                    { type: 10, content: textContent },
+                    { type: 14, divider: true, spacing: 1 },
+                    { type: 10, content: footerText }
+                ]
+            }
         ];
 
         await webhook.editMessage(messageId, { components: updatedComponents, flags: 32768 });
@@ -113,12 +126,21 @@ async function rebuildRtdEmbed(webhookUrl, messageId, sortedMembers) {
 
         const entryLines = sortedMembers.map(item => `<@${item.member.id}>`);
         const listContent = entryLines.length > 0
-            ? `-# [RTD.] \n${entryLines.join('\n')}`
-            : '-# [RTD.] \n*No retired personnel.*';
+            ? entryLines.join('\n')
+            : '*No retired personnel.*';
 
         const updatedComponents = [
-            { type: 17, components: [{ type: 10, content: '# Retired Personnels' }] },
-            { type: 17, components: [{ type: 10, content: listContent }], accent_color: 10181046 }
+            {
+                type: 17,
+                accent_color: 0x9B59B6,
+                components: [
+                    { type: 10, content: `# 🎖️ Retired Personnel\n-# National Mobility Command • ${sortedMembers.length} retired member(s)` },
+                    { type: 14, divider: true, spacing: 1 },
+                    { type: 10, content: listContent },
+                    { type: 14, divider: true, spacing: 1 },
+                    { type: 10, content: '-# [RTD.] • Honored former drivers of NMC' }
+                ]
+            }
         ];
 
         await webhook.editMessage(messageId, { components: updatedComponents, flags: 32768 });

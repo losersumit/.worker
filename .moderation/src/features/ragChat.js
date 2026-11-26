@@ -715,9 +715,11 @@ export async function handleRagChat(message, client) {
     if (!client.supabase) return;
 
     // Check if channel is ignored for chat
-    const ignoredChannels = config.channels.CHAT_IGNORED
-        ? config.channels.CHAT_IGNORED.split(',').map(id => id.trim())
-        : [];
+    // CHAT_IGNORED is an array in channels.js — handle both array and legacy comma-string
+    const rawIgnored = config.channels.CHAT_IGNORED;
+    const ignoredChannels = Array.isArray(rawIgnored)
+        ? rawIgnored
+        : (rawIgnored ? String(rawIgnored).split(',').map(id => id.trim()) : []);
 
     if (ignoredChannels.includes(message.channel.id)) {
         return; // Completely ignore tracking and chatting in this channel

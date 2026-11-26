@@ -140,14 +140,19 @@ Response requirements:
 - Do NOT output any other words, punctuation, markdown formatting, or explanations.`;
 
     const data = await routeAiPrompt({
+      sourceFeature: "one-word-story-emoji",
       model: config.ai.model || "openai/gpt-oss-120b",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
-      max_tokens: 20
+      max_tokens: 500
     });
 
     const rawResponse = data?.choices?.[0]?.message?.content?.trim() || "";
-    const response = rawResponse.toLowerCase();
+    if (!rawResponse) {
+      console.warn(`[ONE-WORD-STORY] AI returned empty emoji response for content: "${content}". Full data: ${JSON.stringify(data?.choices?.[0] ?? data)}`);
+    }
+    // Strip markdown/quotes the model may have wrapped the name in
+    const response = rawResponse.toLowerCase().replace(/^[`"'\s]+|[`"'\s]+$/g, "");
 
     // 1. Exact name match
     let emojiId = null;
